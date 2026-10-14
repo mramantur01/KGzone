@@ -756,15 +756,29 @@ app.post('/api/ai/consultant', async (req: Request, res: Response) => {
       parts: [{ text: message }],
     });
 
-    // Generate response using modern gemini-3.8-flash model
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      },
-    });
+    // Try the primary model, then fall back to the stable aliases when Gemini is overloaded
+    const models = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-flash-lite-latest'];
+    let response;
+    let lastError: any;
+    for (const model of models) {
+      try {
+        response = await ai.models.generateContent({
+          model,
+          contents,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+          },
+        });
+        break;
+      } catch (err: any) {
+        lastError = err;
+        // Only overload / rate-limit / unknown-model errors are worth trying another model for
+        if (![429, 500, 503, 404].includes(err?.status)) throw err;
+        console.warn(`[Gemini] ${model} failed with ${err?.status}, trying next model`);
+      }
+    }
+    if (!response) throw lastError;
 
     const replyText = response.text || 'Извините, не удалось сформировать ответ. Попробуйте еще раз.';
 
