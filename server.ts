@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
-import { neon } from '@neondatabase/serverless';
+import { Redis } from '@upstash/redis';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,52 +13,45 @@ const __dirname = path.dirname(__filename);
 // DATABASE
 // ==========================================
 
-// Postgres-backed record store (Neon via Vercel Marketplace).
-// Every collection lives in one table as JSONB documents.
-// Without DATABASE_URL it falls back to in-memory arrays (local dev / demo).
+// Redis-backed record store (Upstash via Vercel Marketplace).
+// Each collection is a hash (id -> JSON document) plus a sorted set that keeps
+// newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
 type Collection = 'orders' | 'bookings' | 'reviews';
 
-const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-const sql = databaseUrl ? neon(databaseUrl) : null;
+const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null;
 
-const isDatabaseConnected = Boolean(sql);
+const isDatabaseConnected = Boolean(redis);
 
 const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [] };
 let readyPromise: Promise<void> | null = null;
 
-// Creates the table and seeds each empty collection once.
+const dataKey = (c: Collection) => `kgzone:${c}`;
+const orderKey = (c: Collection) => `kgzone:${c}:order`;
+
+// Seeds each collection once (guarded by a SET NX flag so parallel cold starts don't double-seed).
 function initStore(seed: Record<Collection, any[]>): Promise<void> {
   if (readyPromise) return readyPromise;
 
   readyPromise = (async () => {
-    if (!sql) {
+    if (!redis) {
       for (const c of Object.keys(seed) as Collection[]) memory[c] = [...seed[c]];
       return;
     }
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS records (
-        collection TEXT NOT NULL,
-        id TEXT NOT NULL,
-        data JSONB NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        PRIMARY KEY (collection, id)
-      )
-    `;
-
     for (const c of Object.keys(seed) as Collection[]) {
-      const [{ count }] = await sql`SELECT count(*)::int AS count FROM records WHERE collection = ${c}`;
-      if (count > 0) continue;
-      // Seed arrays are newest-first; offset timestamps to keep that order.
+      const claimed = await redis.set(`kgzone:${c}:seeded`, '1', { nx: true });
+      if (!claimed || seed[c].length === 0) continue;
+      // Seed arrays are newest-first; offset scores to keep that order.
       const now = Date.now();
-      for (const [i, item] of seed[c].entries()) {
-        await sql`
-          INSERT INTO records (collection, id, data, created_at)
-          VALUES (${c}, ${item.id}, ${JSON.stringify(item)}::jsonb, ${new Date(now - i * 1000).toISOString()})
-          ON CONFLICT DO NOTHING
-        `;
-      }
+      const p = redis.pipeline();
+      seed[c].forEach((item, i) => {
+        p.hset(dataKey(c), { [item.id]: item });
+        p.zadd(orderKey(c), { score: now - i * 1000, member: item.id });
+      });
+      await p.exec();
     }
   })().catch((err) => {
     readyPromise = null;
@@ -69,39 +62,43 @@ function initStore(seed: Record<Collection, any[]>): Promise<void> {
 }
 
 async function listRecords<T = any>(c: Collection): Promise<T[]> {
-  if (!sql) return memory[c];
-  const rows = await sql`SELECT data FROM records WHERE collection = ${c} ORDER BY created_at DESC`;
-  return rows.map((r) => r.data as T);
+  if (!redis) return memory[c];
+  const ids = await redis.zrange<string[]>(orderKey(c), 0, -1, { rev: true });
+  if (ids.length === 0) return [];
+  const docs = await redis.hmget<Record<string, T>>(dataKey(c), ...ids);
+  return ids.map((id) => docs?.[id]).filter(Boolean) as T[];
 }
 
 async function insertRecord<T extends { id: string }>(c: Collection, item: T): Promise<T> {
-  if (!sql) {
+  if (!redis) {
     memory[c].unshift(item);
     return item;
   }
-  await sql`INSERT INTO records (collection, id, data) VALUES (${c}, ${item.id}, ${JSON.stringify(item)}::jsonb)`;
+  await redis
+    .pipeline()
+    .hset(dataKey(c), { [item.id]: item })
+    .zadd(orderKey(c), { score: Date.now(), member: item.id })
+    .exec();
   return item;
 }
 
 async function updateRecord<T = any>(c: Collection, id: string, patch: Partial<T>): Promise<T | null> {
-  if (!sql) {
+  if (!redis) {
     const item = memory[c].find((r) => r.id === id);
     if (!item) return null;
     Object.assign(item, patch);
     return item;
   }
-  const rows = await sql`
-    UPDATE records SET data = data || ${JSON.stringify(patch)}::jsonb
-    WHERE collection = ${c} AND id = ${id}
-    RETURNING data
-  `;
-  return rows.length ? (rows[0].data as T) : null;
+  const current = await redis.hget<T>(dataKey(c), id);
+  if (!current) return null;
+  const updated = { ...current, ...patch };
+  await redis.hset(dataKey(c), { [id]: updated });
+  return updated;
 }
 
 async function countRecords(c: Collection): Promise<number> {
-  if (!sql) return memory[c].length;
-  const [{ count }] = await sql`SELECT count(*)::int AS count FROM records WHERE collection = ${c}`;
-  return count;
+  if (!redis) return memory[c].length;
+  return redis.zcard(orderKey(c));
 }
 
 // Initialize Gemini client on server side
@@ -278,7 +275,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
     app: 'KGzone Auto Portal API',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-    database: isDatabaseConnected ? 'postgres' : 'in-memory',
+    database: isDatabaseConnected ? 'redis' : 'in-memory',
   });
 });
 
