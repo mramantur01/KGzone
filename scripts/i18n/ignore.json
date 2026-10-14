@@ -1,0 +1,13 @@
+[
+  "ID,Дата,Тип,Пользователь,Сумма KGS,Статус,Филиал",
+  "BK-9401,Сегодня 16:42,СТО Диагностика,Амантур Беков,800,Подтверждено,Центральный СТО",
+  "BK-9402,Сегодня 15:20,3D Развал,Бекзат Омурбеков,1200,В работе,Кудайберген бокс 44",
+  "ORD-7731,Сегодня 14:10,Запчасти Brembo,Канат Сулайманов,2800,Выполнен,Самовывоз",
+  "ORD-7734,Вчера 16:45,Масло Mobil 5W-30,Адилет Эркинов,3400,Готов к выдаче,Доставка Бишкек",
+  "<?xml version=\"1.0\"?> <?mso-application progid=\"Excel.Sheet\"?> <Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\" xmlns:ss=\"urn:schemas-microsoft-com:office:spreadsheet\"> <Worksheet ss:Name=\"Отчет KGzone\"> <Table> <Row> <Cell><Data ss:Type=\"String\">Номер Заказа</Data></Cell> <Cell><Data ss:Type=\"String\">Клиент</Data></Cell> <Cell><Data ss:Type=\"String\">Услуга / Товар</Data></Cell> <Cell><Data ss:Type=\"String\">Сумма (KGS)</Data></Cell> <Cell><Data ss:Type=\"String\">Статус</Data></Cell> </Row> <Row> <Cell><Data ss:Type=\"String\">BK-9401</Data></Cell> <Cell><Data ss:Type=\"String\">Амантур Беков</Data></Cell> <Cell><Data ss:Type=\"String\">СТО Компьютерная диагностика</Data></Cell> <Cell><Data ss:Type=\"Number\">800</Data></Cell> <Cell><Data ss:Type=\"String\">Подтверждено</Data></Cell> </Row> <Row> <Cell><Data ss:Type=\"String\">BK-9402</Data></Cell> <Cell><Data ss:Type=\"String\">Бекзат Омурбеков</Data></Cell> <Cell><Data ss:Type=\"String\">3D Развал-схождение Hunter</Data></Cell> <Cell><Data ss:Type=\"Number\">1200</Data></Cell> <Cell><Data ss:Type=\"String\">В работе</Data></Cell> </Row> </Table> </Worksheet> </Workbook>",
+  "ID,Марка,Модель,Год,Цена USD,Город,Госномер,Статус",
+  "{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"Активно\"",
+  "<?xml version=\"1.0\"?> <Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\"> <Worksheet ss:Name=\"Автомобили\"> <Table> <Row> <Cell><Data ss:Type=\"String\">Марка и Модель</Data></Cell> <Cell><Data ss:Type=\"String\">Год</Data></Cell> <Cell><Data ss:Type=\"String\">Цена ($)</Data></Cell> <Cell><Data ss:Type=\"String\">Госномер</Data></Cell> <Cell><Data ss:Type=\"String\">Город</Data></Cell> </Row> {} </Table> </Worksheet> </Workbook>",
+  "https://wa.me/996555777999?text=Здравствуйте!%20Хочу%20обратиться%20в%20поддержку%20KGzone",
+  "https://wa.me/996555777999?text=Здравствуйте!%20Хочу%20проконсультироваться%20по%20порталу%20KGzone"
+]
