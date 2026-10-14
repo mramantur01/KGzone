@@ -14,7 +14,7 @@ import { PartSellerPortalModal } from '../modals/PartSellerPortalModal';
 import { AllBrandsModal } from '../common/AllBrandsModal';
 import { PartsSliderBanner } from './PartsSliderBanner';
 import { AdBannerSlot } from '../common/AdBannerSlot';
-import { PARTS_SIDEBAR_ADS } from '../../data/adBanners';
+import { PARTS_SIDEBAR_ADS, PARTS_SIDEBAR_BOXES, PARTS_SIDEBAR_BOTTOM_ADS } from '../../data/adBanners';
 import {
   Search,
   MapPin,
@@ -516,7 +516,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   };
 
   return (
-    <div className="bg-neutral-950 text-white min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="bg-neutral-950 text-white min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative overflow-clip">
       
       {/* Background Kyrgyz Ornaments (Tunduk & Kochkor Muyuz) */}
       <div className="absolute top-10 right-10 opacity-4 pointer-events-none text-red-500">
@@ -861,9 +861,16 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
         {/* 5. MAIN CONTENT LAYOUT: SIDEBAR WITH POPULAR MAKES + LISTINGS */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
           
-          {/* SIDEBAR: rotating advertising slot (see src/data/adBanners.ts) */}
-          <div className="hidden lg:block lg:col-span-3">
-            <AdBannerSlot banners={PARTS_SIDEBAR_ADS} className="sticky top-24" />
+          {/* SIDEBAR: advertising slots (see src/data/adBanners.ts). The column stretches to the
+              catalog's height; the last slot sticks to the screen in the remaining space. */}
+          <div className="hidden lg:flex lg:col-span-3 flex-col gap-4">
+            <AdBannerSlot banners={PARTS_SIDEBAR_ADS} />
+            {PARTS_SIDEBAR_BOXES.map((slot, i) => (
+              <AdBannerSlot key={i} banners={slot} variant="box" intervalMs={7000 + i * 1500} />
+            ))}
+            <div className="flex-1">
+              <AdBannerSlot banners={PARTS_SIDEBAR_BOTTOM_ADS} className="sticky top-24" />
+            </div>
           </div>
 
           {/* LISTINGS CONTAINER (9 cols on desktop) */}
