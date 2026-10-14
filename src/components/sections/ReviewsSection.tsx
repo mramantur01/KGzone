@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AUTO_REVIEWS } from '../../data/mockData';
 import { INITIAL_USER_REVIEWS } from '../../data/workshopData';
 import { Language, UserReview } from '../../types/car';
@@ -29,6 +29,25 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
 
   const isKg = language === 'kg';
   const isEn = language === 'en';
+
+  // Load saved reviews from the database; keep built-in demo reviews the DB doesn't have
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/reviews')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.success || !Array.isArray(data.reviews)) return;
+        const saved: UserReview[] = data.reviews;
+        const savedIds = new Set(saved.map((r) => r.id));
+        setReviewsList([...saved, ...INITIAL_USER_REVIEWS.filter((r) => !savedIds.has(r.id))]);
+      })
+      .catch(() => {
+        // Offline: keep the built-in reviews
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleToggleLike = (id: string) => {
     if (likedReviews.includes(id)) {
@@ -67,17 +86,20 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
       likes: 1,
     };
 
+    let savedRev = newRev;
     try {
-      await fetch('/api/reviews', {
+      const res = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRev),
       });
+      const data = await res.json();
+      if (data?.success && data.review) savedRev = { ...newRev, ...data.review };
     } catch {
       // Local fallback
     }
 
-    setReviewsList([newRev, ...reviewsList]);
+    setReviewsList((prev) => [savedRev, ...prev]);
     setIsSubmitting(false);
     setIsAddReviewOpen(false);
     setAuthorName('');

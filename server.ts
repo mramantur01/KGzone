@@ -129,6 +129,20 @@ app.use('/api', (_req: Request, res: Response, next) => {
     });
 });
 
+// Customer names and phones are only readable with the ADMIN_TOKEN env var
+// (sent as "Authorization: Bearer <token>" or "x-admin-token"). Without it set, access is denied.
+const isAdmin = (req: Request) => {
+  const token = process.env.ADMIN_TOKEN;
+  if (!token) return false;
+  const header = req.get('x-admin-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
+  return header === token;
+};
+
+const requireAdmin = (req: Request, res: Response, next: () => void) => {
+  if (isAdmin(req)) return next();
+  res.status(401).json({ success: false, error: 'Требуется доступ администратора' });
+};
+
 // Express 4 does not catch rejected promises from async handlers
 const asyncRoute =
   (handler: (req: Request, res: Response) => Promise<unknown>) =>
@@ -280,7 +294,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 });
 
 // Orders API
-app.get('/api/orders', asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/orders', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
   res.json({
     success: true,
     orders: await listRecords<OrderRecord>('orders'),
@@ -336,7 +350,7 @@ app.post('/api/orders', asyncRoute(async (req: Request, res: Response) => {
 }));
 
 // Update order status
-app.patch('/api/orders/:id/status', asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/orders/:id/status', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { status } = req.body;
 
@@ -502,7 +516,7 @@ const seedBookings: any[] = [
   },
 ];
 
-app.get('/api/workshop/bookings', asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/workshop/bookings', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, bookings: await listRecords('bookings') });
 }));
 
@@ -671,7 +685,7 @@ app.get('/api/admin/analytics', asyncRoute(async (_req: Request, res: Response) 
 }));
 
 // Admin database backup generation
-app.post('/api/admin/backup', asyncRoute(async (_req: Request, res: Response) => {
+app.post('/api/admin/backup', asyncRoute(async (req: Request, res: Response) => {
   const [orders, bookings, reviews] = await Promise.all([
     listRecords('orders'),
     listRecords('bookings'),
@@ -685,9 +699,8 @@ app.post('/api/admin/backup', asyncRoute(async (_req: Request, res: Response) =>
       ordersCount: orders.length,
       bookingsCount: bookings.length,
       reviewsCount: reviews.length,
-      orders,
-      bookings,
-      reviews,
+      // Full records contain customer phones — only include them for an admin
+      ...(isAdmin(req) ? { orders, bookings, reviews } : {}),
     },
     checksumSha256: 'a94f82c3e1b7d5982e0fa9983141f' + Date.now(),
   };

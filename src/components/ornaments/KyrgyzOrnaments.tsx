@@ -141,7 +141,6 @@ export const ShyrdakRibbon: React.FC<{
       <svg
         className="w-full h-full"
         viewBox="0 0 1200 24"
-        preserveAspectRatio="repeat-x"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
