@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { POPULAR_BRANDS, ALL_CAR_BRANDS, getModelsForBrand, KYRGYZ_REGIONS_AND_CITIES } from '../../data/mockData';
+import { ALL_CAR_BRANDS, getModelsForBrand, KYRGYZ_REGIONS_AND_CITIES } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { Currency, Language } from '../../types/car';
 import {
@@ -8,7 +8,6 @@ import {
   ShieldCheck,
   Calculator,
   Wrench,
-  Grid,
   ChevronDown,
   ChevronUp,
   MapPin,
@@ -20,7 +19,6 @@ import {
   Zap,
   Flame,
   Check,
-  Car as CarIcon,
 } from 'lucide-react';
 import { AllBrandsModal } from '../common/AllBrandsModal';
 
@@ -299,43 +297,6 @@ export const HeroFilter: React.FC<HeroFilterProps> = ({
             </div>
           </div>
 
-          {/* 
-            3. POPULAR BRANDS QUICK BAR
-            Clickable brand badges for 1-click filtering
-          */}
-          <div className="mt-4 pt-3 border-t border-slate-700/80 flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">
-              <CarIcon size={12} className="text-red-500" />
-              <span>Популярные:</span>
-            </span>
-
-            {POPULAR_BRANDS.slice(0, 12).map((brand) => {
-              const isSelected = filters.brand === brand;
-              return (
-                <button
-                  key={brand}
-                  type="button"
-                  onClick={() => handleBrandChange(brand)}
-                  className={`px-2.5 py-1 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#C8102E] text-white shadow-md ring-1 ring-white/30'
-                      : 'bg-slate-900/90 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                  }`}
-                >
-                  {brand}
-                </button>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={() => setIsAllBrandsModalOpen(true)}
-              className="px-2.5 py-1 text-xs rounded-lg font-bold bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 flex items-center gap-1 cursor-pointer"
-            >
-              <Grid size={12} />
-              <span>Все марки ({ALL_CAR_BRANDS.length})</span>
-            </button>
-          </div>
 
           {/* 
             4. ADVANCED FILTERS DRAWER TOGGLE
