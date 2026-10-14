@@ -74,6 +74,11 @@ export default function App() {
     }
   }, [darkMode]);
 
+  // Keep <html lang> in sync with the site language (ISO code for Kyrgyz is "ky")
+  React.useEffect(() => {
+    document.documentElement.lang = language === 'kg' ? 'ky' : language;
+  }, [language]);
+
   // Состояния личного кабинета (Покупатель & Продавец)
   const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
   const [buyerOrders, setBuyerOrders] = useState<BuyerOrder[]>(INITIAL_BUYER_ORDERS);
