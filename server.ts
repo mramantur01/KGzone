@@ -843,8 +843,10 @@ async function startServer() {
         res.status(404).end();
       });
       app.get('*', (_req: Request, res: Response) => {
-        res.setHeader('Cache-Control', 'no-cache');
-        res.sendFile(path.resolve(distPath, 'index.html'));
+        // No ETag/Last-Modified: on Vercel every build has the same file mtime, and index.html
+        // often keeps the same size, so the browser would get 304 and keep a stale page.
+        res.setHeader('Cache-Control', 'no-store');
+        res.sendFile(path.resolve(distPath, 'index.html'), { etag: false, lastModified: false });
       });
     }
   }
