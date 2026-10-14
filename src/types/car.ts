@@ -108,6 +108,8 @@ export interface AutoPartItem {
   sellerWhatsapp?: string;
   image: string;
   images?: string[];
+  /** Required for photos under CC BY / CC BY-SA licenses */
+  photoCredit?: { author: string; license: string; url: string };
   videoUrl?: string;
   videoTitle?: string;
   hasCompressionVideo?: boolean;

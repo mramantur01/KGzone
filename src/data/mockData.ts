@@ -3126,10 +3126,10 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 14,
     description: 'Оригинальная фара Toyota Koito. Все крепления целые, стекло без микротрещин, блок розжига в комплекте.',
-    image: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-01.jpg',
     images: [
-      'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=800&q=80',
+      '/parts/wm-01.jpg',
+      'https://images.unsplash.com/photo-1631856507219-d1f3465b4884?auto=format&fit=crop&w=1200&q=80',
     ],
     compatibility: [
       { brand: 'Toyota', model: 'Camry', bodyCode: 'XV70', years: '2018-2023', engine: '2.5L / 3.5L' },
@@ -3164,7 +3164,12 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 30,
     description: 'Японские керамические колодки Advics / Toyota genuine. Без скрипа и пыли, не перегревают тормозной диск.',
-    image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-02.jpg',
+    images: [
+      '/parts/wm-02.jpg',
+      'https://images.unsplash.com/photo-1760317890322-364a810cd4da?auto=format&fit=crop&w=1200&q=80',
+    ],
+    photoCredit: { author: 'A7N8X', license: 'CC BY-SA 3.0', url: 'https://commons.wikimedia.org/wiki/File:Brake_pads_fitted_with_spring_anchor.jpg' },
     compatibility: [
       { brand: 'Toyota', model: 'Camry', bodyCode: 'ACV40, ASV50', years: '2006-2018', engine: '2.4L / 2.5L' },
       { brand: 'Toyota', model: 'RAV4', bodyCode: 'ACA30, ASA44', years: '2006-2019', engine: '2.0L / 2.5L' },
@@ -3202,10 +3207,9 @@ export const AUTO_PARTS: AutoPartItem[] = [
     compressionBar: 12.9,
     videoTitle: 'Замер компрессии цилиндров 2AR-FE: 12.8 - 13.0 bar',
     description: 'Двигатель без пробега по СНГ, снят с распила в Японии с пробегом 48 000 км. ГТД и таможенные документы на номер двигателя имеются. Даем 30 дней на проверку.',
-    image: 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-03.jpg',
     images: [
-      'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=800&q=80',
+      '/parts/wm-03.jpg',
     ],
     compatibility: [
       { brand: 'Toyota', model: 'Camry', bodyCode: 'ASV50, ASV70', years: '2011-2023', engine: '2.5L 2AR-FE' },
@@ -3245,7 +3249,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     compressionBar: 12.8,
     videoTitle: 'Замер компрессии V6 2GR-FE на стенде: 12.8 bar ровно во всех 6 цилиндрах',
     description: 'Оригинальный японский мотор с распила Lexus Harrier / RX350. Муфты VVT-i без стука, цепь в заводских допусках.',
-    image: 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-04.jpg',
+    images: [
+      '/parts/wm-04.jpg',
+    ],
+    photoCredit: { author: 'Altair78', license: 'CC BY-SA 4.0', url: 'https://commons.wikimedia.org/wiki/File:V6_2GR-FE_RX_350_engine.jpg' },
     compatibility: [
       { brand: 'Lexus', model: 'RX 350', bodyCode: 'GSU35', years: '2006-2012', engine: '3.5L 2GR-FE' },
       { brand: 'Toyota', model: 'Camry 40', bodyCode: 'GSV40', years: '2006-2011', engine: '3.5L 2GR-FE' },
@@ -3281,7 +3289,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 14,
     description: 'Оригинальная фара Hella Mercedes W211 с европейского авторазбора. Стекло отполировано, отражатели чистые, корректор работает.',
-    image: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-05.jpg',
+    images: [
+      '/parts/wm-05.jpg',
+    ],
+    photoCredit: { author: 'M 93', license: 'CC BY-SA 3.0', url: 'https://commons.wikimedia.org/wiki/File:Mercedes_E200K_Elegance_Facelift_front.jpg' },
     compatibility: [
       { brand: 'Mercedes-Benz', model: 'E-Class W211', bodyCode: 'W211', years: '2002-2009', engine: 'Все моторы' },
     ],
@@ -3315,7 +3327,12 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 30,
     description: 'Комплект оптики с линзами и оригинальный пластиковый бампер под покраску на Хонда Фит. Зазоры садятся идеально без доработок.',
-    image: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-06.jpg',
+    images: [
+      '/parts/wm-06.jpg',
+      '/parts/wm-07.jpg',
+    ],
+    photoCredit: { author: 'Tokumeigakarinoaoshima', license: 'CC BY-SA 4.0', url: 'https://commons.wikimedia.org/wiki/File:Honda_FIT_RS_%28DBA-GE8%29_front.jpg' },
     compatibility: [
       { brand: 'Honda', model: 'Fit', bodyCode: 'GD1, GD3, GE6, GE8', years: '2001-2013', engine: '1.3L / 1.5L' },
     ],
@@ -3352,7 +3369,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     compressionBar: 12.7,
     videoTitle: 'Замер компрессии мотора M54B30: 12.6 - 12.8 bar на холодную и горячую',
     description: 'Легендарная шестерка M54 3.0 л без расхода масла. Привезен из Японии. Эндоскопия цилиндров выполнена — задиров нет.',
-    image: 'https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-08.jpg',
+    images: [
+      '/parts/wm-08.jpg',
+    ],
+    photoCredit: { author: 'Aconcagua', license: 'CC BY-SA 3.0', url: 'https://commons.wikimedia.org/wiki/File:BMW_M54B25_002.jpg' },
     compatibility: [
       { brand: 'BMW', model: '5 Series E39', bodyCode: 'E39', years: '2000-2004', engine: '3.0L M54B30' },
       { brand: 'BMW', model: 'X5 E53', bodyCode: 'E53', years: '2000-2006', engine: '3.0L M54B30' },
@@ -3383,7 +3404,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 180,
     description: 'Усиленный газомасляный амортизатор Kayaba Japan. Идеально для гравийных дорог Нарына, Иссык-Куля и перевала Төө-Ашуу.',
-    image: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&w=400&q=80',
+    image: 'https://images.unsplash.com/photo-1760836395763-25ea44ae8145?auto=format&fit=crop&w=600&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1760836395763-25ea44ae8145?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1760836395716-7dd00b71311a?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     id: 'part-5',
@@ -3409,7 +3434,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 14,
     description: 'Оригинальный капот в заводском транспортировочном грунте под покраску. 100% геометрия по зазорам.',
-    image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-09.jpg',
+    images: [
+      '/parts/wm-09.jpg',
+    ],
+    photoCredit: { author: 'Авто Плюс Новости', license: 'CC BY 3.0', url: 'https://commons.wikimedia.org/wiki/File:2021_Toyota_Land_Cruiser_300_%28Russia%29_front_view.jpg' },
   },
   {
     id: 'part-6',
@@ -3435,7 +3464,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 60,
     description: 'В сборе с оригинальной шаровой опорой и сайлентблоками. Бренд CTR (Корея/Япония).',
-    image: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=400&q=80',
+    image: 'https://images.unsplash.com/photo-1783427402535-8cb7ba33f9a7?auto=format&fit=crop&w=600&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1783427402535-8cb7ba33f9a7?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1783427401907-9a4feb7544d3?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     id: 'part-7',
@@ -3461,7 +3494,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 14,
     description: 'Коробка с японского распила, проверенная на стенде. Масло чистое, без стружки. 14 дней на установку.',
-    image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-10.jpg',
+    images: [
+      '/parts/wm-10.jpg',
+      '/parts/wm-11.jpg',
+    ],
   },
   {
     id: 'part-8',
@@ -3487,7 +3524,10 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 90,
     description: 'Оригинальный пневмобаллон Arnott / Mercedes. Спецификация для системы Air Body Control.',
-    image: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&w=400&q=80',
+    image: 'https://images.unsplash.com/photo-1760317890283-540a468b86f6?auto=format&fit=crop&w=600&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1760317890283-540a468b86f6?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     id: 'part-9',
@@ -3513,7 +3553,10 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 180,
     description: 'Оригинальный модуль батареи Blade Battery BYD со встроенной защитой. Официальная поставка из завода Шэньчжэнь.',
-    image: 'https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=400&q=80',
+    image: 'https://images.unsplash.com/photo-1767990495521-95cceb571125?auto=format&fit=crop&w=600&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1767990495521-95cceb571125?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     id: 'part-10',
@@ -3539,7 +3582,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 90,
     description: 'Оригинальная стойка пневмоподвески для полноприводной версии Zeekr 001 YOU. Новая, в фирменной коробке.',
-    image: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=400&q=80',
+    image: 'https://images.unsplash.com/photo-1760317890353-5b156b3f9769?auto=format&fit=crop&w=600&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1760317890353-5b156b3f9769?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1760317890283-540a468b86f6?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     id: 'part-11',
@@ -3565,7 +3612,10 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 60,
     description: 'Алюминиевый двухрядный радиатор Mahle / Behr для моторов B58 3.0 бензин. Идеальное охлаждение в летних пробках Бишкека.',
-    image: 'https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&w=400&q=80',
+    image: 'https://images.unsplash.com/photo-1760804462190-82832c8eb582?auto=format&fit=crop&w=600&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1760804462190-82832c8eb582?auto=format&fit=crop&w=1200&q=80',
+    ],
   },
   {
     id: 'part-12',
@@ -3591,7 +3641,10 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 90,
     description: 'Оригинальный турбокомпрессор Garrett для дизелей D4HB 2.2 л. Прокладки и шпильки в комплекте.',
-    image: 'https://images.unsplash.com/photo-1553440569-bcc63803a83d?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-12.jpg',
+    images: [
+      '/parts/wm-12.jpg',
+    ],
   },
   {
     id: 'part-13',
@@ -3617,7 +3670,12 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 14,
     description: 'Оригинальная фара Lexus из Дубая. Стекло в бронепленке, адаптивное освещение AFS работает без ошибок.',
-    image: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-13.jpg',
+    images: [
+      '/parts/wm-13.jpg',
+      'https://images.unsplash.com/photo-1631856507219-d1f3465b4884?auto=format&fit=crop&w=1200&q=80',
+    ],
+    photoCredit: { author: 'Ethan Llamas', license: 'CC BY-SA 4.0', url: 'https://commons.wikimedia.org/wiki/File:2018_Lexus_RX_350_F_Sport_in_Sonic_Titanium%2C_front_left.jpg' },
   },
   {
     id: 'part-14',
@@ -3643,7 +3701,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 90,
     description: 'Заводской генератор Mando / GM Daewoo. Высокая надежность и стабильное напряжение 14.2V.',
-    image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-14.jpg',
+    images: [
+      '/parts/wm-14.jpg',
+    ],
+    photoCredit: { author: 'Shixart1985', license: 'CC BY 2.0', url: 'https://commons.wikimedia.org/wiki/File:Car_alternator_on_a_workbench_surrounded_by_various_auto_parts_in_a_garage_setting.jpg' },
   },
   {
     id: 'part-15',
@@ -3669,7 +3731,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 30,
     description: 'Новый оригинальный пластиковый бампер FAW-Volkswagen. С отверстиями под парктроники и камеру 360.',
-    image: 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-15.jpg',
+    images: [
+      '/parts/wm-15.jpg',
+    ],
+    photoCredit: { author: 'Alexander Migl', license: 'CC BY-SA 4.0', url: 'https://commons.wikimedia.org/wiki/File:Volkswagen_ID.4_GTX_1X7A0301.jpg' },
   },
   {
     id: 'part-16',
@@ -3695,7 +3761,11 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 180,
     description: 'Оригинальный заводской стартер КЗАТЭ. Легкий запуск в мороз -30°C на высокогорье Нарына и Суусамыра.',
-    image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=400&q=80',
+    image: '/parts/wm-16.jpg',
+    images: [
+      '/parts/wm-16.jpg',
+    ],
+    photoCredit: { author: 'Willdre', license: 'CC BY-SA 3.0', url: 'https://commons.wikimedia.org/wiki/File:Automobile_starter.JPG' },
   },
 ];
 

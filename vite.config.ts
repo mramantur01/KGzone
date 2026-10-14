@@ -6,8 +6,9 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
-    // Vercel serves static assets from public/ via its CDN (express.static is ignored there).
-    publicDir: false as const,
+    // The build goes to public/ (served by Vercel's CDN), so hand-made static files such as
+    // self-hosted photos live in static/ and are copied into the build as-is (/parts/... etc.).
+    publicDir: 'static',
     build: {
       outDir: 'public',
     },

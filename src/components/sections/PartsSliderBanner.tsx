@@ -71,7 +71,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
       secondaryText: isKg ? 'Кудайберген базары' : 'Рынок Кудайберген',
       secondaryAction: () => onSelectMarket && onSelectMarket('Кудайберген'),
       accentColor: 'from-red-950 via-neutral-950 to-neutral-900',
-      bgImage: 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=1200&q=80',
+      bgImage: '/parts/wm-03.jpg',
       icon: <Wrench className="text-red-400" size={20} />,
     },
     {
@@ -141,7 +141,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
       secondaryText: isKg ? 'Кабинетке кирүү' : 'Личный кабинет',
       secondaryAction: onOpenSellerRegistration,
       accentColor: 'from-amber-950 via-neutral-950 to-neutral-900',
-      bgImage: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=1200&q=80',
+      bgImage: 'https://images.unsplash.com/=format&fit=crop&w=1200&q=80',
       icon: <Store className="text-amber-400" size={20} />,
     },
     {
@@ -176,7 +176,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
       secondaryText: isKg ? 'Дордой-Авто базары' : 'Рынок Дордой-Авто',
       secondaryAction: () => onSelectMarket && onSelectMarket('Дордой Моторс'),
       accentColor: 'from-blue-950 via-neutral-950 to-neutral-900',
-      bgImage: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1200&q=80',
+      bgImage: 'https://images.unsplash.com/=format&fit=crop&w=1200&q=80',
       icon: <Car className="text-sky-400" size={20} />,
     },
   ];

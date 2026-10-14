@@ -541,7 +541,7 @@ export const UserCabinet: React.FC<UserCabinetProps> = ({
       storeLocation: newPartForm.storeLocation || 'Ряд 4, бокс 12',
       storeCity: 'Бишкек',
       sellerPhone: newPartForm.sellerPhone || '+996 555 777 999',
-      image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=800&q=80',
+      image: 'https://images.unsplash.com/photo-1767341372150-b9521fec39a3?auto=format&fit=crop&w=800&q=80',
       stockCount: newPartForm.stockCount || 5,
       inStock: true,
       stockStatus: 'В наличии',

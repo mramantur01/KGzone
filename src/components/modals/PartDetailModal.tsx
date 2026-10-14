@@ -259,6 +259,23 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                 </div>
               )}
 
+              {/* Attribution for CC BY / CC BY-SA photos (credit applies to the main photo) */}
+              {activeMediaTab === 'photos' && part.photoCredit && selectedImageIdx === 0 && (
+                <p className="text-[10px] text-neutral-500">
+                  Фото:{' '}
+                  <a
+                    href={part.photoCredit.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-neutral-300"
+                    data-no-i18n
+                  >
+                    {part.photoCredit.author}
+                  </a>
+                  , {part.photoCredit.license}, Wikimedia Commons
+                </p>
+              )}
+
               {/* THUMBNAIL STRIP */}
               {activeMediaTab === 'photos' && galleryImages.length > 1 && (
                 <div className="flex items-center gap-2 flex-wrap pb-1">

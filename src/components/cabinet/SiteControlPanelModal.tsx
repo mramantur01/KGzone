@@ -154,7 +154,7 @@ export const SiteControlPanelModal: React.FC<SiteControlPanelModalProps> = ({
       storeLocation: newPartForm.storeLocation || 'Ряд 2, конт. 15',
       storeCity: 'Бишкек',
       sellerPhone: newPartForm.sellerPhone || '+996 555 777 999',
-      image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=400&q=80',
+      image: 'https://images.unsplash.com/photo-1767341372150-b9521fec39a3?auto=format&fit=crop&w=400&q=80',
       deliveryAvailable: true,
     };
 

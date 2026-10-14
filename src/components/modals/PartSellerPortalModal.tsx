@@ -87,7 +87,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   const [compressionBar, setCompressionBar] = useState(12.8);
   const [videoTitle, setVideoTitle] = useState('Замер компрессии цилиндров (12.8-13.0 bar)');
   const [selectedPhotoSample, setSelectedPhotoSample] = useState(
-    'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=600&q=80'
+    '/parts/wm-03.jpg'
   );
 
   // Compatibility row state
@@ -190,11 +190,11 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
 
   // Pre-configured high quality photos of parts
   const photoPresets = [
-    { label: 'Двигатель / КПП', url: 'https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?auto=format&fit=crop&w=600&q=80' },
-    { label: 'Оптика / Фары', url: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=600&q=80' },
-    { label: 'Тормоза / Колодки', url: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=600&q=80' },
-    { label: 'Подвеска / Рычаги', url: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80' },
-    { label: 'Кузов / Бампер', url: 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&w=600&q=80' },
+    { label: 'Двигатель / КПП', url: '/parts/wm-03.jpg' },
+    { label: 'Оптика / Фары', url: 'https://images.unsplash.com/=format&fit=crop&w=600&q=80' },
+    { label: 'Тормоза / Колодки', url: 'https://images.unsplash.com/=format&fit=crop&w=600&q=80' },
+    { label: 'Подвеска / Рычаги', url: 'https://images.unsplash.com/=format&fit=crop&w=600&q=80' },
+    { label: 'Кузов / Бампер', url: '/parts/wm-01.jpg' },
   ];
 
   // SUBMIT NEW PART
@@ -226,10 +226,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
       sellerPhone: phone,
       sellerWhatsapp: whatsapp,
       image: selectedPhotoSample,
-      images: [
-        selectedPhotoSample,
-        'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?auto=format&fit=crop&w=600&q=80',
-      ],
+      images: [selectedPhotoSample],
       videoUrl: hasCompressionVideo ? 'https://example.com/video-compression' : undefined,
       videoTitle: videoTitle,
       hasCompressionVideo: hasCompressionVideo,
