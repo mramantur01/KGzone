@@ -1,6 +1,5 @@
 import express from 'express';
 import type { Request, Response } from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -669,13 +668,14 @@ app.post('/api/ai/consultant', async (req: Request, res: Response) => {
 // Mount Vite or static assets
 async function startServer() {
   if (!isProd) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(__dirname, 'dist');
+    const distPath = path.resolve(__dirname, 'public');
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
       app.get('*', (_req: Request, res: Response) => {

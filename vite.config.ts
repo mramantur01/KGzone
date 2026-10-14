@@ -6,6 +6,11 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    // Vercel serves static assets from public/ via its CDN (express.static is ignored there).
+    publicDir: false,
+    build: {
+      outDir: 'public',
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
