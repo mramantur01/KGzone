@@ -826,7 +826,17 @@ async function startServer() {
   } else {
     const distPath = path.resolve(__dirname, 'public');
     if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath, { index: false }));
+      app.use(
+        express.static(distPath, {
+          index: false,
+          // Build assets have content hashes in their names, so they never change
+          setHeaders: (res, filePath) => {
+            if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+              res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            }
+          },
+        })
+      );
       // A missing build asset (e.g. requested by a page cached before a deploy) must 404,
       // not fall through to index.html — that makes the browser fail to parse it as JS.
       app.use('/assets', (_req: Request, res: Response) => {
