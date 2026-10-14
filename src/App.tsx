@@ -52,6 +52,7 @@ import { Footer } from './components/layout/Footer';
 import { KyrgyzSectionDivider, KochkorMuyuzIcon, TundukIcon } from './components/ornaments/KyrgyzOrnaments';
 import { ShieldCheck, Calculator, Sparkles, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 import { WorkshopBooking } from './types/car';
+import { setSiteLanguage } from './i18n/domTranslator';
 
 export default function App() {
   const [cars, setCars] = useState<Car[]>(INITIAL_CARS);
@@ -75,8 +76,10 @@ export default function App() {
   }, [darkMode]);
 
   // Keep <html lang> in sync with the site language (ISO code for Kyrgyz is "ky")
+  // and translate the rendered page (see src/i18n/domTranslator.ts)
   React.useEffect(() => {
     document.documentElement.lang = language === 'kg' ? 'ky' : language;
+    setSiteLanguage(language);
   }, [language]);
 
   // Состояния личного кабинета (Покупатель & Продавец)

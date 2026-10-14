@@ -39,7 +39,7 @@ export const AddListingModal: React.FC<AddListingModalProps> = ({
   const [sellerPhone, setSellerPhone] = useState(currentUser?.phone || '+996 700 123 456');
   const [sellerLocation] = useState(currentUser?.city || 'Бишкек');
   const [plateNumber, setPlateNumber] = useState('01 KG 700 ABK');
-  const [description, setDescription] = useState('Машина в отличном состоянии. Бережная эксплуатация, родная краска, все расходники заменены. Растаможена в Кыргызстане, юридически чистая.');
+  const [description, setDescription] = useState('');
 
   if (!isOpen) return null;
 
@@ -76,7 +76,7 @@ export const AddListingModal: React.FC<AddListingModalProps> = ({
       sellerName,
       sellerPhone,
       sellerLocation: `${city}, центр`,
-      description,
+      description: description.trim() || '—',
       features: ['Кожаный салон', 'Климат-контроль', 'Подогрев сидений', 'Камера заднего вида'],
       image: '',
       photos: [],
@@ -320,6 +320,7 @@ export const AddListingModal: React.FC<AddListingModalProps> = ({
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              placeholder="Машина в отличном состоянии. Бережная эксплуатация, родная краска, все расходники заменены. Растаможена в Кыргызстане, юридически чистая."
               className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#C8102E] focus:outline-hidden"
             />
           </div>
