@@ -768,14 +768,17 @@ app.post('/api/ai/consultant', async (req: Request, res: Response) => {
           config: {
             systemInstruction,
             temperature: 0.7,
+            // Overloaded models sometimes hang instead of returning 503
+            abortSignal: AbortSignal.timeout(20000),
           },
         });
         break;
       } catch (err: any) {
         lastError = err;
-        // Only overload / rate-limit / unknown-model errors are worth trying another model for
-        if (![429, 500, 503, 404].includes(err?.status)) throw err;
-        console.warn(`[Gemini] ${model} failed with ${err?.status}, trying next model`);
+        const timedOut = err?.name === 'AbortError' || err?.name === 'TimeoutError';
+        // Only overload / rate-limit / unknown-model / timeout errors are worth trying another model for
+        if (!timedOut && ![429, 500, 503, 404].includes(err?.status)) throw err;
+        console.warn(`[Gemini] ${model} failed (${timedOut ? 'timeout' : err?.status}), trying next model`);
       }
     }
     if (!response) throw lastError;
