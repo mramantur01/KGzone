@@ -191,7 +191,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* Zone 2: Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-5 text-sm font-semibold">
+        <nav className="hidden xl:flex items-center gap-3.5 text-[13px] font-semibold">
           <button
             onClick={() => setActiveTab('cars')}
             className={`whitespace-nowrap transition-colors pb-1 border-b-2 cursor-pointer ${
@@ -324,16 +324,17 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Подать объявление */}
           <button
             onClick={onOpenAddListing}
+            title={isKg ? 'Жарыя берүү' : 'Подать объявление'}
             className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 bg-[#C8102E] hover:bg-[#a60d26] text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition-colors whitespace-nowrap cursor-pointer"
           >
             <Plus size={16} />
-            <span>{isKg ? 'Жарыя берүү' : 'Подать объявление'}</span>
+            <span className="xl:hidden 2xl:inline">{isKg ? 'Жарыя берүү' : 'Подать объявление'}</span>
           </button>
 
           {/* Mobile Hamburger Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 text-white hover:text-neutral-300 rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
+            className="xl:hidden p-2 text-white hover:text-neutral-300 rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
             aria-label="Меню навигации"
           >
             {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -343,7 +344,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-black text-white border-t border-neutral-800 px-4 py-3 shadow-2xl space-y-2 animate-in slide-in-from-top duration-150">
+        <div className="xl:hidden bg-black text-white border-t border-neutral-800 px-4 py-3 shadow-2xl space-y-2 animate-in slide-in-from-top duration-150">
           <div className="grid grid-cols-2 gap-2 pb-2 border-b border-neutral-800">
             <button
               onClick={() => {
