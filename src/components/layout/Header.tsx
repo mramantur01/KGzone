@@ -62,8 +62,10 @@ export const Header: React.FC<HeaderProps> = ({
       <ShyrdakRibbon variant="red" />
 
       {/* Верхняя микро-панель: Город, курс НБ КР, язык, валюта, WhatsApp, Dark Mode */}
-      <div className="bg-[#0a0a0a] text-slate-300 text-xs px-4 py-1.5 flex items-center justify-between border-b border-neutral-800">
-        <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto scrollbar-none">
+      <div className="bg-[#0a0a0a] text-slate-300 text-xs border-b border-neutral-800">
+        {/* Same container as the main row below so both rows line up on wide screens */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto scrollbar-none min-w-0">
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-neutral-400">{isKg ? 'Аймак:' : isEn ? 'Region:' : 'Регион:'}</span>
             <select
@@ -171,6 +173,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
         </div>
+        </div>
       </div>
 
       {/* Основная зона навигации (Strict 3-zone contract) */}
@@ -196,7 +199,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => setActiveTab('cars')}
             className={`whitespace-nowrap transition-colors pb-1 border-b-2 cursor-pointer ${
               activeTab === 'cars'
-                ? 'text-white border-white font-black'
+                ? 'text-white border-white'
                 : 'text-neutral-300 border-transparent hover:text-white hover:border-white/50'
             }`}
           >
@@ -207,7 +210,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => setActiveTab('workshop')}
             className={`flex items-center gap-1.5 whitespace-nowrap transition-colors pb-1 border-b-2 cursor-pointer ${
               activeTab === 'workshop'
-                ? 'text-white border-white font-black'
+                ? 'text-white border-white'
                 : 'text-neutral-300 border-transparent hover:text-white hover:border-white/50'
             }`}
           >
@@ -218,7 +221,7 @@ export const Header: React.FC<HeaderProps> = ({
           
           <button
             onClick={onOpenCarCheck}
-            className="flex items-center gap-1.5 text-neutral-300 hover:text-white whitespace-nowrap transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-neutral-300 hover:text-white whitespace-nowrap transition-colors pb-1 border-b-2 border-transparent hover:border-white/50 cursor-pointer"
           >
             <ShieldCheck size={16} className="text-emerald-300" />
             <span>CarCheck KG</span>
@@ -228,7 +231,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => setActiveTab('parts')}
             className={`whitespace-nowrap transition-colors pb-1 border-b-2 cursor-pointer ${
               activeTab === 'parts'
-                ? 'text-white border-white font-black'
+                ? 'text-white border-white'
                 : 'text-neutral-300 border-transparent hover:text-white hover:border-white/50'
             }`}
           >
@@ -239,7 +242,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => setActiveTab('promotions')}
             className={`flex items-center gap-1 whitespace-nowrap transition-colors pb-1 border-b-2 cursor-pointer ${
               activeTab === 'promotions'
-                ? 'text-white border-white font-black'
+                ? 'text-white border-white'
                 : 'text-neutral-300 border-transparent hover:text-white hover:border-white/50'
             }`}
           >
@@ -249,7 +252,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={onOpenCustomsCalc}
-            className="text-neutral-300 hover:text-white whitespace-nowrap transition-colors cursor-pointer"
+            className="text-neutral-300 hover:text-white whitespace-nowrap transition-colors pb-1 border-b-2 border-transparent hover:border-white/50 cursor-pointer"
           >
             {isKg ? 'Бажы калькулятору' : 'Растаможка КР'}
           </button>
@@ -258,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => setActiveTab('reviews')}
             className={`whitespace-nowrap transition-colors pb-1 border-b-2 cursor-pointer ${
               activeTab === 'reviews'
-                ? 'text-white border-white font-black'
+                ? 'text-white border-white'
                 : 'text-neutral-300 border-transparent hover:text-white hover:border-white/50'
             }`}
           >
@@ -269,7 +272,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => setActiveTab('faq')}
             className={`whitespace-nowrap transition-colors pb-1 border-b-2 cursor-pointer ${
               activeTab === 'faq'
-                ? 'text-white border-white font-black'
+                ? 'text-white border-white'
                 : 'text-neutral-300 border-transparent hover:text-white hover:border-white/50'
             }`}
           >
