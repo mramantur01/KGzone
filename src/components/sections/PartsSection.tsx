@@ -332,19 +332,6 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   ];
 
   // Quick search suggestions (Drom-style)
-  const quickSearchChips = [
-    'Camry 70',
-    'Fit GE8',
-    '2AR-FE мотор',
-    'RX 350 фара',
-    'W211 ксенон',
-    'BMW E39 M54',
-    'Prado 150 стойки',
-    'Колодки ADVICS',
-    'Вариатор CVT',
-    'ID.4 бампер',
-  ];
-
   // Cities and Markets of Kyrgyzstan
   const locationsList = [
     { id: 'Все', label: isKg ? 'Бардык шаарлар жана базарлар' : 'Все города и рынки' },
@@ -648,22 +635,6 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                 <span>{isKg ? 'Тазалоо' : 'Сбросить'}</span>
               </button>
             )}
-          </div>
-
-          {/* Quick Search Chips (Drom-style) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-2 text-xs">
-            <span className="text-[11px] text-neutral-400 font-semibold shrink-0 mr-1">
-              {isKg ? 'Көп изделгендер:' : 'Популярные запросы:'}
-            </span>
-            {quickSearchChips.map((chip) => (
-              <button
-                key={chip}
-                onClick={() => setSearchQuery(chip)}
-                className="px-2.5 py-1 rounded-lg bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-[11px] text-neutral-300 hover:text-white transition-colors shrink-0 cursor-pointer"
-              >
-                {chip}
-              </button>
-            ))}
           </div>
 
           {/* Detailed Filters: Brand, Model, Year, Condition, Original/Analog, Price Range */}
