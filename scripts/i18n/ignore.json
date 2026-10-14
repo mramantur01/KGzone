@@ -9,5 +9,8 @@
   "{},\"{}\",\"{}\",{},{},\"{}\",\"{}\",\"Активно\"",
   "<?xml version=\"1.0\"?> <Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\"> <Worksheet ss:Name=\"Автомобили\"> <Table> <Row> <Cell><Data ss:Type=\"String\">Марка и Модель</Data></Cell> <Cell><Data ss:Type=\"String\">Год</Data></Cell> <Cell><Data ss:Type=\"String\">Цена ($)</Data></Cell> <Cell><Data ss:Type=\"String\">Госномер</Data></Cell> <Cell><Data ss:Type=\"String\">Город</Data></Cell> </Row> {} </Table> </Worksheet> </Workbook>",
   "https://wa.me/996555777999?text=Здравствуйте!%20Хочу%20обратиться%20в%20поддержку%20KGzone",
-  "https://wa.me/996555777999?text=Здравствуйте!%20Хочу%20проконсультироваться%20по%20порталу%20KGzone"
+  "https://wa.me/996555777999?text=Здравствуйте!%20Хочу%20проконсультироваться%20по%20порталу%20KGzone",
+  "Здравствуйте! Хочу разместить рекламу на KGzone.",
+  "Здравствуйте! Нужна доставка запчасти в регион.",
+  "Здравствуйте! Хочу подключить контейнер к KGzone."
 ]

@@ -763,7 +763,7 @@ export const UserCabinet: React.FC<UserCabinetProps> = ({
       </div>
 
       {/* MAIN NAVIGATION TABS INSIDE USER CABINET */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-6 border-b border-slate-200 dark:border-slate-800 scrollbar-none">
+      <div className="flex items-center gap-2 flex-wrap pb-3 mb-6 border-b border-slate-200 dark:border-slate-800">
         
         {/* TAB: CONTROL PANEL (Visible to Owner & Approved Admin) */}
         {hasControlAccess && (

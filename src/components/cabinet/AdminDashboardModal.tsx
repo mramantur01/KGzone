@@ -260,7 +260,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         </div>
 
         {/* Навигационные табы админки */}
-        <div className="flex items-center gap-1 p-2 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 overflow-x-auto shrink-0 scrollbar-none text-xs font-bold">
+        <div className="flex items-center gap-1 p-2 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex-wrap shrink-0 text-xs font-bold">
           {[
             { id: 'analytics', label: 'Аналитика и Метрики', icon: BarChart3 },
             { id: 'telegram', label: 'Telegram & SMS Бот', icon: Bell },

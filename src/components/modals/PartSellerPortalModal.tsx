@@ -314,7 +314,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
         </div>
 
         {/* Navigation Tabs (Загрузка детали / Профиль контейнера / Сделки и заказы) */}
-        <div className="px-5 pt-3 pb-2 border-b border-neutral-800 flex items-center gap-2 overflow-x-auto scrollbar-none bg-neutral-900/40 text-xs font-bold shrink-0">
+        <div className="px-5 pt-3 pb-2 border-b border-neutral-800 flex items-center gap-2 flex-wrap bg-neutral-900/40 text-xs font-bold shrink-0">
           <button
             onClick={() => setActiveTab('upload')}
             className={`px-4 py-2 rounded-xl flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${

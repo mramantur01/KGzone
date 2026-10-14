@@ -261,7 +261,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
 
               {/* THUMBNAIL STRIP */}
               {activeMediaTab === 'photos' && galleryImages.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                <div className="flex items-center gap-2 flex-wrap pb-1">
                   {galleryImages.map((img, idx) => (
                     <button
                       key={idx}

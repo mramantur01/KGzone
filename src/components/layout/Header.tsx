@@ -64,8 +64,8 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Верхняя микро-панель: Город, курс НБ КР, язык, валюта, WhatsApp, Dark Mode */}
       <div className="bg-[#0a0a0a] text-slate-300 text-xs border-b border-neutral-800">
         {/* Same container as the main row below so both rows line up on wide screens */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto scrollbar-none min-w-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 min-w-0">
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-neutral-400">{isKg ? 'Аймак:' : isEn ? 'Region:' : 'Регион:'}</span>
             <select

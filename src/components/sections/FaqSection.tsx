@@ -73,7 +73,7 @@ export const FaqSection: React.FC<FaqSectionProps> = ({ language, onOpenConsulta
         </div>
 
         {/* Категории */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6 scrollbar-none justify-center">
+        <div className="flex items-center gap-2 flex-wrap pb-4 mb-6 justify-center">
           {categories.map((c) => (
             <button
               key={c.id}

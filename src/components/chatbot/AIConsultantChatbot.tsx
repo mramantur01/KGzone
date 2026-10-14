@@ -167,7 +167,7 @@ export const AIConsultantChatbot: React.FC<AIConsultantChatbotProps> = ({
           </div>
 
           {/* Quick Shortcuts Bar */}
-          <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto text-[11px] scrollbar-none">
+          <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 flex-wrap text-[11px]">
             {onOpenCarCheck && (
               <button
                 onClick={() => onOpenCarCheck('01 KG 777 AAA')}
@@ -245,7 +245,7 @@ export const AIConsultantChatbot: React.FC<AIConsultantChatbotProps> = ({
           </div>
 
           {/* Quick Prompts */}
-          <div className="p-2 bg-white border-t border-slate-200 flex items-center gap-1.5 overflow-x-auto text-[11px] scrollbar-none">
+          <div className="p-2 bg-white border-t border-slate-200 flex items-center gap-1.5 flex-wrap text-[11px]">
             {QUICK_PROMPTS.map((prompt, idx) => (
               <button
                 key={idx}

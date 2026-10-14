@@ -13,6 +13,8 @@ import { PartOrderModal } from '../modals/PartOrderModal';
 import { PartSellerPortalModal } from '../modals/PartSellerPortalModal';
 import { AllBrandsModal } from '../common/AllBrandsModal';
 import { PartsSliderBanner } from './PartsSliderBanner';
+import { AdBannerSlot } from '../common/AdBannerSlot';
+import { PARTS_SIDEBAR_ADS } from '../../data/adBanners';
 import {
   Search,
   MapPin,
@@ -23,7 +25,6 @@ import {
   Clock,
   RotateCcw,
   Store,
-  Truck,
   ShieldCheck,
   ChevronRight,
   Filter,
@@ -45,7 +46,6 @@ import {
   Calendar,
   LayoutGrid,
   List,
-  Flame,
   ArrowUpDown,
   Building,
 } from 'lucide-react';
@@ -750,7 +750,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
         {/* 3. 12 CATEGORIES RIBBON WITH SUB-PARTS */}
         <div className="mb-6 space-y-2.5">
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-2 text-xs font-bold">
+          <div className="flex items-center gap-2 flex-wrap pb-2 text-xs font-bold">
             {categoriesData.map((cat) => {
               const isSelected = selectedCategory === cat.id;
               return (
@@ -775,7 +775,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
           {/* Sub-parts strip when a category is selected */}
           {currentCategoryObj && currentCategoryObj.subParts.length > 0 && (
-            <div className="p-3 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none text-xs">
+            <div className="p-3 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center gap-1.5 flex-wrap text-xs">
               <span className="text-[11px] text-neutral-400 font-semibold shrink-0 mr-1">
                 {isKg ? 'Тетиктин түрү:' : 'Тип детали:'}
               </span>
@@ -861,69 +861,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
         {/* 5. MAIN CONTENT LAYOUT: SIDEBAR WITH POPULAR MAKES + LISTINGS */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
           
-          {/* SIDEBAR: POPULAR MAKES IN KYRGYZSTAN (Requirement 1 & Drom Sidebar) */}
-          <div className="hidden lg:block lg:col-span-3 space-y-4">
-            
-            <div className="p-4 rounded-3xl bg-neutral-900 border border-neutral-800 space-y-3 sticky top-24">
-              <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
-                <span className="font-bold text-xs uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                  <Flame size={14} className="text-red-500" />
-                  <span>{isKg ? 'Популярдуу маркалар' : 'Популярные марки'}</span>
-                </span>
-                <button
-                  onClick={() => setIsBrandModalOpen(true)}
-                  className="text-[11px] text-neutral-400 hover:text-white underline cursor-pointer"
-                >
-                  Все
-                </button>
-              </div>
-
-              <div className="space-y-1 text-xs">
-                {POPULAR_BRANDS.slice(0, 11).map((b) => {
-                  const count = partsList.filter((p) => p.brand === b).length;
-                  const isSelected = selectedBrand === b;
-
-                  return (
-                    <button
-                      key={b}
-                      onClick={() => {
-                        if (selectedBrand === b) {
-                          setSelectedBrand('');
-                          setSelectedModel('');
-                        } else {
-                          setSelectedBrand(b);
-                          setSelectedModel('');
-                        }
-                      }}
-                      className={`w-full px-3 py-2 rounded-xl flex items-center justify-between text-left transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-red-600 text-white font-bold shadow-md'
-                          : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
-                      }`}
-                    >
-                      <span>{b}</span>
-                      <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
-                        isSelected ? 'bg-red-800 text-white' : 'bg-neutral-950 text-neutral-400'
-                      }`}>
-                        {count > 0 ? count : Math.floor(12 + b.length * 3)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Express delivery banner in sidebar */}
-              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-950/70 to-neutral-950 border border-emerald-700/40 text-[11px] space-y-1.5">
-                <div className="font-bold text-emerald-400 flex items-center gap-1.5">
-                  <Truck size={14} />
-                  <span>Попутные бусики КР</span>
-                </div>
-                <p className="text-neutral-300 leading-snug">
-                  Отправка день-в-день в Ош, Джалал-Абад, Нарын, Талас, Баткен, Каракол.
-                </p>
-              </div>
-            </div>
-
+          {/* SIDEBAR: rotating advertising slot (see src/data/adBanners.ts) */}
+          <div className="hidden lg:block lg:col-span-3">
+            <AdBannerSlot banners={PARTS_SIDEBAR_ADS} className="sticky top-24" />
           </div>
 
           {/* LISTINGS CONTAINER (9 cols on desktop) */}

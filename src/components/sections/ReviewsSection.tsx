@@ -152,7 +152,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
       </div>
 
       {/* Категории отзывов */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
+      <div className="flex items-center gap-2 flex-wrap pb-4 mb-6">
         {[
           { id: 'all', label: isKg ? 'Бардык пикирлер' : 'Все отзывы' },
           { id: 'service', label: isKg ? 'СТО жана Автосервис' : 'Автосервис & Ремонт' },

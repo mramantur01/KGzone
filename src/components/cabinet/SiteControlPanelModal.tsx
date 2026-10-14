@@ -414,7 +414,7 @@ export const SiteControlPanelModal: React.FC<SiteControlPanelModalProps> = ({
           /* FULL ADMIN CONTROL INTERFACE */
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             {/* SIDEBAR TABS */}
-            <div className="w-full md:w-60 bg-slate-950 border-r border-slate-800 p-3 flex md:flex-col gap-1.5 shrink-0 overflow-x-auto scrollbar-none">
+            <div className="w-full md:w-60 bg-slate-950 border-r border-slate-800 p-3 flex md:flex-col gap-1.5 shrink-0 flex-wrap">
               <button
                 onClick={() => setActiveTab('listings')}
                 className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2.5 whitespace-nowrap cursor-pointer ${

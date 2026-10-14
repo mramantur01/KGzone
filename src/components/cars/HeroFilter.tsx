@@ -104,7 +104,7 @@ export const HeroFilter: React.FC<HeroFilterProps> = ({
         */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
           {/* Category Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 md:pb-0">
+          <div className="flex items-center gap-1.5 flex-wrap pb-1 md:pb-0">
             {[
               { id: 'all', label: isKg ? 'Бардык унаалар' : 'Все авто', count: totalCount },
               { id: 'green', label: isKg ? '⚡ Электро & Гибрид' : '⚡ Электро & Гибриды' },

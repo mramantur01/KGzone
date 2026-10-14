@@ -119,7 +119,7 @@ export const AllBrandsModal: React.FC<AllBrandsModalProps> = ({
           </div>
 
           {/* Быстрые популярные марки */}
-          <div className="flex items-center gap-1.5 mt-3 overflow-x-auto pb-1 text-xs">
+          <div className="flex items-center gap-1.5 mt-3 flex-wrap pb-1 text-xs">
             <span className="text-slate-500 font-medium whitespace-nowrap">Популярные в КР:</span>
             {['Toyota', 'Lexus', 'Honda', 'Mercedes-Benz', 'BMW', 'Hyundai', 'Kia', 'BYD', 'Zeekr', 'Li Auto', 'Volkswagen', 'Лада', 'Daewoo'].map((b) => (
               <button

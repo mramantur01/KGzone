@@ -230,7 +230,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
         </div>
 
         {/* Навигационные табы раздела СТО */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-6 border-b border-slate-200 dark:border-slate-800 scrollbar-none">
+        <div className="flex items-center gap-2 flex-wrap pb-3 mb-6 border-b border-slate-200 dark:border-slate-800">
           <button
             onClick={() => setActiveSubTab('services')}
             className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-2 ${
@@ -299,7 +299,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
         {activeSubTab === 'services' && (
           <div>
             {/* Фильтр по категориям */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
+            <div className="flex items-center gap-2 flex-wrap pb-4 mb-6">
               {[
                 { id: 'all', label: isKg ? 'Бардык кызматтар' : isEn ? 'All Services' : 'Все услуги' },
                 { id: 'diagnostics', label: isKg ? 'Диагностика' : isEn ? 'Diagnostics' : 'Компьютерная диагностика' },

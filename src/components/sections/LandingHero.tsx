@@ -344,8 +344,8 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
             </span>
           </div>
 
-          {/* Quick pill tabs to switch between showcased cars */}
-          <div className="flex items-center gap-1.5 overflow-x-auto max-w-[65%] sm:max-w-none scrollbar-none">
+          {/* Quick pill tabs to switch between showcased cars (phones use the arrows and dots instead) */}
+          <div className="hidden md:flex items-center justify-end gap-1.5 flex-wrap max-w-[75%]">
             {slides.map((s, idx) => (
               <button
                 key={s.id}
