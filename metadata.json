@@ -1,0 +1,6 @@
+{
+  "name": "Drom.kg — Автомобильный портал Кыргызстана",
+  "description": "Автобазар Кыргызстана: продажа авто в Бишкеке, Оше и всех регионах КР, CarCheck проверка штрафов и арестов, калькулятор растаможки, автозапчасти и отзывы с кыргызскими орнаментами.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

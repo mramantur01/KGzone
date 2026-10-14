@@ -1,0 +1,711 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useMemo } from 'react';
+import {
+  Car,
+  Currency,
+  Language,
+  UserProfile,
+  BuyerOrder,
+  SellerIncomingOrder,
+  SavedCarCheck,
+  SellerStoreProfile,
+  AutoPartItem,
+  RegisteredUser,
+  SiteSettings,
+} from './types/car';
+import {
+  INITIAL_CARS,
+  USD_TO_KGS_RATE,
+  INITIAL_USER_PROFILE,
+  INITIAL_BUYER_ORDERS,
+  INITIAL_SELLER_INCOMING_ORDERS,
+  INITIAL_SAVED_CARCHECKS,
+  INITIAL_SELLER_STORE,
+  INITIAL_REGISTERED_USERS,
+  INITIAL_SITE_SETTINGS,
+  AUTO_PARTS,
+} from './data/mockData';
+import { Header } from './components/layout/Header';
+import { HeroFilter } from './components/cars/HeroFilter';
+import { CarCard } from './components/cars/CarCard';
+import { CarDetailModal } from './components/modals/CarDetailModal';
+import { CarCheckModal } from './components/modals/CarCheckModal';
+import { CustomsCalculatorModal } from './components/modals/CustomsCalculatorModal';
+import { AddListingModal } from './components/modals/AddListingModal';
+import { FavoritesModal } from './components/modals/FavoritesModal';
+import { PartsSection } from './components/sections/PartsSection';
+import { ReviewsSection } from './components/sections/ReviewsSection';
+import { NewsSection } from './components/sections/NewsSection';
+import { UserCabinet } from './components/cabinet/UserCabinet';
+import { LandingHero } from './components/sections/LandingHero';
+import { WorkshopSection } from './components/sections/WorkshopSection';
+import { FaqSection } from './components/sections/FaqSection';
+import { PromotionsSection } from './components/sections/PromotionsSection';
+import { SiteControlPanelModal } from './components/cabinet/SiteControlPanelModal';
+import { AuthCabinetModal } from './components/modals/AuthCabinetModal';
+import { AIConsultantChatbot } from './components/chatbot/AIConsultantChatbot';
+import { Footer } from './components/layout/Footer';
+import { KyrgyzSectionDivider, KochkorMuyuzIcon, TundukIcon } from './components/ornaments/KyrgyzOrnaments';
+import { ShieldCheck, Calculator, Sparkles, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
+import { WorkshopBooking } from './types/car';
+
+export default function App() {
+  const [cars, setCars] = useState<Car[]>(INITIAL_CARS);
+  const [parts, setParts] = useState<AutoPartItem[]>(AUTO_PARTS);
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>(INITIAL_REGISTERED_USERS);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(INITIAL_SITE_SETTINGS);
+  const [currency, setCurrency] = useState<Currency>('USD');
+  const [language, setLanguage] = useState<Language>('ru');
+  const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [selectedCity, setSelectedCity] = useState<string>('Все регионы');
+  const [activeTab, setActiveTab] = useState<string>('cars');
+  const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
+
+  // Synchronize dark class on document element
+  React.useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
+
+  // Состояния личного кабинета (Покупатель & Продавец)
+  const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
+  const [buyerOrders, setBuyerOrders] = useState<BuyerOrder[]>(INITIAL_BUYER_ORDERS);
+  const [sellerOrders, setSellerOrders] = useState<SellerIncomingOrder[]>(INITIAL_SELLER_INCOMING_ORDERS);
+  const [savedChecks, setSavedChecks] = useState<SavedCarCheck[]>(INITIAL_SAVED_CARCHECKS);
+  const [sellerStoreProfile, setSellerStoreProfile] = useState<SellerStoreProfile>(INITIAL_SELLER_STORE);
+
+  // Избранное
+  const [favorites, setFavorites] = useState<string[]>(['car-1', 'car-3']);
+
+  // Модальные окна
+  const [selectedCar, setSelectedCar] = useState<Car | null>(null);
+  const [isCarCheckOpen, setIsCarCheckOpen] = useState(false);
+  const [carCheckPlate, setCarCheckPlate] = useState('');
+  const [isCustomsCalcOpen, setIsCustomsCalcOpen] = useState(false);
+  const [isAddListingOpen, setIsAddListingOpen] = useState(false);
+  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
+  const [isCabinetAuthModalOpen, setIsCabinetAuthModalOpen] = useState(false);
+  const [authModalNotice, setAuthModalNotice] = useState<string | null>(null);
+  const [authModalInitialTab, setAuthModalInitialTab] = useState<'login' | 'register'>('login');
+  const [pendingPostAfterAuth, setPendingPostAfterAuth] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true); // By default authenticated as userProfile
+
+  // Фильтры
+  const [filters, setFilters] = useState({
+    brand: '',
+    model: '',
+    yearFrom: '',
+    yearTo: '',
+    priceFrom: '',
+    priceTo: '',
+    city: '',
+    bodyType: '',
+    transmission: '',
+    steering: '',
+    fuelType: '',
+    customs: '',
+    typeTab: 'all' as 'all' | 'used' | 'new' | 'green',
+  });
+
+  const [sortBy, setSortBy] = useState<'date' | 'priceAsc' | 'priceDesc' | 'yearDesc'>('date');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const isKg = language === 'kg';
+
+  // Переключение избранного
+  const toggleFavorite = (id: string) => {
+    setFavorites((prev) => {
+      const exists = prev.includes(id);
+      const updated = exists ? prev.filter((i) => i !== id) : [...prev, id];
+      showToast(exists ? 'Удалено из избранного' : 'Добавлено в избранное');
+      return updated;
+    });
+  };
+
+  // Проверка авторизации перед подачей объявления
+  const handleTriggerPostAd = () => {
+    if (!isAuthenticated || !userProfile || !userProfile.phone) {
+      setAuthModalNotice(
+        isKg
+          ? 'Жарыя берүү үчүн алгач катталыңыз же жеке кабинетиңизге кириңиз.'
+          : 'Чтобы подать объявление о продаже авто, пожалуйста, войдите или зарегистрируйтесь.'
+      );
+      setAuthModalInitialTab('register');
+      setPendingPostAfterAuth(true);
+      setIsCabinetAuthModalOpen(true);
+      return;
+    }
+    // Если уже авторизован — открываем форму подачи объявления
+    setIsAddListingOpen(true);
+  };
+
+  // Добавление нового объявления авто
+  const handleAddCar = (newCar: Car) => {
+    setCars((prev) => [newCar, ...prev]);
+    setSelectedCar(newCar);
+    showToast('Ваше объявление успешно опубликовано на KGzone!');
+  };
+
+  // Управление авто в кабинете продавца
+  const handleUpdateCarPrice = (carId: string, newPriceUsd: number) => {
+    setCars((prev) =>
+      prev.map((c) => (c.id === carId ? { ...c, priceUsd: newPriceUsd } : c))
+    );
+    showToast(`Цена автомобиля обновлена: $${newPriceUsd.toLocaleString()}`);
+  };
+
+  const handleToggleCarUrgent = (carId: string) => {
+    setCars((prev) =>
+      prev.map((c) => (c.id === carId ? { ...c, isUrgent: !c.isUrgent } : c))
+    );
+  };
+
+  const handleRemoveCar = (carId: string) => {
+    if (confirm('Снять объявление с публикации на KGzone?')) {
+      setCars((prev) => prev.filter((c) => c.id !== carId));
+      showToast('Объявление удалено из каталога');
+    }
+  };
+
+  // Оформление заказа автозапчасти покупателем
+  const handleOrderCreated = (newBuyerOrder: BuyerOrder) => {
+    setBuyerOrders((prev) => [newBuyerOrder, ...prev]);
+
+    // Добавляем также продавцу во входящие заказы магазина
+    const newSellerOrder: SellerIncomingOrder = {
+      id: `ord-s-${Date.now()}`,
+      orderNumber: newBuyerOrder.orderNumber,
+      date: 'Сегодня, ' + new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+      customerName: userProfile.name,
+      customerPhone: userProfile.phone,
+      partTitle: newBuyerOrder.partTitle,
+      partNumber: newBuyerOrder.partNumber,
+      priceKgs: newBuyerOrder.priceKgs,
+      status: 'Новый',
+      deliveryType: newBuyerOrder.deliveryType,
+      deliveryAddress: newBuyerOrder.deliveryAddress,
+      comment: 'Заказ оформлен онлайн через сайт KGzone',
+    };
+    setSellerOrders((prev) => [newSellerOrder, ...prev]);
+  };
+
+  const handleOpenCarCheckWithPlate = (plate?: string) => {
+    setCarCheckPlate(plate || '01 KG 777 AAA');
+    setIsCarCheckOpen(true);
+  };
+
+  // Фильтрация объявлений
+  const filteredCars = useMemo(() => {
+    return cars.filter((car) => {
+      // Таб типа авто
+      if (filters.typeTab === 'green' && !(car.fuelType === 'Электро' || car.fuelType === 'Гибрид')) {
+        return false;
+      }
+      if (filters.typeTab === 'new' && car.mileageKm > 5000) {
+        return false;
+      }
+      if (filters.typeTab === 'used' && car.mileageKm <= 5000) {
+        return false;
+      }
+
+      // Марка и модель
+      if (filters.brand && car.brand !== filters.brand) return false;
+      if (filters.model && car.model !== filters.model) return false;
+
+      // Года
+      if (filters.yearFrom && car.year < Number(filters.yearFrom)) return false;
+      if (filters.yearTo && car.year > Number(filters.yearTo)) return false;
+
+      // Цены
+      if (currency === 'USD') {
+        if (filters.priceFrom && car.priceUsd < Number(filters.priceFrom)) return false;
+        if (filters.priceTo && car.priceUsd > Number(filters.priceTo)) return false;
+      } else {
+        const carSom = car.priceUsd * USD_TO_KGS_RATE;
+        if (filters.priceFrom && carSom < Number(filters.priceFrom)) return false;
+        if (filters.priceTo && carSom > Number(filters.priceTo)) return false;
+      }
+
+      // Город / Регион
+      const activeCityFilter = filters.city || (selectedCity !== 'Все регионы' ? selectedCity : '');
+      if (activeCityFilter && !car.city.includes(activeCityFilter)) return false;
+
+      // Параметры
+      if (filters.bodyType && car.bodyType !== filters.bodyType) return false;
+      if (filters.transmission && car.transmission !== filters.transmission) return false;
+      if (filters.steering && car.steering !== filters.steering) return false;
+      if (filters.fuelType && car.fuelType !== filters.fuelType) return false;
+      if (filters.customs && car.customs !== filters.customs) return false;
+
+      return true;
+    });
+  }, [cars, filters, selectedCity, currency]);
+
+  // Сортировка
+  const sortedCars = useMemo(() => {
+    const list = [...filteredCars];
+    if (sortBy === 'priceAsc') {
+      return list.sort((a, b) => a.priceUsd - b.priceUsd);
+    }
+    if (sortBy === 'priceDesc') {
+      return list.sort((a, b) => b.priceUsd - a.priceUsd);
+    }
+    if (sortBy === 'yearDesc') {
+      return list.sort((a, b) => b.year - a.year);
+    }
+    return list; // default by date
+  }, [filteredCars, sortBy]);
+
+  const favoriteCars = useMemo(() => {
+    return cars.filter((c) => favorites.includes(c.id));
+  }, [cars, favorites]);
+
+  const handleResetFilters = () => {
+    setFilters({
+      brand: '',
+      model: '',
+      yearFrom: '',
+      yearTo: '',
+      priceFrom: '',
+      priceTo: '',
+      city: '',
+      bodyType: '',
+      transmission: '',
+      steering: '',
+      fuelType: '',
+      customs: '',
+      typeTab: 'all',
+    });
+    setSelectedCity('Все регионы');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans selection:bg-[#C8102E] selection:text-white">
+      {/* Toast уведомление */}
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-lg shadow-xl border border-slate-700 text-xs font-semibold flex items-center gap-2">
+          <KochkorMuyuzIcon size={16} color="#FBBF24" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Навигационная панель Drom.kg с орнаментами */}
+      <Header
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        currency={currency}
+        setCurrency={setCurrency}
+        language={language}
+        setLanguage={setLanguage}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        selectedCity={selectedCity}
+        setSelectedCity={setSelectedCity}
+        favoritesCount={favorites.length}
+        userName={userProfile.name}
+        userSiteRole={userProfile.siteRole}
+        isApprovedAdmin={userProfile.isApprovedAdmin}
+        onOpenFavorites={() => setIsFavoritesOpen(true)}
+        onOpenAddListing={handleTriggerPostAd}
+        onOpenCarCheck={() => {
+          setCarCheckPlate('01 KG 777 AAA');
+          setIsCarCheckOpen(true);
+        }}
+        onOpenCustomsCalc={() => setIsCustomsCalcOpen(true)}
+        onOpenControlPanel={() => setIsControlPanelOpen(true)}
+        onOpenCabinetAuth={() => setIsCabinetAuthModalOpen(true)}
+      />
+
+      {/* Основной контент */}
+      <main className="flex-1">
+        {activeTab === 'cars' && (
+          <div>
+            {/* Презентационный Landing Hero блок с быстрыми ссылками */}
+            <LandingHero
+              language={language}
+              currency={currency}
+              filters={filters}
+              setFilters={setFilters}
+              totalCarsCount={cars.length}
+              onOpenCarCheck={() => {
+                setCarCheckPlate('01 KG 777 AAA');
+                setIsCarCheckOpen(true);
+              }}
+              onOpenCustomsCalc={() => setIsCustomsCalcOpen(true)}
+              onOpenParts={() => setActiveTab('parts')}
+              onPostAd={handleTriggerPostAd}
+              onOpenWorkshop={() => setActiveTab('workshop')}
+              onSelectCarId={(carId) => {
+                const found = cars.find((c) => c.id === carId);
+                if (found) {
+                  setSelectedCar(found);
+                } else {
+                  const searchEl = document.getElementById('listings-grid-section');
+                  searchEl?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              onExploreCars={() => {
+                const searchEl = document.getElementById('listings-grid-section');
+                searchEl?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            />
+
+            {/* Главный блок поиска с фильтрами Drom */}
+            <div id="search-catalog-section">
+              <HeroFilter
+                filters={filters}
+                setFilters={setFilters}
+                totalCount={sortedCars.length}
+                currency={currency}
+                language={language}
+                onReset={handleResetFilters}
+                onOpenCarCheck={() => {
+                  setCarCheckPlate('01 KG 777 AAA');
+                  setIsCarCheckOpen(true);
+                }}
+                onOpenCustomsCalc={() => setIsCustomsCalcOpen(true)}
+                onOpenParts={() => setActiveTab('parts')}
+              />
+            </div>
+
+            {/* Быстрые баннеры доверия в кыргызском стиле */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Баннер CarCheck */}
+                <div
+                  onClick={() => {
+                    setCarCheckPlate('01 KG 777 AAA');
+                    setIsCarCheckOpen(true);
+                  }}
+                  className="bg-gradient-to-r from-emerald-900 to-slate-900 rounded-xl p-4 text-white flex items-center justify-between border border-emerald-800 cursor-pointer hover:border-emerald-500 transition-all shadow-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center shadow-xs">
+                      <ShieldCheck size={22} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm">
+                        {isKg ? 'CarCheck KG: Арест жана айыптарды текшерүү' : 'CarCheck KG: Проверка штрафов и залогов'}
+                      </h4>
+                      <p className="text-xs text-emerald-200">
+                        {isKg ? '«Коопсуз шаар» айыптарын онлайн көрүү' : 'По базе Safe City / ГРС КР перед покупкой'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-300 hover:underline shrink-0">
+                    Текшерүү →
+                  </span>
+                </div>
+
+                {/* Баннер Растаможки */}
+                <div
+                  onClick={() => setIsCustomsCalcOpen(true)}
+                  className="bg-gradient-to-r from-amber-950 to-slate-900 rounded-xl p-4 text-white flex items-center justify-between border border-amber-900 cursor-pointer hover:border-amber-500 transition-all shadow-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-600 flex items-center justify-center shadow-xs">
+                      <Calculator size={22} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm">
+                        {isKg ? 'КР бажы калькулятору (Электро 0%)' : 'Калькулятор растаможки КР (Электро 0%)'}
+                      </h4>
+                      <p className="text-xs text-amber-200">
+                        {isKg ? 'ЕАЭС 2025-2026 тарифтери боюнча так эсеп' : 'Точный расчет пошлин и НДС по сетке ЕАЭС'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-amber-300 hover:underline shrink-0">
+                    Рассчитать →
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Список объявлений с сортировкой */}
+            <div id="listings-grid-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              {/* Строка управления сортировкой */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                    {isKg ? 'Жаңы чыккан автоунаалар' : 'Актуальные объявления'}
+                  </h2>
+                  <span className="text-xs text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full font-bold">
+                    {sortedCars.length}
+                  </span>
+                </div>
+
+                {/* Сортировка */}
+                <div className="flex items-center gap-2 self-start sm:self-auto text-xs">
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <ArrowUpDown size={13} />
+                    {isKg ? 'Иреттөө:' : 'Сортировка:'}
+                  </span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-[#C8102E] cursor-pointer"
+                  >
+                    <option value="date">По дате добавления</option>
+                    <option value="priceAsc">Сначала дешевле</option>
+                    <option value="priceDesc">Сначала дороже</option>
+                    <option value="yearDesc">Свежие по году</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Сетка карточек автомобилей */}
+              {sortedCars.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
+                  <KochkorMuyuzIcon size={48} color="#94A3B8" className="mx-auto mb-3" />
+                  <h3 className="text-lg font-bold text-slate-800">
+                    По вашему запросу ничего не найдено
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    Попробуйте смягчить параметры поиска или сбросить фильтры
+                  </p>
+                  <button
+                    onClick={handleResetFilters}
+                    className="mt-4 px-4 py-2 bg-[#C8102E] text-white text-xs font-bold rounded-lg hover:bg-[#a60d26] transition-colors cursor-pointer"
+                  >
+                    Сбросить все фильтры
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  {sortedCars.map((car) => (
+                    <CarCard
+                      key={car.id}
+                      car={car}
+                      currency={currency}
+                      language={language}
+                      isFavorite={favorites.includes(car.id)}
+                      onToggleFavorite={toggleFavorite}
+                      onSelect={(c) => setSelectedCar(c)}
+                      onCheckCar={handleOpenCarCheckWithPlate}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Орнаментальный разделитель перед футером */}
+            <KyrgyzSectionDivider
+              title={isKg ? 'Кыргызстандагы эң ишенимдүү автобазар' : 'Все автомобили Кыргызстана на одном портале'}
+              subtitle="Бишкек, Ош, РИОМ-АВТО, Кудайберген жана бардык облустар"
+            />
+          </div>
+        )}
+
+        {/* Раздел автозапчастей */}
+        {activeTab === 'parts' && (
+          <PartsSection
+            currency={currency}
+            language={language}
+            onOrderCreated={handleOrderCreated}
+            onNavigateToCabinet={() => setActiveTab('cabinet')}
+          />
+        )}
+
+        {/* Раздел Автосервис & СТО (галерея работ, прайс-лист, онлайн-запись, карта, WhatsApp) */}
+        {activeTab === 'workshop' && (
+          <WorkshopSection
+            currency={currency}
+            language={language}
+            onBookingSuccess={(booking) => {
+              showToast(`Запись #${booking.bookingNumber} на СТО успешно сохранена!`);
+            }}
+          />
+        )}
+
+        {/* Раздел акций и скидок */}
+        {activeTab === 'promotions' && (
+          <PromotionsSection
+            language={language}
+            onNavigateToWorkshop={() => setActiveTab('workshop')}
+            onApplyPromo={(code) => showToast(`Промокод ${code} активирован!`)}
+          />
+        )}
+
+        {/* Раздел часто задаваемых вопросов (FAQ) */}
+        {activeTab === 'faq' && (
+          <FaqSection
+            language={language}
+          />
+        )}
+
+        {/* Раздел отзывов автовладельцев */}
+        {activeTab === 'reviews' && (
+          <ReviewsSection language={language} />
+        )}
+
+        {/* Раздел автоновостей */}
+        {activeTab === 'news' && (
+          <NewsSection language={language} />
+        )}
+
+        {/* Единый Личный кабинет (вход, регистрация, управление сайтом и личный профиль) */}
+        {activeTab === 'cabinet' && (
+          <UserCabinet
+            user={userProfile}
+            setUser={setUserProfile}
+            buyerOrders={buyerOrders}
+            setBuyerOrders={setBuyerOrders}
+            savedChecks={savedChecks}
+            cars={cars}
+            setCars={setCars}
+            parts={parts}
+            setParts={setParts}
+            registeredUsers={registeredUsers}
+            setRegisteredUsers={setRegisteredUsers}
+            siteSettings={siteSettings}
+            setSiteSettings={setSiteSettings}
+            onUpdateCarPrice={handleUpdateCarPrice}
+            onToggleCarUrgent={handleToggleCarUrgent}
+            onRemoveCar={handleRemoveCar}
+            onSelectCar={(c) => setSelectedCar(c)}
+            onOpenAddListing={() => setIsAddListingOpen(true)}
+            onOpenCarCheckWithPlate={handleOpenCarCheckWithPlate}
+            onOpenControlPanel={() => setIsControlPanelOpen(true)}
+            onOpenCabinetAuth={() => setIsCabinetAuthModalOpen(true)}
+            onRequestAdminRole={() => {
+              setRegisteredUsers((prev) =>
+                prev.map((u) => (u.id === userProfile.id ? { ...u, status: 'pending_admin' as const } : u))
+              );
+            }}
+            currency={currency}
+            language={language}
+          />
+        )}
+      </main>
+
+      {/* Футер */}
+      <Footer
+        language={language}
+        onOpenCarCheck={() => {
+          setCarCheckPlate('01 KG 777 AAA');
+          setIsCarCheckOpen(true);
+        }}
+        onOpenCustomsCalc={() => setIsCustomsCalcOpen(true)}
+        onOpenCabinet={() => setActiveTab('cabinet')}
+        onOpenParts={() => setActiveTab('parts')}
+        onOpenWorkshop={() => setActiveTab('workshop')}
+        onOpenFaq={() => setActiveTab('faq')}
+        onOpenPromotions={() => setActiveTab('promotions')}
+        onOpenControlPanel={() => setIsControlPanelOpen(true)}
+      />
+
+      {/* Модальная Панель Управления Сайтом */}
+      <SiteControlPanelModal
+        isOpen={isControlPanelOpen}
+        onClose={() => setIsControlPanelOpen(false)}
+        currentUser={userProfile}
+        onSwitchUser={(u) => setUserProfile(u)}
+        cars={cars}
+        onUpdateCars={(updated) => setCars(updated)}
+        parts={parts}
+        onUpdateParts={(updated) => setParts(updated)}
+        registeredUsers={registeredUsers}
+        onUpdateUsers={(updated) => setRegisteredUsers(updated)}
+        siteSettings={siteSettings}
+        onUpdateSiteSettings={(s) => setSiteSettings(s)}
+        language={language}
+        currency={currency}
+      />
+
+      {/* Модальное окно входа и регистрации в Личный кабинет (в точности как на образце) */}
+      <AuthCabinetModal
+        isOpen={isCabinetAuthModalOpen}
+        onClose={() => {
+          setIsCabinetAuthModalOpen(false);
+          setAuthModalNotice(null);
+          setPendingPostAfterAuth(false);
+        }}
+        currentUser={userProfile}
+        registeredUsers={registeredUsers}
+        promptNotice={authModalNotice}
+        initialTab={authModalInitialTab}
+        onRegisterNewUser={(newUser) => {
+          setRegisteredUsers((prev) => [newUser, ...prev]);
+        }}
+        onSuccessLogin={(loggedInUser) => {
+          setUserProfile(loggedInUser);
+          setIsAuthenticated(true);
+          showToast(`Добро пожаловать, ${loggedInUser.name}!`);
+
+          // Если пользователь хотел подать объявление — открываем форму подачи
+          if (pendingPostAfterAuth) {
+            setPendingPostAfterAuth(false);
+            setAuthModalNotice(null);
+            setTimeout(() => {
+              setIsAddListingOpen(true);
+            }, 300);
+          } else {
+            setActiveTab('cabinet');
+          }
+        }}
+      />
+
+      <CarDetailModal
+        car={selectedCar}
+        onClose={() => setSelectedCar(null)}
+        currency={currency}
+        language={language}
+        isFavorite={selectedCar ? favorites.includes(selectedCar.id) : false}
+        onToggleFavorite={toggleFavorite}
+        onOpenCarCheckWithPlate={handleOpenCarCheckWithPlate}
+      />
+
+      <CarCheckModal
+        isOpen={isCarCheckOpen}
+        onClose={() => setIsCarCheckOpen(false)}
+        language={language}
+        initialPlate={carCheckPlate}
+      />
+
+      <CustomsCalculatorModal
+        isOpen={isCustomsCalcOpen}
+        onClose={() => setIsCustomsCalcOpen(false)}
+        language={language}
+      />
+
+      <AddListingModal
+        isOpen={isAddListingOpen}
+        onClose={() => setIsAddListingOpen(false)}
+        onAddCar={handleAddCar}
+        language={language}
+        currentUser={userProfile}
+      />
+
+      <FavoritesModal
+        isOpen={isFavoritesOpen}
+        onClose={() => setIsFavoritesOpen(false)}
+        favorites={favoriteCars}
+        currency={currency}
+        language={language}
+        onRemoveFavorite={toggleFavorite}
+        onSelectCar={(car) => setSelectedCar(car)}
+      />
+
+      {/* Интеллектуальный AI Автоэксперт / Чат-бот портала */}
+      <AIConsultantChatbot
+        language={language}
+        onOpenCarCheck={handleOpenCarCheckWithPlate}
+        onOpenCustomsCalc={() => setIsCustomsCalcOpen(true)}
+        onOpenParts={() => setActiveTab('parts')}
+      />
+    </div>
+  );
+}
