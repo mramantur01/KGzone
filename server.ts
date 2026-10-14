@@ -826,8 +826,14 @@ async function startServer() {
   } else {
     const distPath = path.resolve(__dirname, 'public');
     if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath));
+      app.use(express.static(distPath, { index: false }));
+      // A missing build asset (e.g. requested by a page cached before a deploy) must 404,
+      // not fall through to index.html — that makes the browser fail to parse it as JS.
+      app.use('/assets', (_req: Request, res: Response) => {
+        res.status(404).end();
+      });
       app.get('*', (_req: Request, res: Response) => {
+        res.setHeader('Cache-Control', 'no-cache');
         res.sendFile(path.resolve(distPath, 'index.html'));
       });
     }
