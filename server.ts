@@ -4,9 +4,105 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import { neon } from '@neondatabase/serverless';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// ==========================================
+// DATABASE
+// ==========================================
+
+// Postgres-backed record store (Neon via Vercel Marketplace).
+// Every collection lives in one table as JSONB documents.
+// Without DATABASE_URL it falls back to in-memory arrays (local dev / demo).
+
+type Collection = 'orders' | 'bookings' | 'reviews';
+
+const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+const sql = databaseUrl ? neon(databaseUrl) : null;
+
+const isDatabaseConnected = Boolean(sql);
+
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [] };
+let readyPromise: Promise<void> | null = null;
+
+// Creates the table and seeds each empty collection once.
+function initStore(seed: Record<Collection, any[]>): Promise<void> {
+  if (readyPromise) return readyPromise;
+
+  readyPromise = (async () => {
+    if (!sql) {
+      for (const c of Object.keys(seed) as Collection[]) memory[c] = [...seed[c]];
+      return;
+    }
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS records (
+        collection TEXT NOT NULL,
+        id TEXT NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (collection, id)
+      )
+    `;
+
+    for (const c of Object.keys(seed) as Collection[]) {
+      const [{ count }] = await sql`SELECT count(*)::int AS count FROM records WHERE collection = ${c}`;
+      if (count > 0) continue;
+      // Seed arrays are newest-first; offset timestamps to keep that order.
+      const now = Date.now();
+      for (const [i, item] of seed[c].entries()) {
+        await sql`
+          INSERT INTO records (collection, id, data, created_at)
+          VALUES (${c}, ${item.id}, ${JSON.stringify(item)}::jsonb, ${new Date(now - i * 1000).toISOString()})
+          ON CONFLICT DO NOTHING
+        `;
+      }
+    }
+  })().catch((err) => {
+    readyPromise = null;
+    throw err;
+  });
+
+  return readyPromise;
+}
+
+async function listRecords<T = any>(c: Collection): Promise<T[]> {
+  if (!sql) return memory[c];
+  const rows = await sql`SELECT data FROM records WHERE collection = ${c} ORDER BY created_at DESC`;
+  return rows.map((r) => r.data as T);
+}
+
+async function insertRecord<T extends { id: string }>(c: Collection, item: T): Promise<T> {
+  if (!sql) {
+    memory[c].unshift(item);
+    return item;
+  }
+  await sql`INSERT INTO records (collection, id, data) VALUES (${c}, ${item.id}, ${JSON.stringify(item)}::jsonb)`;
+  return item;
+}
+
+async function updateRecord<T = any>(c: Collection, id: string, patch: Partial<T>): Promise<T | null> {
+  if (!sql) {
+    const item = memory[c].find((r) => r.id === id);
+    if (!item) return null;
+    Object.assign(item, patch);
+    return item;
+  }
+  const rows = await sql`
+    UPDATE records SET data = data || ${JSON.stringify(patch)}::jsonb
+    WHERE collection = ${c} AND id = ${id}
+    RETURNING data
+  `;
+  return rows.length ? (rows[0].data as T) : null;
+}
+
+async function countRecords(c: Collection): Promise<number> {
+  if (!sql) return memory[c].length;
+  const [{ count }] = await sql`SELECT count(*)::int AS count FROM records WHERE collection = ${c}`;
+  return count;
+}
 
 // Initialize Gemini client on server side
 const ai = new GoogleGenAI({
@@ -25,6 +121,26 @@ const isProd = process.env.NODE_ENV === 'production';
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Make sure the DB table exists and is seeded before any API call touches it
+app.use('/api', (_req: Request, res: Response, next) => {
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews })
+    .then(() => next())
+    .catch((err) => {
+      console.error('[DB] init failed:', err);
+      res.status(503).json({ success: false, error: 'База данных недоступна' });
+    });
+});
+
+// Express 4 does not catch rejected promises from async handlers
+const asyncRoute =
+  (handler: (req: Request, res: Response) => Promise<unknown>) =>
+  (req: Request, res: Response) => {
+    handler(req, res).catch((err) => {
+      console.error('[API] error:', err);
+      res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
+    });
+  };
 
 // In-memory data store with initial seed
 interface OrderRecord {
@@ -45,7 +161,7 @@ interface OrderRecord {
   comment?: string;
 }
 
-let inMemoryOrders: OrderRecord[] = [
+const seedOrders: OrderRecord[] = [
   {
     id: 'ord-101',
     orderNumber: 'KGZ-8821',
@@ -162,18 +278,19 @@ app.get('/api/health', (_req: Request, res: Response) => {
     app: 'KGzone Auto Portal API',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
+    database: isDatabaseConnected ? 'postgres' : 'in-memory',
   });
 });
 
 // Orders API
-app.get('/api/orders', (_req: Request, res: Response) => {
+app.get('/api/orders', asyncRoute(async (_req: Request, res: Response) => {
   res.json({
     success: true,
-    orders: inMemoryOrders,
+    orders: await listRecords<OrderRecord>('orders'),
   });
-});
+}));
 
-app.post('/api/orders', (req: Request, res: Response) => {
+app.post('/api/orders', asyncRoute(async (req: Request, res: Response) => {
   const {
     customerName,
     customerPhone,
@@ -213,30 +330,29 @@ app.post('/api/orders', (req: Request, res: Response) => {
     comment: comment || '',
   };
 
-  inMemoryOrders.unshift(newOrder);
+  await insertRecord('orders', newOrder);
 
   res.status(201).json({
     success: true,
     order: newOrder,
   });
-});
+}));
 
 // Update order status
-app.patch('/api/orders/:id/status', (req: Request, res: Response) => {
+app.patch('/api/orders/:id/status', asyncRoute(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { status } = req.body;
 
-  const orderIndex = inMemoryOrders.findIndex((o) => o.id === id);
-  if (orderIndex === -1) {
+  const order = await updateRecord<OrderRecord>('orders', id, { status });
+  if (!order) {
     return res.status(404).json({ success: false, error: 'Заказ не найден' });
   }
 
-  inMemoryOrders[orderIndex].status = status;
   res.json({
     success: true,
-    order: inMemoryOrders[orderIndex],
+    order,
   });
-});
+}));
 
 // CarCheck verification API
 app.get('/api/carcheck/:plate', (req: Request, res: Response) => {
@@ -352,7 +468,7 @@ app.post('/api/customs-calc', (req: Request, res: Response) => {
 });
 
 // Workshop Bookings in-memory store
-const inMemoryBookings: any[] = [
+const seedBookings: any[] = [
   {
     id: 'bk-9401',
     bookingNumber: 'BK-9401',
@@ -389,11 +505,11 @@ const inMemoryBookings: any[] = [
   },
 ];
 
-app.get('/api/workshop/bookings', (_req: Request, res: Response) => {
-  res.json({ success: true, bookings: inMemoryBookings });
-});
+app.get('/api/workshop/bookings', asyncRoute(async (_req: Request, res: Response) => {
+  res.json({ success: true, bookings: await listRecords('bookings') });
+}));
 
-app.post('/api/workshop/bookings', (req: Request, res: Response) => {
+app.post('/api/workshop/bookings', asyncRoute(async (req: Request, res: Response) => {
   const {
     serviceTitle,
     masterName,
@@ -429,10 +545,10 @@ app.post('/api/workshop/bookings', (req: Request, res: Response) => {
     telegramNotified: true,
   };
 
-  inMemoryBookings.unshift(newBooking);
+  await insertRecord('bookings', newBooking);
 
   res.status(201).json({ success: true, booking: newBooking });
-});
+}));
 
 // Telegram notification API
 app.post('/api/telegram/notify', (req: Request, res: Response) => {
@@ -463,7 +579,7 @@ app.post('/api/sms/notify', (req: Request, res: Response) => {
 });
 
 // User Reviews API
-let inMemoryReviews: any[] = [
+const seedReviews: any[] = [
   {
     id: 'rev-1',
     authorName: 'Бектур Асаналиев',
@@ -506,11 +622,11 @@ let inMemoryReviews: any[] = [
   },
 ];
 
-app.get('/api/reviews', (_req: Request, res: Response) => {
-  res.json({ success: true, reviews: inMemoryReviews });
-});
+app.get('/api/reviews', asyncRoute(async (_req: Request, res: Response) => {
+  res.json({ success: true, reviews: await listRecords('reviews') });
+}));
 
-app.post('/api/reviews', (req: Request, res: Response) => {
+app.post('/api/reviews', asyncRoute(async (req: Request, res: Response) => {
   const { authorName, city, category, targetTitle, rating, text, pros, cons } = req.body;
   if (!authorName || !text) {
     return res.status(400).json({ success: false, error: 'Заполните имя и отзыв' });
@@ -531,21 +647,21 @@ app.post('/api/reviews', (req: Request, res: Response) => {
     likes: 1,
   };
 
-  inMemoryReviews.unshift(newReview);
+  await insertRecord('reviews', newReview);
   res.status(201).json({ success: true, review: newReview });
-});
+}));
 
 // Admin system analytics & live telemetry
-app.get('/api/admin/analytics', (_req: Request, res: Response) => {
+app.get('/api/admin/analytics', asyncRoute(async (_req: Request, res: Response) => {
   res.json({
     success: true,
     analytics: {
       activeUsersOnline: 48,
       dailyVisits: 3410,
       totalListings: 142,
-      totalBookings: inMemoryBookings.length + 38,
+      totalBookings: (await countRecords('bookings')) + 38,
       totalRevenueKgs: 845000,
-      dbHealth: 'OPTIMAL',
+      dbHealth: isDatabaseConnected ? 'OPTIMAL' : 'IN_MEMORY',
       backupStatus: 'UP_TO_DATE',
       lastBackupDate: new Date().toLocaleDateString('ru-RU') + ' 04:00',
       smsGatewayStatus: 'ACTIVE',
@@ -555,20 +671,26 @@ app.get('/api/admin/analytics', (_req: Request, res: Response) => {
       uptimeSeconds: Math.round(process.uptime()),
     },
   });
-});
+}));
 
 // Admin database backup generation
-app.post('/api/admin/backup', (_req: Request, res: Response) => {
+app.post('/api/admin/backup', asyncRoute(async (_req: Request, res: Response) => {
+  const [orders, bookings, reviews] = await Promise.all([
+    listRecords('orders'),
+    listRecords('bookings'),
+    listRecords('reviews'),
+  ]);
   const backupPayload = {
     version: '2.5.0-fullstack',
     createdAt: new Date().toISOString(),
     environment: 'production-ready',
     entities: {
-      ordersCount: inMemoryOrders.length,
-      bookingsCount: inMemoryBookings.length,
-      reviewsCount: inMemoryReviews.length,
-      orders: inMemoryOrders,
-      bookings: inMemoryBookings,
+      ordersCount: orders.length,
+      bookingsCount: bookings.length,
+      reviewsCount: reviews.length,
+      orders,
+      bookings,
+      reviews,
     },
     checksumSha256: 'a94f82c3e1b7d5982e0fa9983141f' + Date.now(),
   };
@@ -581,7 +703,7 @@ app.post('/api/admin/backup', (_req: Request, res: Response) => {
     data: backupPayload,
     message: 'Резервная копия базы данных успешно создана и зашифрована!',
   });
-});
+}));
 
 // 2FA verification endpoint
 app.post('/api/auth/2fa/verify', (req: Request, res: Response) => {
