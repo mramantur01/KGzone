@@ -862,10 +862,13 @@ const yearsLabel = (from: number | null, to: number | null) => {
 
 export const getGenerationsForModel = (brand: string, model: string): CarGeneration[] => {
   const m = CAR_CATALOG[brand]?.find((x) => x.n === model);
-  return (m?.g || [])
-    .map(([name, from, to]) => ({ name, from, to, label: from ? `${name} (${yearsLabel(from, to)})` : name }))
-    // By year when both are known, otherwise by name ("XV10" < "XV20" < "XV70")
-    .sort((a, b) => (a.from && b.from ? a.from - b.from : a.name.localeCompare(b.name, undefined, { numeric: true })));
+  const gens = (m?.g || []).map(([name, from, to]) => ({
+    name, from, to, label: from ? `${name} (${yearsLabel(from, to)})` : name,
+  }));
+  const byName = (a: CarGeneration, b: CarGeneration) => a.name.localeCompare(b.name, undefined, { numeric: true });
+  // Mostly dated: chronological, undated ones after. Mostly undated: by name ("XV10" < "XV20" < "XV70").
+  if (gens.filter((g) => g.from).length * 2 < gens.length) return gens.sort(byName);
+  return gens.sort((a, b) => (a.from && b.from ? a.from - b.from : a.from ? -1 : b.from ? 1 : byName(a, b)));
 };
 
 export const getModelsForBrand = (brand: string): string[] => {
