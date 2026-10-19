@@ -97,7 +97,7 @@ export interface AutoPartItem {
   bodyCode?: string;
   partNumber: string; // OEM / артикул
   priceKgs: number;
-  condition: 'Новый (Оригинал)' | 'Б/у (Контрактный)' | 'Дубликат (OEM)' | 'Новый' | 'Б/У с разбора';
+  condition: 'Новый (Оригинал)' | 'Б/у (Контрактный)' | 'Дубликат (OEM)' | 'Новый' | 'Б/У с разбора' | 'Восстановленная';
   inStock: boolean;
   stockCount: number;
   stockStatus: 'В наличии' | 'В наличии на складе' | 'Под заказ (2-3 дня)' | 'Осталось мало' | 'Бронь' | 'Продано';
@@ -126,6 +126,7 @@ export interface AutoPartItem {
   warrantyDays?: number;
   description?: string;
   deliveryAvailable?: boolean;
+  pickupAvailable?: boolean;
   views?: number;
   createdAt?: string;
   originalType?: 'original' | 'analog';

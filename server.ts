@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 // Each collection is a hash (id -> JSON document) plus a sorted set that keeps
 // newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
-type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars';
+type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports';
 
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -27,7 +27,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 
 const isDatabaseConnected = Boolean(redis);
 
-const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [] };
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [] };
 let readyPromise: Promise<void> | null = null;
 
 const dataKey = (c: Collection) => `kgzone:${c}`;
@@ -139,7 +139,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make sure the DB table exists and is seeded before any API call touches it
 app.use('/api', (_req: Request, res: Response, next) => {
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [] })
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [] })
     .then(() => next())
     .catch((err) => {
       console.error('[DB] init failed:', err);
@@ -728,7 +728,7 @@ const imageUrl = (v: unknown) => {
   return /^\/parts\/[\w.-]+$/.test(s) || /^https:\/\/[^\s"'<>]+$/.test(s) ? s : '';
 };
 
-const PART_CONDITIONS = ['Новый (Оригинал)', 'Б/у (Контрактный)', 'Дубликат (OEM)', 'Новый', 'Б/У с разбора'];
+const PART_CONDITIONS = ['Новый (Оригинал)', 'Б/у (Контрактный)', 'Дубликат (OEM)', 'Новый', 'Б/У с разбора', 'Восстановленная'];
 
 // Whitelist and clamp everything a seller can send
 function sanitizePart(body: any) {
@@ -777,6 +777,8 @@ function sanitizePart(body: any) {
     warrantyDays: Math.round(num(body.warrantyDays, 0, 3650)),
     description: str(body.description, 2000) || undefined,
     deliveryAvailable: body.deliveryAvailable !== false,
+    pickupAvailable: body.pickupAvailable !== false,
+    city: str(body.city, 60) || undefined,
   };
 }
 
@@ -1052,6 +1054,50 @@ app.delete('/api/admin/cars/:id', requireAdmin, asyncRoute(async (req: Request, 
   const ok = await deleteRecord('cars', req.params.id);
   if (!ok) return res.status(404).json({ success: false, error: 'Объявление не найдено' });
   res.json({ success: true });
+}));
+
+// Complaints about listings (parts or cars) -> admin queue
+const REPORT_REASONS = ['Неверная цена', 'Товар уже продан', 'Мошенничество', 'Неверное описание или фото', 'Спам или дубликат', 'Другое'];
+const reportHits = new Map<string, number[]>();
+
+app.post('/api/reports', asyncRoute(async (req: Request, res: Response) => {
+  const ip = (req.get('x-forwarded-for') || req.ip || 'unknown').split(',')[0].trim();
+  const now = Date.now();
+  const recent = (reportHits.get(ip) || []).filter((t) => now - t < 60 * 60_000);
+  if (recent.length >= 10) return res.status(429).json({ success: false, error: 'Слишком много жалоб. Попробуйте позже.' });
+  const body = req.body || {};
+  const kind = body.kind === 'car' ? 'car' : 'part';
+  const listingId = str(body.listingId, 80);
+  const reason = REPORT_REASONS.includes(body.reason) ? body.reason : '';
+  if (!listingId || !reason) return res.status(400).json({ success: false, error: 'Выберите причину жалобы' });
+  recent.push(now);
+  reportHits.set(ip, recent);
+  const record = {
+    id: `rep-${randomUUID()}`,
+    kind,
+    listingId,
+    listingTitle: str(body.listingTitle, 160),
+    reason,
+    comment: str(body.comment, 1000),
+    contact: str(body.contact, 80),
+    status: 'new',
+    createdAt: new Date().toISOString(),
+  };
+  await insertRecord('reports', record);
+  await notifyAdmin(`⚠️ Жалоба на объявление\n${record.listingTitle} (${record.listingId})\nПричина: ${record.reason}${record.comment ? '\n' + record.comment : ''}`);
+  res.status(201).json({ success: true });
+}));
+
+app.get('/api/admin/reports', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
+  res.json({ success: true, reports: await listRecords('reports') });
+}));
+
+app.patch('/api/admin/reports/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const status = ['new', 'resolved', 'dismissed'].includes(req.body?.status) ? req.body.status : null;
+  if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
+  const updated = await updateRecord('reports', req.params.id, { status, resolvedAt: new Date().toISOString() });
+  if (!updated) return res.status(404).json({ success: false, error: 'Жалоба не найдена' });
+  res.json({ success: true, report: updated });
 }));
 
 // Admin system analytics & live telemetry

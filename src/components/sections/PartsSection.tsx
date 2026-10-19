@@ -9,6 +9,8 @@ import {
 import { partFitsBrand, partFitsModel, partFitsGeneration, partInCategory, partMatchesSubPart } from '../../utils/partMatching';
 import { ModelPartsTree } from './ModelPartsTree';
 import { useParts } from '../../api/parts';
+import { decodeVin, type VinInfo } from '../../utils/vin';
+import { togglePartFavorite, usePartFavorites } from '../../utils/partFavorites';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { PartDetailModal } from '../modals/PartDetailModal';
@@ -51,7 +53,24 @@ import {
   List,
   ArrowUpDown,
   Building,
+  Heart,
+  Truck,
+  User,
 } from 'lucide-react';
+
+const PAGE_SIZE = 24;
+
+const partConditionGroup = (condition: string) => {
+  const c = condition.toLowerCase();
+  if (c.includes('восстановл')) return 'Восстановленная';
+  if (c.includes('контракт')) return 'Контрактная';
+  if (c.includes('б/у') || c.includes('разбор')) return 'Б/У';
+  return 'Новая';
+};
+
+const partSellerType = (p: AutoPartItem) => p.sellerType || (p.companyName || p.inn ? 'legal' : 'individual');
+
+const fmtPartDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('ru-RU') : null);
 
 interface PartsSectionProps {
   currency: Currency;
@@ -94,9 +113,18 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   const [selectedOriginalType, setSelectedOriginalType] = useState<string>('Все');
   const [priceMin, setPriceMin] = useState<string>('');
   const [priceMax, setPriceMax] = useState<string>('');
-  const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'popular'>('newest');
+  const [sortBy, setSortBy] = useState<'relevance' | 'newest' | 'price_asc' | 'price_desc' | 'popular'>('newest');
   const [onlyInStock, setOnlyInStock] = useState<boolean>(false);
   const [onlyWithVideo, setOnlyWithVideo] = useState<boolean>(false);
+  const [sellerTypeFilter, setSellerTypeFilter] = useState<'Все' | 'individual' | 'legal'>('Все');
+  const [deliveryFilter, setDeliveryFilter] = useState<'Все' | 'delivery' | 'pickup'>('Все');
+  const [onlyWithPhoto, setOnlyWithPhoto] = useState<boolean>(false);
+  const [onlyFavorites, setOnlyFavorites] = useState<boolean>(false);
+  const [vinInput, setVinInput] = useState('');
+  const [vinInfo, setVinInfo] = useState<VinInfo | null>(null);
+  const [vinError, setVinError] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const favoriteIds = usePartFavorites();
 
   // Track revealed phone numbers (anti-spam Drom feature)
   const [revealedPhones, setRevealedPhones] = useState<Record<string, boolean>>({});
@@ -160,6 +188,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     {
       id: 'Двигатель',
       matchId: 'Двигатель и элементы двигателя',
+      aliases: ['Двигатель в сборе'],
       labelRu: 'Двигатель',
       labelKg: 'Кыймылдаткыч',
       icon: '⚙️',
@@ -195,6 +224,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     {
       id: 'Подвеска',
       matchId: 'Ходовая часть',
+      aliases: ['Амортизаторы', 'Рычаги', 'Пневмобаллоны'],
       labelRu: 'Подвеска & ходовая',
       labelKg: 'Асма & ходовая',
       icon: '🛞',
@@ -227,6 +257,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     {
       id: 'Кузов',
       matchId: 'Детали кузова',
+      aliases: ['Бампер', 'Капот'],
       labelRu: 'Кузов',
       labelKg: 'Кузовдук тетиктер',
       icon: '🚗',
@@ -245,6 +276,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     {
       id: 'Оптика',
       matchId: 'Оптика',
+      aliases: ['Фара'],
       labelRu: 'Оптика & фары',
       labelKg: 'Оптика & фаралар',
       icon: '💡',
@@ -260,6 +292,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     {
       id: 'Электрика',
       matchId: 'Электрика',
+      aliases: ['Блок управления', 'ЭБУ', 'Датчик'],
       labelRu: 'Электрика',
       labelKg: 'Электрика',
       icon: '⚡',
@@ -274,37 +307,51 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
       ],
     },
     {
-      id: 'Охлаждение и климат',
+      id: 'Система охлаждения',
+      matchId: 'Система охлаждения',
+      aliases: ['Радиатор охлаждения'],
+      labelRu: 'Система охлаждения',
+      labelKg: 'Муздатуу системасы',
+      icon: '🌡️',
+      subParts: ['Радиатор', 'Вентилятор', 'Помпа', 'Термостат', 'Расширительный бачок', 'Патрубки'],
+    },
+    {
+      id: 'Отопление и кондиционер',
       matchId: 'Система отопления и кондиционирования',
-      labelRu: 'Охлаждение и климат',
-      labelKg: 'Муздатуу жана климат',
+      labelRu: 'Отопление и кондиционер',
+      labelKg: 'Жылытуу жана кондиционер',
       icon: '❄️',
-      subParts: [
-        'Радиатор основной',
-        'Радиатор печки',
-        'Компрессор кондиционера',
-        'Вентилятор диффузора',
-        'Термостат',
-      ],
+      subParts: ['Радиатор печки', 'Компрессор кондиционера', 'Конденсер', 'Мотор печки', 'Блок управления климатом'],
+    },
+    {
+      id: 'Топливная система',
+      matchId: 'Топливная система',
+      labelRu: 'Топливная система',
+      labelKg: 'Күйүүчү май системасы',
+      icon: '⛽',
+      subParts: ['Форсунки', 'Топливный насос', 'Топливная рампа', 'Топливный бак', 'Топливный фильтр', 'Дроссельная заслонка'],
     },
     {
       id: 'Масла и фильтры',
       matchId: 'Масла и фильтры',
-      labelRu: 'Масла и фильтры',
-      labelKg: 'Майлар жана чыпкалар',
+      aliases: ['Расходники', 'Тормозные колодки'],
+      labelRu: 'Расходники и ТО',
+      labelKg: 'Чыгым материалдары жана ТО',
       icon: '🛢️',
       subParts: [
-        'Моторное масло 5W-30',
-        'Масло вариатора HMMF',
+        'Моторное масло',
         'Масляный фильтр',
         'Воздушный фильтр',
         'Салонный фильтр',
+        'Свечи зажигания',
+        'Ремни',
+        'Щётки стеклоочистителя',
       ],
     },
     {
       id: 'Шины и диски',
       matchId: 'Шины и диски',
-      labelRu: 'Шины и диски',
+      labelRu: 'Колёса, шины и диски',
       labelKg: 'Дөңгөлөктөр жана дисктер',
       icon: '🛞',
       subParts: [
@@ -343,6 +390,14 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
         'Резонатор',
         'Лямбда-зонд',
       ],
+    },
+    {
+      id: 'Тюнинг',
+      matchId: 'Тюнинг и дополнительное оборудование',
+      labelRu: 'Тюнинг и доп. оборудование',
+      labelKg: 'Тюнинг жана кошумча жабдуулар',
+      icon: '🏁',
+      subParts: ['Обвес', 'Спойлер', 'Фаркоп', 'Магнитола', 'Видеорегистратор', 'Сигнализация', 'Багажник на крышу'],
     },
   ];
 
@@ -423,14 +478,10 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
         if (!matchLoc) return false;
       }
 
-      // Condition (Новая / Б/У)
+      // Condition: new / used / contract (from a donor car abroad) / restored
       if (selectedCondition !== 'Все') {
-        if (selectedCondition === 'Новая' && !part.condition.includes('Новый') && !part.condition.includes('Новая')) {
-          return false;
-        }
-        if (selectedCondition === 'Б/У' && !part.condition.includes('Б/у') && !part.condition.includes('Б/У')) {
-          return false;
-        }
+        const group = partConditionGroup(part.condition);
+        if (selectedCondition === 'Б/У' ? group !== 'Б/У' && group !== 'Контрактная' : group !== selectedCondition) return false;
       }
 
       // Original / Analog
@@ -453,15 +504,28 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
       // Video check
       if (onlyWithVideo && !part.hasCompressionVideo && !part.videoUrl) return false;
 
+      if (sellerTypeFilter !== 'Все' && partSellerType(part) !== sellerTypeFilter) return false;
+      if (deliveryFilter === 'delivery' && !part.deliveryAvailable) return false;
+      if (deliveryFilter === 'pickup' && part.pickupAvailable === false) return false;
+      if (onlyWithPhoto && !part.image) return false;
+      if (onlyFavorites && !favoriteIds.includes(part.id)) return false;
+
       return true;
     });
+
+    // Relevance: exact OEM match first, then OEM contains, then title
+    const q = searchQuery.toLowerCase().trim();
+    const relevance = (p: AutoPartItem) =>
+      !q ? 0 : (p.partNumber.toLowerCase() === q ? 4 : 0) + (p.partNumber.toLowerCase().includes(q) ? 2 : 0) + (p.title.toLowerCase().includes(q) ? 1 : 0);
 
     // Sorting
     result.sort((a, b) => {
       if (sortBy === 'price_asc') return a.priceKgs - b.priceKgs;
       if (sortBy === 'price_desc') return b.priceKgs - a.priceKgs;
       if (sortBy === 'popular') return (b.views || 0) - (a.views || 0);
-      return 0; // Default order (newest first)
+      if (sortBy === 'relevance') return relevance(b) - relevance(a);
+      // Newest first: database listings carry a date, built-in demo listings keep their order
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
     });
 
     return result;
@@ -482,7 +546,33 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     sortBy,
     onlyInStock,
     onlyWithVideo,
+    sellerTypeFilter,
+    deliveryFilter,
+    onlyWithPhoto,
+    onlyFavorites,
+    favoriteIds,
   ]);
+
+  // Back to the first page whenever the result set changes
+  React.useEffect(() => setVisibleCount(PAGE_SIZE), [filteredParts.length, sortBy]);
+  const shownParts = filteredParts.slice(0, visibleCount);
+
+  const handleVinSearch = () => {
+    setVinError(null);
+    const info = decodeVin(vinInput);
+    if (!info) {
+      setVinInfo(null);
+      setVinError(isKg ? 'VIN 17 белгиден турат (I, O, Q тамгаларысыз). Япон унааларында көбүнчө кузов номери болот — аны издөөгө жазыңыз.' : 'VIN — 17 символов без букв I, O, Q. У японских авто часто номер кузова вместо VIN — введите его в поиск.');
+      return;
+    }
+    setVinInfo(info);
+    if (info.brand && ALL_CAR_BRANDS.includes(info.brand)) {
+      setSelectedBrand(info.brand);
+      setSelectedModel('');
+      setSelectedGeneration('');
+    }
+    if (info.year) setSelectedYear(String(info.year));
+  };
 
   // Parts that fit the selected car, ignoring the other filters (feeds the per-model parts tree)
   const fittingParts = useMemo(() => {
@@ -509,6 +599,13 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     setSortBy('newest');
     setOnlyInStock(false);
     setOnlyWithVideo(false);
+    setSellerTypeFilter('Все');
+    setDeliveryFilter('Все');
+    setOnlyWithPhoto(false);
+    setOnlyFavorites(false);
+    setVinInput('');
+    setVinInfo(null);
+    setVinError(null);
   };
 
   const handleWhatsAppOrder = (part: AutoPartItem) => {
@@ -635,7 +732,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
             </div>
 
             {/* Reset Filters */}
-            {(searchQuery || selectedBrand || selectedModel || selectedYear || selectedCategory !== 'Все' || selectedSubPart !== 'Все' || selectedCityOrMarket !== 'Все' || selectedCondition !== 'Все' || selectedOriginalType !== 'Все' || priceMin || priceMax || onlyInStock || onlyWithVideo) && (
+            {(searchQuery || selectedBrand || selectedModel || selectedYear || selectedCategory !== 'Все' || selectedSubPart !== 'Все' || selectedCityOrMarket !== 'Все' || selectedCondition !== 'Все' || selectedOriginalType !== 'Все' || priceMin || priceMax || onlyInStock || onlyWithVideo || sellerTypeFilter !== 'Все' || deliveryFilter !== 'Все' || onlyWithPhoto || onlyFavorites) && (
               <button
                 onClick={handleResetFilters}
                 className="px-4 py-3.5 bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-red-400 rounded-2xl flex items-center gap-1.5 shrink-0 cursor-pointer transition-colors"
@@ -746,7 +843,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
               >
                 <option value="Все">{isKg ? 'Бардыгы' : 'Любое (Новая/Б-у)'}</option>
                 <option value="Новая">{isKg ? 'Жаңы' : 'Только новая'}</option>
-                <option value="Б/У">{isKg ? 'Б/У контракттык' : 'Только б/у'}</option>
+                <option value="Б/У">{isKg ? 'Б/У' : 'Б/у'}</option>
+                <option value="Контрактная">{isKg ? 'Контракттык' : 'Контрактная'}</option>
+                <option value="Восстановленная">{isKg ? 'Калыбына келтирилген' : 'Восстановленная'}</option>
               </select>
             </div>
 
@@ -784,6 +883,79 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Seller type, delivery, VIN and quick toggles */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 pt-3 mt-3 border-t border-neutral-800 text-xs">
+            <div>
+              <span className="block text-neutral-400 font-semibold mb-1">{isKg ? 'Сатуучу:' : 'Продавец:'}</span>
+              <select
+                value={sellerTypeFilter}
+                onChange={(e) => setSellerTypeFilter(e.target.value as typeof sellerTypeFilter)}
+                className="w-full px-2.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white font-medium"
+              >
+                <option value="Все">{isKg ? 'Бардыгы' : 'Все продавцы'}</option>
+                <option value="individual">{isKg ? 'Жеке сатуучу' : 'Частный продавец'}</option>
+                <option value="legal">{isKg ? 'Дүкөн / компания' : 'Магазин / компания'}</option>
+              </select>
+            </div>
+            <div>
+              <span className="block text-neutral-400 font-semibold mb-1">{isKg ? 'Алуу жолу:' : 'Получение:'}</span>
+              <select
+                value={deliveryFilter}
+                onChange={(e) => setDeliveryFilter(e.target.value as typeof deliveryFilter)}
+                className="w-full px-2.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white font-medium"
+              >
+                <option value="Все">{isKg ? 'Баары' : 'Доставка или самовывоз'}</option>
+                <option value="delivery">{isKg ? 'Жеткирүү бар' : 'Есть доставка'}</option>
+                <option value="pickup">{isKg ? 'Өзү алып кетүү' : 'Самовывоз'}</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <span className="block text-neutral-400 font-semibold mb-1">{isKg ? 'VIN боюнча тандоо:' : 'Подбор по VIN:'}</span>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={vinInput}
+                  onChange={(e) => setVinInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleVinSearch(); }}
+                  placeholder={isKg ? '17 белгилүү VIN' : 'VIN из 17 символов'}
+                  maxLength={20}
+                  className="flex-1 min-w-0 px-2.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white font-mono uppercase"
+                />
+                <button
+                  type="button"
+                  onClick={handleVinSearch}
+                  className="px-3 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold cursor-pointer shrink-0"
+                >
+                  {isKg ? 'Тандоо' : 'Подобрать'}
+                </button>
+              </div>
+              {vinError && <p className="text-[11px] text-red-400 mt-1">{vinError}</p>}
+              {vinInfo && (
+                <p className="text-[11px] text-neutral-400 mt-1">
+                  {isKg ? 'VIN боюнча:' : 'По VIN:'}{' '}
+                  <b className="text-white">{vinInfo.brand || (isKg ? 'марка аныкталган жок' : 'марка не определена')}</b>
+                  {vinInfo.year ? ', ' + vinInfo.year : ''}
+                  {vinInfo.region ? ' · ' + vinInfo.region : ''}.{' '}
+                  {isKg ? 'Моделди тизмеден тандаңыз. Так тандоо үчүн VIN-каталог туташтырылышы керек.' : 'Выберите модель из списка. Точный подбор по VIN требует подключения VIN-каталога.'}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-x-5 gap-y-2 pt-3 text-xs text-neutral-300">
+            {[
+              { checked: onlyWithPhoto, set: setOnlyWithPhoto, label: isKg ? 'Сүрөтү барлар гана' : 'Только с фото' },
+              { checked: onlyInStock, set: setOnlyInStock, label: isKg ? 'Кампада бар' : 'Только в наличии' },
+              { checked: onlyWithVideo, set: setOnlyWithVideo, label: isKg ? 'Видеосу бар' : 'С видео' },
+              { checked: onlyFavorites, set: setOnlyFavorites, label: (isKg ? 'Тандалгандар' : 'Избранное') + ' (' + favoriteIds.length + ')' },
+            ].map((t, i) => (
+              <label key={i} className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={t.checked} onChange={(e) => t.set(e.target.checked)} className="accent-red-600" />
+                <span>{t.label}</span>
+              </label>
+            ))}
           </div>
         </div>
 
@@ -867,6 +1039,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                 className="bg-neutral-950 border border-neutral-700 rounded-lg px-2.5 py-1 text-xs text-white cursor-pointer font-medium"
               >
                 <option value="newest">{isKg ? 'Алгач жаңылары' : 'Сначала новые'}</option>
+                <option value="relevance">{isKg ? 'Дал келүүсү боюнча' : 'По релевантности'}</option>
                 <option value="price_asc">{isKg ? 'Алгач арзандары' : 'Сначала дешевые'}</option>
                 <option value="price_desc">{isKg ? 'Алгач кымбаттары' : 'Сначала дорогие'}</option>
                 <option value="popular">{isKg ? 'Көрүүлөр боюнча' : 'По популярности'}</option>
@@ -954,7 +1127,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
               
               /* 1. GRID VIEW */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {filteredParts.map((part) => {
+                {shownParts.map((part) => {
                   const priceUsd = Math.round(part.priceKgs / USD_TO_KGS_RATE);
                   const isCopied = copiedPartNumber === part.partNumber;
 
@@ -975,6 +1148,15 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
 
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); togglePartFavorite(part.id); }}
+                            className="absolute bottom-2.5 right-2.5 z-10 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center cursor-pointer"
+                            title={favoriteIds.includes(part.id) ? 'Удалить из избранного' : 'В избранное'}
+                          >
+                            <Heart size={15} className={favoriteIds.includes(part.id) ? 'fill-red-500 text-red-500' : 'text-white'} />
+                          </button>
+
                           {/* Condition badge */}
                           <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-lg bg-neutral-950/85 backdrop-blur-md text-[10px] font-bold text-amber-400 border border-neutral-700">
                             {part.condition}
@@ -984,7 +1166,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           {part.hasCompressionVideo && (
                             <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-lg bg-red-950/90 backdrop-blur-md text-red-300 text-[10px] font-bold border border-red-700 flex items-center gap-1 shadow-sm">
                               <Video size={11} className="text-red-400" />
-                              <span>12.8 bar видео</span>
+                              <span>{part.compressionBar ? `${part.compressionBar} bar ` : ''}видео</span>
                             </span>
                           )}
 
@@ -1029,7 +1211,26 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
                         {/* Compatibility */}
                         <div className="text-[11px] text-neutral-400 mb-1 truncate">
-                          Шайкештик: <span className="text-neutral-200 font-semibold">{part.brand} {part.model}</span>
+                          Шайкештик: <span className="text-neutral-200 font-semibold">{part.brand} {part.model}{part.generation ? ' (' + part.generation + ')' : ''}</span>
+                        </div>
+                        <div className="text-[11px] text-neutral-400 space-y-0.5">
+                          <div className="flex items-center gap-1 min-w-0">
+                            {partSellerType(part) === 'legal' ? <Building size={11} className="shrink-0" /> : <User size={11} className="shrink-0" />}
+                            <span className="truncate">{part.storeName || part.companyName || (isKg ? 'Көрсөтүлгөн эмес' : 'Не указано')}</span>
+                            <span className="text-neutral-600">·</span>
+                            <span className="shrink-0">{part.storeCity || part.city || (isKg ? 'Көрсөтүлгөн эмес' : 'Не указано')}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Truck size={11} className="shrink-0" />
+                            <span>
+                              {part.deliveryAvailable ? (isKg ? 'Жеткирүү бар' : 'Есть доставка') : (isKg ? 'Жеткирүү жок' : 'Без доставки')}
+                              {part.pickupAvailable !== false ? (isKg ? ' · өзү алып кетүү' : ' · самовывоз') : ''}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar size={11} className="shrink-0" />
+                            <span>{isKg ? 'Жарыяланды:' : 'Опубликовано:'} {fmtPartDate(part.createdAt) || (isKg ? 'Көрсөтүлгөн эмес' : 'Не указано')}</span>
+                          </div>
                         </div>
                       </div>
 
@@ -1049,14 +1250,14 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                             <span className="text-[10px] bg-neutral-950 text-emerald-400 border border-emerald-900/60 px-2 py-0.5 rounded-md font-bold block mb-0.5">
                               {part.stockStatus} ({part.stockCount} шт.)
                             </span>
-                            <span className="text-[9px] text-neutral-500 font-mono">
-                              👁️ {part.views || 184}
-                            </span>
+                            {part.views ? (
+                              <span className="text-[9px] text-neutral-500 font-mono">👁️ {part.views}</span>
+                            ) : null}
                           </div>
                         </div>
 
                         {/* Action buttons */}
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           <button
                             onClick={() => setSelectedPartForDetail(part)}
                             className="py-2.5 px-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1 cursor-pointer"
@@ -1081,6 +1282,14 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                             <MessageCircle size={13} />
                             <span>WhatsApp</span>
                           </button>
+                          <a
+                            href={'tel:+' + part.sellerPhone.replace(/[^0-9]/g, '')}
+                            className="py-2.5 px-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
+                            title="Позвонить продавцу"
+                          >
+                            <Phone size={13} />
+                            <span>{isKg ? 'Чалуу' : 'Звонок'}</span>
+                          </a>
                         </div>
                       </div>
                     </div>
@@ -1092,7 +1301,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
               /* 2. DROM-STYLE ROWS VIEW (Compact, scan-friendly rows) */
               <div className="space-y-3">
-                {filteredParts.map((part) => {
+                {shownParts.map((part) => {
                   const priceUsd = Math.round(part.priceKgs / USD_TO_KGS_RATE);
                   const isPhoneRevealed = !!revealedPhones[part.id];
                   const cleanPhone = part.sellerPhone.replace(/[^0-9]/g, '');
@@ -1208,6 +1417,18 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                 })}
               </div>
 
+            )}
+
+            {filteredParts.length > visibleCount && (
+              <div className="mt-6 text-center">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                  className="px-6 py-3 rounded-2xl bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-bold cursor-pointer"
+                >
+                  {isKg ? "Дагы көрсөтүү" : "Показать ещё"} ({filteredParts.length - visibleCount})
+                </button>
+              </div>
             )}
 
           </div>

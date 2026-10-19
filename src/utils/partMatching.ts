@@ -41,12 +41,21 @@ export const partFitsGeneration = (part: AutoPartItem, gen: CarGeneration): bool
 export interface PartCategoryDef {
   id: string;
   matchId?: string;
+  /** Other category names sellers use for the same group ("Стартер" belongs to "Электрика") */
+  aliases?: string[];
+  subParts?: string[];
 }
 
 export const partInCategory = (part: AutoPartItem, cat: PartCategoryDef): boolean => {
   if (cat.id === 'Все') return true;
   const target = cat.matchId || cat.id;
-  return part.category === target || part.category.includes(cat.id) || part.category.includes(target);
+  const category = part.category.toLowerCase();
+  if (part.category === target || part.category.includes(cat.id) || part.category.includes(target)) return true;
+  // A part filed under a narrower name ("Стартер", "Турбина") still belongs to the group
+  return [...(cat.aliases || []), ...(cat.subParts || [])].some((k) => {
+    const key = k.toLowerCase();
+    return category.includes(key) || key.includes(category);
+  });
 };
 
 export const partMatchesSubPart = (part: AutoPartItem, sub: string): boolean => {

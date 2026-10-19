@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ReportListingButton } from '../common/ReportListingButton';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
@@ -84,9 +85,18 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
     `Саламатсызбы! KGzone сайтынан көрдүм: ${part.title} (OEM: ${part.partNumber}, Дүкөн: ${part.storeName}, Рынok: ${part.market}, Баасы: ${part.priceKgs} сом). Барбы? Контейнериңизге барып алып кетсем болобу?`
   )}`;
 
-  // Find similar parts
+  // Other listings from the same seller (same phone number)
+  const sellerDigits = cleanPhone.slice(-9);
+  const sellerParts = allParts
+    .filter((p) => p.id !== part.id && sellerDigits.length >= 6 && p.sellerPhone.replace(/[^0-9]/g, '').endsWith(sellerDigits))
+    .slice(0, 4);
+
+  // Similar parts: same category for the same car first, then same category, then same car
+  const score = (p: AutoPartItem) =>
+    (p.category === part.category ? 2 : 0) + (p.brand === part.brand && p.model === part.model ? 2 : p.brand === part.brand ? 1 : 0);
   const similarParts = allParts
-    .filter((p) => p.id !== part.id && (p.brand === part.brand || p.category === part.category))
+    .filter((p) => p.id !== part.id && !sellerParts.includes(p) && score(p) > 0)
+    .sort((a, b) => score(b) - score(a))
     .slice(0, 4);
 
   return (
@@ -531,6 +541,30 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
 
           </div>
 
+          {sellerParts.length > 0 && (
+            <div className="pt-6 border-t border-neutral-800">
+              <h4 className="font-bold text-sm text-white mb-3">
+                {isKg ? 'Бул сатуучунун башка жарыялары' : 'Другие объявления этого продавца'}
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {sellerParts.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => onSelectPart?.(p)}
+                    className="text-left p-3 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 cursor-pointer group"
+                  >
+                    <div className="h-24 rounded-xl overflow-hidden mb-2 bg-neutral-950">
+                      <img src={p.image} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="font-bold text-xs text-white line-clamp-2 group-hover:text-amber-400">{p.title}</div>
+                    <div className="font-black text-emerald-400 text-xs mt-1">{p.priceKgs.toLocaleString()} сом</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* SIMILAR PARTS BLOCK (Requirement: Похожие объявления) */}
           {similarParts.length > 0 && (
             <div className="pt-6 border-t border-neutral-800">
@@ -587,9 +621,10 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
         {/* Modal Footer Note */}
         <div className="px-5 py-3 border-t border-neutral-800 bg-neutral-900/50 flex flex-col sm:flex-row items-center justify-between text-[11px] text-neutral-400 gap-2 shrink-0">
           <div className="flex items-center gap-1.5">
-            <ShieldCheck size={14} className="text-emerald-400" />
-            <span>{isKg ? 'Коопсуз бүтүм: Акчаны бокстан тетикти көргөндө гана төлөйсүз' : 'Безопасная сделка: Оплата в контейнере при проверке геометрии или замере'}</span>
+            <ShieldCheck size={14} className="text-amber-400 shrink-0" />
+            <span>{isKg ? 'Кеңеш: тетикти көрүп, текшергенден кийин гана төлөңүз. Алдын ала төлөбөңүз.' : 'Совет: платите только после осмотра детали. Не переводите предоплату незнакомым продавцам.'}</span>
           </div>
+          <ReportListingButton kind="part" listingId={part.id} listingTitle={part.title} />
           <button
             onClick={onClose}
             className="text-xs text-neutral-300 hover:text-white font-semibold cursor-pointer underline"

@@ -12,6 +12,7 @@ import {
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { AnalyticsCharts } from './AnalyticsCharts';
 import { PartsModerationPanel, CarsModerationPanel } from './PartsModerationPanel';
+import { ReportsPanel } from './ReportsPanel';
 import { adminUpdateCar, adminDeleteCar, isDbCar } from '../../api/cars';
 import { adminAddPart, adminDeletePart, adminUpdatePart, isDbPart } from '../../api/parts';
 
@@ -681,6 +682,9 @@ export const SiteControlPanelModal: React.FC<SiteControlPanelModalProps> = ({
                 <div>
                   <div className="mb-5">
                     <PartsModerationPanel />
+                  </div>
+                  <div className="mb-5">
+                    <ReportsPanel />
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <div>

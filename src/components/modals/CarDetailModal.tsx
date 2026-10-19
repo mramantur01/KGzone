@@ -3,6 +3,7 @@ import { Car, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KyrgyzPlateBadge, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { CarImagePreview } from '../common/CarImagePreview';
+import { ReportListingButton } from '../common/ReportListingButton';
 import {
   X,
   Phone,
@@ -232,6 +233,7 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
                     Посмотреть полный отчет →
                   </button>
                 </div>
+                <ReportListingButton kind="car" listingId={car.id} listingTitle={car.title} className="mt-3 !text-slate-500" />
               </div>
 
               {/* Кнопки связи */}

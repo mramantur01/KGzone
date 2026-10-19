@@ -73,19 +73,25 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   const [partCategory, setPartCategory] = useState('Двигатель и элементы двигателя');
   const [partBrand, setPartBrand] = useState('Toyota');
   const [partModel, setPartModel] = useState('Camry');
-  const [partGeneration, setPartGeneration] = useState('XV50, XV70 (2011-2022)');
-  const [partBodyCode, setPartBodyCode] = useState('ASV50, GSV70');
+  const [partGeneration, setPartGeneration] = useState('');
+  const [partBodyCode, setPartBodyCode] = useState('');
   const [partOEM, setPartOEM] = useState('');
-  const [partPriceKgs, setPartPriceKgs] = useState<number>(18000);
+  const [partPriceKgs, setPartPriceKgs] = useState<number>(0);
+  const [priceCurrency, setPriceCurrency] = useState<'KGS' | 'USD'>('KGS');
+  const [priceInput, setPriceInput] = useState('');
+  const [deliveryAvailable, setDeliveryAvailable] = useState(true);
+  const [pickupAvailable, setPickupAvailable] = useState(true);
+  const [sellerCity, setSellerCity] = useState('Бишкек');
+  const [isPreview, setIsPreview] = useState(false);
   const [partCondition, setPartCondition] = useState<any>('Б/у (Контрактный)');
   const [stockStatus, setStockStatus] = useState<any>('В наличии');
-  const [stockCount, setStockCount] = useState<number>(3);
-  const [warrantyDays, setWarrantyDays] = useState<number>(14);
+  const [stockCount, setStockCount] = useState<number>(1);
+  const [warrantyDays, setWarrantyDays] = useState<number>(0);
   const [countryOfImport, setCountryOfImport] = useState('Япония (Контракт)');
   const [description, setDescription] = useState('');
-  const [hasCompressionVideo, setHasCompressionVideo] = useState(true);
-  const [compressionBar, setCompressionBar] = useState(12.8);
-  const [videoTitle, setVideoTitle] = useState('Замер компрессии цилиндров (12.8-13.0 bar)');
+  const [hasCompressionVideo, setHasCompressionVideo] = useState(false);
+  const [compressionBar, setCompressionBar] = useState(0);
+  const [videoTitle, setVideoTitle] = useState('');
   const [selectedPhotoSample, setSelectedPhotoSample] = useState(
     '/parts/wm-03.jpg'
   );
@@ -121,63 +127,21 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   ]);
 
   // --- TAB 2: SELLER & CONTAINER CABINET STATE ---
-  const [sellerType, setSellerType] = useState<'legal' | 'individual'>('legal');
-  const [companyName, setCompanyName] = useState('ОсОО «Кудайберген Моторс KG»');
-  const [inn, setInn] = useState('01205198910245');
+  const [sellerType, setSellerType] = useState<'legal' | 'individual'>('individual');
+  const [sellerName, setSellerName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [inn, setInn] = useState('');
   const [market, setMarket] = useState('Кудайберген');
-  const [containerInfo, setContainerInfo] = useState('Ряд 7, Контейнер 18-19');
-  const [directionsGuide, setDirectionsGuide] = useState('Вход от ул. Патриса Лумумбы, второй проход налево от мечети, ориентир Japan Motors');
-  const [phone, setPhone] = useState('+996 555 777 999');
-  const [whatsapp, setWhatsapp] = useState('996555777999');
-  const [mbankRequisites, setMbankRequisites] = useState('+996 555 777 999 (MBANK)');
+  const [containerInfo, setContainerInfo] = useState('');
+  const [directionsGuide, setDirectionsGuide] = useState('');
+  const [phone, setPhone] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [mbankRequisites, setMbankRequisites] = useState('');
   const [isCabinetSaved, setIsCabinetSaved] = useState(false);
 
   // --- TAB 3: SELLER ORDERS STATE ---
-  const [sellerOrders, setSellerOrders] = useState<PartSellerOrder[]>([
-    {
-      id: 'ord-s-1',
-      orderNumber: 'KG-PART-8412',
-      date: 'Сегодня, 14:20',
-      customerName: 'Азамат Б.',
-      customerPhone: '+996 700 123 456',
-      partTitle: 'Двигатель 2.5 2AR-FE в сборе с навесным (Контрактный из Японии)',
-      partNumber: '2AR-FE-JPN-48K',
-      partId: 'part-3',
-      quantity: 1,
-      totalKgs: 118000,
-      deliveryType: 'Самовывоз из контейнера',
-      status: 'Готов к выдаче в контейнере',
-    },
-    {
-      id: 'ord-s-2',
-      orderNumber: 'KG-PART-7921',
-      date: 'Сегодня, 11:05',
-      customerName: 'Эркин Т.',
-      customerPhone: '+996 772 888 111',
-      partTitle: 'Фара передняя левая Full LED Toyota Camry 70',
-      partNumber: '81185-33D30',
-      partId: 'part-1',
-      quantity: 1,
-      totalKgs: 34000,
-      deliveryType: 'Попутный бусик в регионы',
-      deliveryCity: 'г. Ош (Западный автовокзал)',
-      status: 'В доставке',
-    },
-    {
-      id: 'ord-s-3',
-      orderNumber: 'KG-PART-6540',
-      date: 'Вчера, 16:45',
-      customerName: 'Данияр К.',
-      customerPhone: '+996 550 999 222',
-      partTitle: 'Комплект передних тормозных колодок ADVICS Toyota Camry',
-      partNumber: '04465-33471',
-      partId: 'part-2',
-      quantity: 1,
-      totalKgs: 3800,
-      deliveryType: 'Яндекс Доставка Бишкек',
-      status: 'Завершен / Оплачен',
-    },
-  ]);
+  // Orders are not routed to individual sellers yet (needs seller accounts); the list starts empty
+  const [sellerOrders, setSellerOrders] = useState<PartSellerOrder[]>([]);
 
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
@@ -191,15 +155,24 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
     'Двигатель и элементы двигателя',
     'Трансмиссия',
     'Ходовая часть',
+    'Тормозная система',
     'Детали кузова',
     'Оптика',
-    'Тормозная система',
-    'Рулевое управление',
-    'Система отопления и кондиционирования',
     'Электрика',
-    'Стекла и зеркала',
+    'Система охлаждения',
+    'Топливная система',
+    'Система отопления и кондиционирования',
+    'Выхлопная система',
     'Салон и безопасность',
+    'Масла и фильтры',
+    'Шины и диски',
+    'Рулевое управление',
+    'Стекла и зеркала',
+    'Тюнинг и дополнительное оборудование',
   ];
+  const categoryLabel = (c: string) =>
+    ({ 'Масла и фильтры': 'Расходники и ТО (масла, фильтры, ремни, свечи)', 'Шины и диски': 'Колёса, шины и диски' } as Record<string, string>)[c] || c;
+  const citiesList = ['Бишкек', 'Ош', 'Джалал-Абад', 'Каракол', 'Токмок', 'Нарын', 'Талас', 'Баткен', 'Кара-Балта', 'Кант'];
 
   // Markets list
   const marketsList = [
@@ -213,11 +186,11 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
 
   // Pre-configured high quality photos of parts
   const photoPresets = [
-    { label: 'Двигатель / КПП', url: '/parts/wm-03.jpg' },
-    { label: 'Оптика / Фары', url: 'https://images.unsplash.com/=format&fit=crop&w=600&q=80' },
-    { label: 'Тормоза / Колодки', url: 'https://images.unsplash.com/=format&fit=crop&w=600&q=80' },
-    { label: 'Подвеска / Рычаги', url: 'https://images.unsplash.com/=format&fit=crop&w=600&q=80' },
-    { label: 'Кузов / Бампер', url: '/parts/wm-01.jpg' },
+    { label: 'Двигатель', url: '/parts/wm-03.jpg' },
+    { label: 'КПП / вариатор', url: '/parts/wm-10.jpg' },
+    { label: 'Оптика / Фары', url: '/parts/wm-01.jpg' },
+    { label: 'Тормоза / Колодки', url: '/parts/wm-02.jpg' },
+    { label: 'Кузов / Бампер', url: '/parts/wm-15.jpg' },
   ];
 
   // SUBMIT NEW PART
@@ -227,6 +200,24 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
     e.preventDefault();
     if (!partTitle.trim() || !partOEM.trim()) {
       showNotification('Пожалуйста, заполните название и OEM артикул');
+      return;
+    }
+    if (!partPriceKgs || partPriceKgs < 50) {
+      showNotification('Укажите цену');
+      return;
+    }
+    if (phone.replace(/\D/g, '').length < 9) {
+      showNotification('Укажите телефон для связи');
+      return;
+    }
+    if (sellerType === 'legal' && !companyName.trim()) {
+      showNotification('Укажите название магазина или компании');
+      return;
+    }
+    if (photoUploading > 0) return;
+    // First press shows the preview; the second one ("Опубликовать") sends it
+    if (!isPreview) {
+      setIsPreview(true);
       return;
     }
 
@@ -245,27 +236,29 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
       stockCount: Number(stockCount),
       stockStatus: stockStatus,
       market: market as any,
-      storeName: sellerType === 'legal' ? companyName : 'Частный разбор',
+      storeName: sellerType === 'legal' ? companyName.trim() : sellerName.trim() || 'Частный продавец',
       storeLocation: containerInfo,
-      storeCity: market.includes('Ош') ? 'Ош' : 'Бишкек',
+      storeCity: sellerCity,
+      city: sellerCity,
       sellerPhone: phone,
       sellerWhatsapp: whatsapp,
       image: ownPhotos[0] || selectedPhotoSample,
       images: ownPhotos.length ? ownPhotos : [selectedPhotoSample],
       videoTitle: videoTitle,
       hasCompressionVideo: hasCompressionVideo,
-      compressionBar: compressionBar,
+      compressionBar: hasCompressionVideo ? compressionBar : undefined,
       compatibility: compatList,
       sellerType: sellerType,
       companyName: companyName,
       inn: inn,
       containerInfo: containerInfo,
       directionsGuide: directionsGuide,
-      paymentMethods: ['MBANK', 'О!Деньги', 'Элкарт', 'Наличные в боксе'],
+      paymentMethods: [],
       countryOfImport: countryOfImport,
       warrantyDays: Number(warrantyDays),
-      description: description.trim() || `Оригинальная автозапчасть в отличном состоянии. Проверена на стенде. Гарантия ${warrantyDays} дней.`,
-      deliveryAvailable: true,
+      description: description.trim(),
+      deliveryAvailable,
+      pickupAvailable,
     };
 
     // Goes to the moderation queue; it appears in the catalog once an admin approves it
@@ -281,9 +274,13 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
     showNotification(`Запчасть «${newPart.title}» отправлена на модерацию. Она появится в каталоге после проверки администратором.`);
     
     // reset form
+    setIsPreview(false);
     setPartTitle('');
     setPartOEM('');
     setDescription('');
+    setPriceInput('');
+    setPartPriceKgs(0);
+    setOwnPhotos([]);
   };
 
   // CHANGE STATUS OF AN ORDER (Requirement 4)
@@ -448,7 +445,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                     className="w-full px-3.5 py-2.5 bg-neutral-900 border border-neutral-700 rounded-xl text-white"
                   >
                     {categoriesList.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
+                      <option key={cat} value={cat}>{categoryLabel(cat)}</option>
                     ))}
                   </select>
                 </div>
@@ -467,6 +464,8 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                     <option value="Б/у (Контрактный)">Б/У контрактная из Японии/Кореи</option>
                     <option value="Дубликат (OEM)">Новая качественный OEM дубликат</option>
                     <option value="Б/У с разбора">Б/У с местного авторазбора</option>
+                    <option value="Восстановленная">Восстановленная</option>
+                    <option value="Новый">Новая (неоригинал)</option>
                   </select>
                 </div>
 
@@ -533,20 +532,44 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                 <div className="p-3.5 rounded-xl bg-neutral-900 border border-neutral-800">
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-neutral-300 font-semibold">
-                      {isKg ? 'Баасы (сом менен) *' : 'Стоимость в сомах (KGS) *'}
+                      {isKg ? 'Баасы *' : 'Цена *'}
                     </label>
-                    <span className="text-emerald-400 font-bold">
-                      ~ ${Math.round(partPriceKgs / USD_TO_KGS_RATE)} USD
-                    </span>
+                    {partPriceKgs > 0 && (
+                      <span className="text-emerald-400 font-bold">
+                        {priceCurrency === 'KGS' ? `~ ${Math.round(partPriceKgs / USD_TO_KGS_RATE)}` : `= ${partPriceKgs.toLocaleString('ru-RU')} сом`}
+                      </span>
+                    )}
                   </div>
-                  <input
-                    type="number"
-                    min="100"
-                    step="100"
-                    value={partPriceKgs}
-                    onChange={(e) => setPartPriceKgs(Number(e.target.value))}
-                    className="w-full px-3.5 py-2 bg-neutral-950 border border-neutral-700 rounded-lg text-white font-black text-base text-emerald-400"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      step="any"
+                      required
+                      value={priceInput}
+                      placeholder="0"
+                      onChange={(e) => {
+                        setPriceInput(e.target.value);
+                        const v = Number(e.target.value) || 0;
+                        setPartPriceKgs(Math.round(priceCurrency === 'USD' ? v * USD_TO_KGS_RATE : v));
+                      }}
+                      className="flex-1 min-w-0 px-3.5 py-2 bg-neutral-950 border border-neutral-700 rounded-lg font-black text-base text-emerald-400"
+                    />
+                    <select
+                      value={priceCurrency}
+                      onChange={(e) => {
+                        const cur = e.target.value as 'KGS' | 'USD';
+                        setPriceCurrency(cur);
+                        const v = Number(priceInput) || 0;
+                        setPartPriceKgs(Math.round(cur === 'USD' ? v * USD_TO_KGS_RATE : v));
+                      }}
+                      className="px-2 py-2 bg-neutral-950 border border-neutral-700 rounded-lg text-white font-bold"
+                    >
+                      <option value="KGS">сом</option>
+                      <option value="USD">$ USD</option>
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-neutral-500 mt-1">{isKg ? 'Каталогдо сом менен көрсөтүлөт (НБКР курсу).' : 'В каталоге цена показывается в сомах по курсу НБ КР.'}</p>
                 </div>
 
                 {/* Stock Control (+ / -) */}
@@ -580,6 +603,64 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                       +
                     </button>
                   </div>
+                </div>
+              </div>
+
+              {/* CONTACTS, CITY, DELIVERY */}
+              <div className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3 text-xs">
+                <h4 className="font-bold text-white text-sm">{isKg ? 'Байланыш жана алуу жолу' : 'Контакты, город и получение'}</h4>
+                <div className="flex flex-wrap gap-2">
+                  {(['individual', 'legal'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSellerType(t)}
+                      className={`px-3 py-2 rounded-xl font-bold cursor-pointer ${sellerType === t ? 'bg-amber-500 text-neutral-950' : 'bg-neutral-950 text-neutral-300 border border-neutral-700'}`}
+                    >
+                      {t === 'individual' ? (isKg ? 'Жеке адам' : 'Частное лицо') : (isKg ? 'Дүкөн / компания' : 'Магазин / компания')}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {sellerType === 'legal' ? (
+                    <div>
+                      <label className="block text-neutral-300 font-semibold mb-1">{isKg ? 'Дүкөндүн аталышы *' : 'Название магазина / компании *'}</label>
+                      <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} maxLength={120} className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white" />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-neutral-300 font-semibold mb-1">{isKg ? 'Атыңыз' : 'Ваше имя'}</label>
+                      <input value={sellerName} onChange={(e) => setSellerName(e.target.value)} maxLength={80} className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white" />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-neutral-300 font-semibold mb-1">{isKg ? 'Шаар *' : 'Город *'}</label>
+                    <select value={sellerCity} onChange={(e) => setSellerCity(e.target.value)} className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white">
+                      {citiesList.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-neutral-300 font-semibold mb-1">{isKg ? 'Телефон *' : 'Телефон *'}</label>
+                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+996 700 123 456" maxLength={30} className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white font-mono" />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-300 font-semibold mb-1">WhatsApp</label>
+                    <input type="tel" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder={isKg ? 'Телефон менен бирдей болсо бош калтырыңыз' : 'Если совпадает с телефоном — оставьте пустым'} maxLength={30} className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white font-mono" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-neutral-300 font-semibold mb-1">{isKg ? 'Дарек / рынок, катар, контейнер' : 'Адрес или рынок, ряд, контейнер'}</label>
+                    <input value={containerInfo} onChange={(e) => setContainerInfo(e.target.value)} placeholder={isKg ? 'Мисалы: Кудайберген, 7-катар, 18-контейнер' : 'Например: Кудайберген, ряд 7, контейнер 18'} maxLength={120} className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white" />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-x-5 gap-y-2 text-neutral-200">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={deliveryAvailable} onChange={(e) => setDeliveryAvailable(e.target.checked)} className="accent-red-600" />
+                    <span>{isKg ? 'Жеткирүү бар' : 'Есть доставка'}</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={pickupAvailable} onChange={(e) => setPickupAvailable(e.target.checked)} className="accent-red-600" />
+                    <span>{isKg ? 'Өзү алып кетүү' : 'Самовывоз'}</span>
+                  </label>
                 </div>
               </div>
 
@@ -785,22 +866,51 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                 </div>
               </div>
 
+              {/* Preview of the listing as buyers will see it */}
+              {isPreview && (
+                <div className="p-4 rounded-2xl bg-neutral-900 border-2 border-amber-500/60 space-y-2">
+                  <div className="text-xs font-bold text-amber-400">
+                    {isKg ? 'Алдын ала көрүү — сатып алуучулар ушундай көрөт' : 'Предпросмотр — так объявление увидят покупатели'}
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <img src={ownPhotos[0] || selectedPhotoSample} alt="" className="w-full sm:w-40 h-28 object-cover rounded-xl bg-neutral-950" />
+                    <div className="text-xs space-y-1 min-w-0">
+                      <div className="font-bold text-white text-sm">{partTitle || '—'}</div>
+                      <div className="text-neutral-400">
+                        OEM <span className="font-mono text-amber-400">{partOEM.toUpperCase() || '—'}</span> · {categoryLabel(partCategory)} · {partCondition}
+                      </div>
+                      <div className="text-neutral-400">{partBrand} {partModel}{partGeneration ? ` (${partGeneration})` : ''}</div>
+                      <div className="text-emerald-400 font-black text-base">{partPriceKgs.toLocaleString('ru-RU')} сом</div>
+                      <div className="text-neutral-400">
+                        {sellerType === 'legal' ? companyName : sellerName || (isKg ? 'Жеке сатуучу' : 'Частный продавец')} · {sellerCity} · {phone}
+                      </div>
+                      <div className="text-neutral-400">
+                        {[deliveryAvailable && (isKg ? 'жеткирүү' : 'доставка'), pickupAvailable && (isKg ? 'өзү алып кетүү' : 'самовывоз')].filter(Boolean).join(', ') || (isKg ? 'Алуу жолу көрсөтүлгөн эмес' : 'Способ получения не указан')}
+                        {' · '}{(ownPhotos.length || 1)} {isKg ? 'сүрөт' : 'фото'}
+                      </div>
+                      {description && <div className="text-neutral-300 line-clamp-3">{description}</div>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Submit Button */}
               <div className="pt-2 flex items-center justify-end gap-3">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={() => (isPreview ? setIsPreview(false) : onClose())}
                   className="px-5 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-xs"
                 >
-                  {isKg ? 'Жокко чыгаруу' : 'Отмена'}
+                  {isPreview ? (isKg ? 'Өзгөртүү' : 'Изменить') : isKg ? 'Жокко чыгаруу' : 'Отмена'}
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || photoUploading > 0}
+                  data-preview={isPreview ? '1' : '0'}
                   className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-red-950/50 cursor-pointer"
                 >
                   <Plus size={16} />
-                  <span>{isSubmitting ? 'Отправка...' : 'Отправить на модерацию'}</span>
+                  <span>{isSubmitting ? 'Отправка...' : isPreview ? (isKg ? 'Жарыялоо (модерацияга)' : 'Опубликовать (на модерацию)') : (isKg ? 'Алдын ала көрүү' : 'Предпросмотр объявления')}</span>
                 </button>
               </div>
 
@@ -1039,6 +1149,13 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                 </h4>
 
                 <div className="space-y-3">
+                  {sellerOrders.length === 0 && (
+                    <p className="p-6 rounded-2xl bg-neutral-900 border border-neutral-800 text-center text-xs text-neutral-400">
+                      {isKg
+                        ? 'Азырынча буйрутмалар жок. Сатуучулардын жеке аккаунттары туташтырылгандан кийин буйрутмалар бул жерде көрүнөт.'
+                        : 'Заказов пока нет. Заказы покупателей появятся здесь после подключения аккаунтов продавцов.'}
+                    </p>
+                  )}
                   {sellerOrders.map((ord) => (
                     <div
                       key={ord.id}
