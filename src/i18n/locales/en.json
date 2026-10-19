@@ -2524,5 +2524,20 @@
  "Проверить авто": "Check a car",
  "Автосервис & СТО KGzone": "KGzone Car Service & Repair",
  "Диагностика, ремонт и 3D развал в Бишкеке и Оше. Гарантия до 12 месяцев.": "Diagnostics, repair and 3D alignment in Bishkek and Osh. Up to 12 months' warranty.",
- "Фото:": "Photo:"
+ "Фото:": "Photo:",
+ "Запчасти для авто": "Parts for your car",
+ "Выберите раздел. Если детали нет в каталоге — оставьте заявку, диспетчер найдёт её на рынках.": "Pick a section. If a part isn't in the catalog, leave a request and our dispatcher will find it at the markets.",
+ "Скрыть разделы": "Hide sections",
+ "Оставить заявку": "Leave a request",
+ "Популярные": "Popular",
+ "Все марки": "All makes",
+ "Поколение:": "Generation:",
+ "Все поколения": "All generations",
+ "н.в.": "present",
+ "{}-е поколение": "Gen {}",
+ "{}-е поколение ({}–{})": "Gen {} ({}–{})",
+ "{}-е поколение ({}–н.в.)": "Gen {} ({}–present)",
+ "{} ({}–н.в.)": "{} ({}–present)",
+ "{} (с {})": "{} (from {})",
+ "{}-е поколение (с {})": "Gen {} (from {})"
 }

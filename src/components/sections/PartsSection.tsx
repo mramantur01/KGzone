@@ -4,8 +4,11 @@ import {
   POPULAR_BRANDS,
   ALL_CAR_BRANDS,
   getModelsForBrand,
+  getGenerationsForModel,
   USD_TO_KGS_RATE,
 } from '../../data/mockData';
+import { partFitsBrand, partFitsModel, partFitsGeneration, partInCategory, partMatchesSubPart } from '../../utils/partMatching';
+import { ModelPartsTree } from './ModelPartsTree';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { PartDetailModal } from '../modals/PartDetailModal';
@@ -75,6 +78,8 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedGeneration, setSelectedGeneration] = useState<string>('');
+  const [isModelTreeHidden, setIsModelTreeHidden] = useState<boolean>(false);
   const [selectedYear, setSelectedYear] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Все');
   const [selectedSubPart, setSelectedSubPart] = useState<string>('Все');
@@ -132,6 +137,13 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   };
 
   const availableModels = getModelsForBrand(selectedBrand);
+  const availableGenerations = useMemo(
+    () => (selectedBrand && selectedModel ? getGenerationsForModel(selectedBrand, selectedModel) : []),
+    [selectedBrand, selectedModel]
+  );
+  const currentGeneration = availableGenerations.find((g) => g.name === selectedGeneration) || null;
+  // Popular brands first, then every other brand from the catalog
+  const brandOptions = useMemo(() => ALL_CAR_BRANDS.filter((b) => !POPULAR_BRANDS.includes(b)), []);
 
   // 12 COMPLETE CATEGORIES WITH CORRESPONDING SUB-PARTS
   const categoriesData = [
@@ -374,11 +386,10 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
         if (!matchesQuery) return false;
       }
 
-      // Brand
-      if (selectedBrand && part.brand !== selectedBrand) return false;
-
-      // Model
-      if (selectedModel && part.model !== selectedModel) return false;
+      // Brand / model / generation (the part's own car or any car in its compatibility table)
+      if (selectedBrand && !selectedModel && !partFitsBrand(part, selectedBrand)) return false;
+      if (selectedModel && !partFitsModel(part, selectedBrand, selectedModel)) return false;
+      if (currentGeneration && !partFitsGeneration(part, currentGeneration)) return false;
 
       // Year
       if (selectedYear) {
@@ -391,28 +402,12 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
         if (!partMatch) return false;
       }
 
-      // Category
+      // Category / sub-part
       if (selectedCategory !== 'Все') {
         const catObj = categoriesData.find((c) => c.id === selectedCategory);
-        if (catObj) {
-          const matchTarget = catObj.matchId || catObj.id;
-          const isCategoryMatch =
-            part.category === matchTarget ||
-            part.category.includes(catObj.id) ||
-            part.category.includes(matchTarget);
-          if (!isCategoryMatch) return false;
-        }
+        if (catObj && !partInCategory(part, catObj)) return false;
       }
-
-      // Sub-part
-      if (selectedSubPart !== 'Все') {
-        const subLower = selectedSubPart.toLowerCase();
-        const isSubMatch =
-          part.title.toLowerCase().includes(subLower) ||
-          (part.subcategory && part.subcategory.toLowerCase().includes(subLower)) ||
-          (part.subPartName && part.subPartName.toLowerCase().includes(subLower));
-        if (!isSubMatch) return false;
-      }
+      if (!partMatchesSubPart(part, selectedSubPart)) return false;
 
       // Location / Market / City
       if (selectedCityOrMarket !== 'Все') {
@@ -472,6 +467,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     searchQuery,
     selectedBrand,
     selectedModel,
+    currentGeneration,
     selectedYear,
     selectedCategory,
     selectedSubPart,
@@ -485,10 +481,20 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     onlyWithVideo,
   ]);
 
+  // Parts that fit the selected car, ignoring the other filters (feeds the per-model parts tree)
+  const fittingParts = useMemo(() => {
+    if (!selectedBrand || !selectedModel) return [];
+    return partsList.filter(
+      (p) => partFitsModel(p, selectedBrand, selectedModel) && (!currentGeneration || partFitsGeneration(p, currentGeneration))
+    );
+  }, [partsList, selectedBrand, selectedModel, currentGeneration]);
+
   const handleResetFilters = () => {
     setSearchQuery('');
     setSelectedBrand('');
     setSelectedModel('');
+    setSelectedGeneration('');
+    setIsModelTreeHidden(false);
     setSelectedYear('');
     setSelectedCategory('Все');
     setSelectedSubPart('Все');
@@ -638,7 +644,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
           </div>
 
           {/* Detailed Filters: Brand, Model, Year, Condition, Original/Analog, Price Range */}
-          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 pt-3 border-t border-neutral-800 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 pt-3 border-t border-neutral-800 text-xs">
             {/* Brand */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -656,13 +662,21 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                 onChange={(e) => {
                   setSelectedBrand(e.target.value);
                   setSelectedModel('');
+                  setSelectedGeneration('');
                 }}
                 className="w-full px-2.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white font-medium"
               >
                 <option value="">{isKg ? 'Каалаган марка' : 'Любая марка'}</option>
-                {POPULAR_BRANDS.map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
+                <optgroup label={isKg ? 'Популярдуу' : 'Популярные'}>
+                  {POPULAR_BRANDS.map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </optgroup>
+                <optgroup label={isKg ? 'Бардык маркалар' : 'Все марки'}>
+                  {brandOptions.map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 
@@ -671,13 +685,35 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
               <span className="block text-neutral-400 font-semibold mb-1">{isKg ? 'Модель:' : 'Модель авто:'}</span>
               <select
                 value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
+                onChange={(e) => {
+                  setSelectedModel(e.target.value);
+                  setSelectedGeneration('');
+                  setIsModelTreeHidden(false);
+                }}
                 disabled={!selectedBrand}
                 className="w-full px-2.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white disabled:opacity-40 font-medium"
               >
                 <option value="">{selectedBrand ? (isKg ? 'Бардык моделдер' : 'Все модели') : (isKg ? 'Марканы тандаңыз' : 'Сначала марку')}</option>
                 {availableModels.map((m) => (
                   <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Generation (only when the catalog knows them) */}
+            <div>
+              <span className="block text-neutral-400 font-semibold mb-1">{isKg ? 'Муун:' : 'Поколение:'}</span>
+              <select
+                value={selectedGeneration}
+                onChange={(e) => setSelectedGeneration(e.target.value)}
+                disabled={availableGenerations.length === 0}
+                className="w-full px-2.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white disabled:opacity-40 font-medium"
+              >
+                <option value="">
+                  {availableGenerations.length ? (isKg ? 'Бардык муундар' : 'Все поколения') : '—'}
+                </option>
+                {availableGenerations.map((g) => (
+                  <option key={g.name} value={g.name}>{g.label}</option>
                 ))}
               </select>
             </div>
@@ -875,7 +911,24 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
           {/* LISTINGS CONTAINER (9 cols on desktop) */}
           <div className="lg:col-span-9">
-            
+            {selectedBrand && selectedModel && !isModelTreeHidden && (
+              <ModelPartsTree
+                brand={selectedBrand}
+                model={selectedModel}
+                generation={currentGeneration}
+                fittingParts={fittingParts}
+                categories={categoriesData.filter((c) => c.id !== 'Все')}
+                selectedCategory={selectedCategory}
+                selectedSubPart={selectedSubPart}
+                onSelect={(cat, sub) => {
+                  setSelectedCategory(cat);
+                  setSelectedSubPart(sub);
+                }}
+                onClose={() => setIsModelTreeHidden(true)}
+                isKg={isKg}
+              />
+            )}
+
             {filteredParts.length === 0 ? (
               <div className="bg-neutral-900/90 rounded-3xl border border-neutral-800 p-12 text-center my-4">
                 <Wrench size={48} className="mx-auto text-neutral-600 mb-3" />

@@ -8,3 +8,4 @@ coverage/
 .env*
 !.env.example
 .vercel
+scripts/catalog/.wikidata-models.json

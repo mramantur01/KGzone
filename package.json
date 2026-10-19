@@ -11,7 +11,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "i18n:check": "node scripts/i18n/check.mjs",
-    "i18n:apply": "node scripts/i18n/apply.mjs"
+    "i18n:apply": "node scripts/i18n/apply.mjs",
+    "catalog:update": "node scripts/catalog/wikidata-query.mjs scripts/catalog/car-models.rq scripts/catalog/.wikidata-models.json && node scripts/catalog/build-catalog.mjs src/data/mockData.ts scripts/catalog/.wikidata-models.json src/data/carCatalog.json"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

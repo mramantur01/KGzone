@@ -12,6 +12,7 @@ import {
   RegisteredUser,
   SiteSettings,
 } from '../types/car';
+import carCatalog from './carCatalog.json';
 
 export const USD_TO_KGS_RATE = 87.50; // Официальный курс НБ КР
 
@@ -836,8 +837,41 @@ export const BRAND_MODELS: Record<string, string[]> = {
   ],
 };
 
+// Full brand -> model -> generation catalog (Wikidata, CC0, plus the curated lists above).
+// Built by the catalog script; each model is { n: name, g?: [generation, fromYear, toYear][] }.
+export interface CatalogModel {
+  n: string;
+  g?: [string, number | null, number | null][];
+}
+export const CAR_CATALOG = carCatalog as Record<string, CatalogModel[]>;
+
+export interface CarGeneration {
+  name: string;
+  from: number | null;
+  to: number | null;
+  /** e.g. "XV70 (2017–2023)" or "3-е поколение (2009–н.в.)" */
+  label: string;
+}
+
+const yearsLabel = (from: number | null, to: number | null) => {
+  if (!from) return '';
+  if (to) return `${from}–${to}`;
+  // Unknown end year: only call it current for recent generations
+  return from >= new Date().getFullYear() - 5 ? `${from}–н.в.` : `с ${from}`;
+};
+
+export const getGenerationsForModel = (brand: string, model: string): CarGeneration[] => {
+  const m = CAR_CATALOG[brand]?.find((x) => x.n === model);
+  return (m?.g || [])
+    .map(([name, from, to]) => ({ name, from, to, label: from ? `${name} (${yearsLabel(from, to)})` : name }))
+    // By year when both are known, otherwise by name ("XV10" < "XV20" < "XV70")
+    .sort((a, b) => (a.from && b.from ? a.from - b.from : a.name.localeCompare(b.name, undefined, { numeric: true })));
+};
+
 export const getModelsForBrand = (brand: string): string[] => {
   if (!brand) return [];
+  const fromCatalog = CAR_CATALOG[brand];
+  if (fromCatalog && fromCatalog.length > 0) return fromCatalog.map((m) => m.n);
   if (BRAND_MODELS[brand] && BRAND_MODELS[brand].length > 0) {
     return BRAND_MODELS[brand];
   }

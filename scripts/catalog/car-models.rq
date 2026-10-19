@@ -1,0 +1,13 @@
+SELECT ?m ?en ?ru ?brand ?brandEn ?brandRu ?series ?seriesEn ?start ?end ?inception WHERE {
+  ?m wdt:P31 wd:Q3231690 .
+  { ?m wdt:P1716 ?brand } UNION { ?m wdt:P176 ?brand }
+  OPTIONAL { ?brand rdfs:label ?brandEn FILTER(LANG(?brandEn) = "en") }
+  OPTIONAL { ?brand rdfs:label ?brandRu FILTER(LANG(?brandRu) = "ru") }
+  OPTIONAL { ?m rdfs:label ?en FILTER(LANG(?en) = "en") }
+  OPTIONAL { ?m rdfs:label ?ru FILTER(LANG(?ru) = "ru") }
+  OPTIONAL { ?m wdt:P179 ?series . OPTIONAL { ?series rdfs:label ?seriesEn FILTER(LANG(?seriesEn) = "en") } }
+  OPTIONAL { ?m wdt:P580 ?start }
+  OPTIONAL { ?m wdt:P582 ?end }
+  OPTIONAL { ?m wdt:P571 ?inception }
+}
+
