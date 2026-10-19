@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { Currency, Language } from '../../types/car';
+import { INITIAL_CARS, USD_TO_KGS_RATE } from '../../data/mockData';
 
 export interface FilterState {
   brand: string;
@@ -138,7 +139,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
     },
     {
       id: 'slide-bmw-x5',
-      carId: 'car-2',
+      carId: 'car-12',
       badgeRu: '🔥 Баварский драйв M-Sport',
       badgeKg: '🔥 Бавариялык M-Sport драйв',
       badgeEn: '🔥 Bavarian Drive M-Sport',
@@ -189,11 +190,11 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
       ],
     },
     {
-      id: 'slide-cayenne',
-      carId: 'car-4',
-      badgeRu: '💎 Спорт & Премиальный статус',
-      badgeKg: '💎 Спорт & Премиум даража',
-      badgeEn: '💎 Sport Elegance & Status',
+      id: 'slide-lx570',
+      carId: 'car-15',
+      badgeRu: '💎 Премиальный внедорожник',
+      badgeKg: '💎 Премиум жол тандабас',
+      badgeEn: '💎 Premium Full-Size SUV',
       badgeColor: 'amber',
       title: 'Porsche Cayenne Coupe 2023',
       specsRu: '2023 г. • 3.0 л Turbo (353 л.с.) • 4WD • 12 000 км • Салон Club Leather • Sport Chrono',
@@ -216,7 +217,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
     },
     {
       id: 'slide-camry',
-      carId: 'car-3',
+      carId: 'car-2',
       badgeRu: '🇰🇬 Самый ликвидный седан в КР',
       badgeKg: '🇰🇬 Кыргызстандагы эң популярдуу седан',
       badgeEn: '🇰🇬 Most In-Demand Sedan in KG',
@@ -240,7 +241,30 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
         'Обслуживался исключительно в Liqui Moly Bishkek',
       ],
     },
-  ];
+  ].map((slide) => {
+    // Title, price, photo and specs always come from the real listing the slide opens
+    const car = INITIAL_CARS.find((c) => c.id === slide.carId);
+    if (!car) return slide;
+    const km = car.mileageKm.toLocaleString('ru-RU');
+    const engine = car.fuelType === 'Электро' ? null : `${car.engineVolume} л`;
+    const drive = car.drive.includes('4WD') ? '4WD' : car.drive === 'Задний' ? 'RWD' : 'FWD';
+    return {
+      ...slide,
+      title: car.title,
+      shortName: `${car.brand} ${car.model}`,
+      priceUsd: car.priceUsd,
+      priceKgs: Math.round(car.priceUsd * USD_TO_KGS_RATE),
+      city: car.city,
+      plate: car.plateNumber,
+      image: car.image,
+      year: car.year,
+      mileage: `${km} км`,
+      specsRu: [`${car.year} г.`, engine, `${car.powerHp} л.с.`, drive, `${km} км`, car.transmission].filter(Boolean).join(' • '),
+      specsKg: [`${car.year}-ж.`, engine, `${car.powerHp} а.к.`, drive, `${km} км`].filter(Boolean).join(' • '),
+      specsEn: [`${car.year}`, engine?.replace(' л', 'L'), `${car.powerHp} HP`, drive, `${km} km`].filter(Boolean).join(' • '),
+      features: car.features?.length ? car.features.slice(0, 4) : slide.features,
+    };
+  });
 
   // Auto-play timer for slideshow (3.8s per slide)
   useEffect(() => {

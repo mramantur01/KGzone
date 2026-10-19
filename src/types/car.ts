@@ -36,6 +36,7 @@ export interface Car {
   features: string[];
   image: string;
   photos: string[];
+  photoCredit?: { text: string; url: string };
 }
 
 export interface CarCheckReport {

@@ -182,6 +182,14 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
                 </span>
               )}
             </div>
+            {car.photoCredit && (
+              <p className="md:col-span-2 md:row-start-3 -mt-2 text-[10px] text-slate-400">
+                Фото модели для примера:{' '}
+                <a href={car.photoCredit.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-600" data-no-i18n>
+                  {car.photoCredit.text}
+                </a>
+              </p>
+            )}
             {photos.length > 1 && (
               <div className="md:col-span-2 md:row-start-2 flex gap-2 overflow-x-auto pb-1">
                 {photos.map((url, i) => (

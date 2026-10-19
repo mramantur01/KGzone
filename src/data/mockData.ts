@@ -1,3 +1,4 @@
+import carPhotos from "./carPhotos.json";
 import {
   Car,
   CarCheckReport,
@@ -989,7 +990,7 @@ export const PARTS_SUBCATEGORIES: Record<string, string[]> = {
   ],
 };
 
-export const INITIAL_CARS: Car[] = [
+const DEMO_CARS: Car[] = [
   {
     id: 'car-1',
     title: 'Toyota Land Cruiser 300 3.5 AT GR Sport',
@@ -4036,3 +4037,9 @@ export const INITIAL_SELLER_STORE: SellerStoreProfile = {
   totalPartsCount: 148,
   activeSince: '2019 г.',
 };
+
+// Demo listings use real photos of each model from Wikimedia Commons (scripts/photos/car-photos.mjs)
+export const INITIAL_CARS: Car[] = DEMO_CARS.map((car) => {
+  const photo = (carPhotos as Record<string, { image: string; credit: string; source: string }>)[car.id];
+  return photo ? { ...car, image: photo.image, photos: [photo.image], photoCredit: { text: photo.credit, url: photo.source } } : car;
+});
