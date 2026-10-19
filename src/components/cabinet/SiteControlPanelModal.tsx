@@ -11,7 +11,8 @@ import {
 } from '../../types/car';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { AnalyticsCharts } from './AnalyticsCharts';
-import { PartsModerationPanel } from './PartsModerationPanel';
+import { PartsModerationPanel, CarsModerationPanel } from './PartsModerationPanel';
+import { adminUpdateCar, adminDeleteCar, isDbCar } from '../../api/cars';
 import { adminAddPart, adminDeletePart, adminUpdatePart, isDbPart } from '../../api/parts';
 
 interface SiteControlPanelModalProps {
@@ -95,27 +96,42 @@ export const SiteControlPanelModal: React.FC<SiteControlPanelModalProps> = ({
   if (!isOpen || !hasAccess) return null;
 
   // 1. CAR MANAGEMENT ACTIONS
-  const handleToggleCarUrgent = (carId: string) => {
-    const updated = cars.map((c) => (c.id === carId ? { ...c, isUrgent: !c.isUrgent } : c));
-    onUpdateCars(updated);
+  // Database listings go through the admin API; built-in demo listings only change locally
+  const carApiError = (e: any) =>
+    showToast(e?.status === 401 ? 'Войдите паролем администратора в блоке «Модерация объявлений авто» выше' : e?.message || 'Ошибка');
+
+  const handleToggleCarUrgent = async (carId: string) => {
+    const car = cars.find((c) => c.id === carId);
+    if (!car) return;
+    if (isDbCar(carId)) {
+      try { await adminUpdateCar(carId, { isUrgent: !car.isUrgent }); } catch (e) { return carApiError(e); }
+    } else {
+      onUpdateCars(cars.map((c) => (c.id === carId ? { ...c, isUrgent: !c.isUrgent } : c)));
+    }
     showToast('Статус «Срочно» обновлен');
   };
 
-  const handleUpdatePrice = (carId: string) => {
+  const handleUpdatePrice = async (carId: string) => {
     const val = Number(newCarPrice);
     if (!val || val <= 0) return;
-    const updated = cars.map((c) => (c.id === carId ? { ...c, priceUsd: val } : c));
-    onUpdateCars(updated);
+    if (isDbCar(carId)) {
+      try { await adminUpdateCar(carId, { priceUsd: val }); } catch (e) { return carApiError(e); }
+    } else {
+      onUpdateCars(cars.map((c) => (c.id === carId ? { ...c, priceUsd: val } : c)));
+    }
     setEditingCarId(null);
     setNewCarPrice('');
     showToast(`Цена авто обновлена: $${val.toLocaleString()}`);
   };
 
-  const handleDeleteCar = (carId: string) => {
-    if (confirm('Вы уверены, что хотите удалить это объявление с сайта?')) {
+  const handleDeleteCar = async (carId: string) => {
+    if (!confirm('Вы уверены, что хотите удалить это объявление с сайта?')) return;
+    if (isDbCar(carId)) {
+      try { await adminDeleteCar(carId); } catch (e) { return carApiError(e); }
+    } else {
       onUpdateCars(cars.filter((c) => c.id !== carId));
-      showToast('Объявление удалено из базы');
     }
+    showToast('Объявление удалено из базы');
   };
 
   // 2. PART MANAGEMENT ACTIONS
@@ -512,6 +528,9 @@ export const SiteControlPanelModal: React.FC<SiteControlPanelModalProps> = ({
               {/* TAB 1: CAR LISTINGS MANAGEMENT */}
               {activeTab === 'listings' && (
                 <div>
+                  <div className="mb-5">
+                    <CarsModerationPanel />
+                  </div>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <div>
                       <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">

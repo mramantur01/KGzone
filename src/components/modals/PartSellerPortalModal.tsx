@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AutoPartItem, Currency, Language } from '../../types/car';
 import { submitPart } from '../../api/parts';
+import { uploadPhoto } from '../../api/upload';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import {
@@ -88,6 +89,29 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   const [selectedPhotoSample, setSelectedPhotoSample] = useState(
     '/parts/wm-03.jpg'
   );
+  // Seller's own photos (Vercel Blob); when present they replace the sample photo
+  const [ownPhotos, setOwnPhotos] = useState<string[]>([]);
+  const [photoUploading, setPhotoUploading] = useState(0);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  const handlePhotoFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setPhotoError(null);
+    const list = Array.from(files).slice(0, Math.max(0, 8 - ownPhotos.length - photoUploading));
+    setPhotoUploading((n) => n + list.length);
+    await Promise.all(
+      list.map(async (file) => {
+        try {
+          const url = await uploadPhoto(file, 'part');
+          setOwnPhotos((prev) => (prev.length < 8 ? [...prev, url] : prev));
+        } catch (e: any) {
+          setPhotoError(e?.message || 'Не удалось загрузить фото');
+        } finally {
+          setPhotoUploading((n) => n - 1);
+        }
+      })
+    );
+  };
 
   // Compatibility row state
   const [compatList, setCompatList] = useState([
@@ -226,9 +250,8 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
       storeCity: market.includes('Ош') ? 'Ош' : 'Бишкек',
       sellerPhone: phone,
       sellerWhatsapp: whatsapp,
-      image: selectedPhotoSample,
-      images: [selectedPhotoSample],
-      videoUrl: hasCompressionVideo ? 'https://example.com/video-compression' : undefined,
+      image: ownPhotos[0] || selectedPhotoSample,
+      images: ownPhotos.length ? ownPhotos : [selectedPhotoSample],
       videoTitle: videoTitle,
       hasCompressionVideo: hasCompressionVideo,
       compressionBar: compressionBar,
@@ -620,9 +643,47 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
               {/* PHOTO PRESET SELECTOR (Requirement 3) */}
               <div className="space-y-2">
                 <label className="block text-neutral-300 font-semibold text-xs">
-                  {isKg ? 'Сүрөттү тандоо (үлгү же жеке сүрөт)' : 'Фотографии детали (готовые образцы или ссылка)'}
+                  {isKg ? 'Сүрөттү тандоо (үлгү же жеке сүрөт)' : 'Фотографии детали'}
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  {ownPhotos.map((url, i) => (
+                    <div key={url} className="relative w-24 h-20 rounded-xl overflow-hidden border-2 border-red-500">
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                      {i === 0 && <span className="absolute left-1 top-1 text-[9px] font-bold bg-red-600 text-white px-1 rounded">Главное</span>}
+                      <button
+                        type="button"
+                        onClick={() => setOwnPhotos((prev) => prev.filter((p) => p !== url))}
+                        className="absolute right-1 top-1 w-5 h-5 rounded-full bg-black/70 text-white text-xs leading-none cursor-pointer"
+                        aria-label="Удалить фото"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {Array.from({ length: photoUploading }).map((_, i) => (
+                    <div key={i} className="w-24 h-20 rounded-xl border border-neutral-700 bg-neutral-900 flex items-center justify-center text-[10px] text-neutral-400">
+                      Загрузка...
+                    </div>
+                  ))}
+                  {ownPhotos.length + photoUploading < 8 && (
+                    <label className="w-24 h-20 rounded-xl border-2 border-dashed border-neutral-600 hover:border-red-500 text-neutral-300 flex flex-col items-center justify-center text-[10px] font-bold text-center cursor-pointer px-1">
+                      <span className="text-lg leading-none">+</span>
+                      <span>Загрузить своё фото</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => { handlePhotoFiles(e.target.files); e.target.value = ''; }}
+                      />
+                    </label>
+                  )}
+                </div>
+                {photoError && <p className="text-[11px] text-red-400">{photoError}</p>}
+                <p className="text-[11px] text-neutral-500">
+                  {ownPhotos.length ? 'Будут показаны ваши фото.' : 'Лучше загрузить реальные фото детали. Если фото нет — выберите похожий образец:'}
+                </p>
+                <div className={`grid grid-cols-2 sm:grid-cols-5 gap-2.5 ${ownPhotos.length ? 'hidden' : ''}`}>
                   {photoPresets.map((preset, idx) => (
                     <div
                       key={idx}
@@ -735,7 +796,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || photoUploading > 0}
                   className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-red-950/50 cursor-pointer"
                 >
                   <Plus size={16} />

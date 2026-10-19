@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Car, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KyrgyzPlateBadge, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
@@ -42,8 +42,14 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
   const [loanDownPaymentPercent, setLoanDownPaymentPercent] = useState(30);
   const [loanYears, setLoanYears] = useState(3);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
+
+  useEffect(() => setPhotoIndex(0), [car?.id]);
 
   if (!car) return null;
+
+  const photos = car.photos?.length ? car.photos : car.image ? [car.image] : [];
+  const mainPhoto = photos[Math.min(photoIndex, photos.length - 1)] || car.image;
 
   const isKg = language === 'kg';
   const priceSom = Math.round(car.priceUsd * USD_TO_KGS_RATE);
@@ -122,8 +128,8 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
           {/* Верхняя строка: Заголовок и Цена */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4 pb-4 border-b border-slate-200">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <KyrgyzPlateBadge plate={car.plateNumber} />
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                {car.plateNumber && <KyrgyzPlateBadge plate={car.plateNumber} />}
                 <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                   {car.customs}
                 </span>
@@ -136,9 +142,9 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 {car.title}
               </h2>
-              <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 mt-1">
                 <MapPin size={14} className="text-[#C8102E]" />
-                <span>{car.city} ({car.sellerLocation})</span>
+                <span>{car.city}{car.sellerLocation && car.sellerLocation !== car.city ? ` (${car.sellerLocation})` : ''}</span>
                 <span>·</span>
                 <span>Опубликовано: {car.publishedDate}</span>
                 <span>·</span>
@@ -163,13 +169,33 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="md:col-span-2 rounded-xl overflow-hidden shadow-sm border border-slate-200 aspect-16/9 bg-slate-900 relative">
               <CarImagePreview
-                src={car.image}
+                key={mainPhoto}
+                src={mainPhoto}
                 alt={car.title}
                 bodyType={car.bodyType}
                 brand={car.brand}
                 aspectRatio="16/9"
               />
+              {photos.length > 1 && (
+                <span className="absolute right-2 bottom-2 z-10 text-[11px] font-bold bg-black/60 text-white px-2 py-0.5 rounded">
+                  {Math.min(photoIndex, photos.length - 1) + 1} / {photos.length}
+                </span>
+              )}
             </div>
+            {photos.length > 1 && (
+              <div className="md:col-span-2 md:row-start-2 flex gap-2 overflow-x-auto pb-1">
+                {photos.map((url, i) => (
+                  <button
+                    key={url + i}
+                    type="button"
+                    onClick={() => setPhotoIndex(i)}
+                    className={`shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 cursor-pointer ${i === photoIndex ? 'border-[#C8102E]' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                  >
+                    <img src={url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Карточка контактов продавца (Quick Action) */}
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col justify-between">
@@ -181,13 +207,15 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
                 <div className="text-xs text-slate-600 mt-0.5">{car.sellerLocation}</div>
 
                 {/* Блок CarCheck */}
-                <div className="mt-4 p-3 bg-white rounded-lg border border-emerald-200">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 mb-1">
-                    <ShieldCheck size={16} className="text-emerald-600" />
+                <div className={`mt-4 p-3 bg-white rounded-lg border ${car.hasCarCheckPass ? 'border-emerald-200' : 'border-amber-200'}`}>
+                  <div className={`flex items-center gap-1.5 text-xs font-bold mb-1 ${car.hasCarCheckPass ? 'text-emerald-800' : 'text-amber-800'}`}>
+                    <ShieldCheck size={16} className={car.hasCarCheckPass ? 'text-emerald-600' : 'text-amber-500'} />
                     <span>Проверка CarCheck KG</span>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Госномер <span className="font-mono font-bold">{car.plateNumber}</span> проверен по базе ГРС: арестов и залогов не обнаружено.
+                    {car.hasCarCheckPass
+                      ? 'Автомобиль проверен администрацией KGzone.'
+                      : 'Автомобиль ещё не проверялся. Перед покупкой проверьте госномер и VIN на аресты и залоги.'}
                   </p>
                   <button
                     onClick={() => onOpenCarCheckWithPlate(car.plateNumber)}

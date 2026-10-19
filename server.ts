@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { timingSafeEqual, randomUUID } from 'crypto';
+import { put } from '@vercel/blob';
 import { GoogleGenAI } from '@google/genai';
 import { Redis } from '@upstash/redis';
 
@@ -18,7 +19,7 @@ const __dirname = path.dirname(__filename);
 // Each collection is a hash (id -> JSON document) plus a sorted set that keeps
 // newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
-type Collection = 'orders' | 'bookings' | 'reviews' | 'parts';
+type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars';
 
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -26,7 +27,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 
 const isDatabaseConnected = Boolean(redis);
 
-const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [] };
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [] };
 let readyPromise: Promise<void> | null = null;
 
 const dataKey = (c: Collection) => `kgzone:${c}`;
@@ -138,7 +139,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make sure the DB table exists and is seeded before any API call touches it
 app.use('/api', (_req: Request, res: Response, next) => {
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [] })
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [] })
     .then(() => next())
     .catch((err) => {
       console.error('[DB] init failed:', err);
@@ -170,6 +171,24 @@ const asyncRoute =
       res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
     });
   };
+
+// Sends a message to the site owner's Telegram (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID env vars).
+// Does nothing when they are not configured; never fails the request.
+async function notifyAdmin(text: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN, chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 4000), disable_web_page_preview: true }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (err) {
+    console.warn('[Telegram] notify failed:', err);
+  }
+}
+const SITE_URL = process.env.SITE_URL || 'https://k-gzone.vercel.app';
 
 // In-memory data store with initial seed
 interface OrderRecord {
@@ -360,6 +379,11 @@ app.post('/api/orders', asyncRoute(async (req: Request, res: Response) => {
   };
 
   await insertRecord('orders', newOrder);
+  await notifyAdmin(
+    `🛒 Новый заказ запчасти ${newOrder.orderNumber}\n${newOrder.partTitle}\n${newOrder.priceKgs} сом · ${newOrder.storeName}\n` +
+      `Клиент: ${newOrder.customerName}, ${newOrder.customerPhone}\n` +
+      (newOrder.deliveryType === 'delivery' ? `Доставка: ${newOrder.deliveryAddress}` : 'Самовывоз')
+  );
 
   res.status(201).json({
     success: true,
@@ -575,6 +599,11 @@ app.post('/api/workshop/bookings', asyncRoute(async (req: Request, res: Response
   };
 
   await insertRecord('bookings', newBooking);
+  await notifyAdmin(
+    `🔧 Новая запись на СТО ${newBooking.bookingNumber}\n${newBooking.serviceTitle}\n` +
+      `${newBooking.date} ${newBooking.timeSlot} · мастер ${newBooking.masterName}\n` +
+      `Клиент: ${newBooking.clientName}, ${newBooking.clientPhone}\nАвто: ${newBooking.carBrandModel}`
+  );
 
   res.status(201).json({ success: true, booking: newBooking });
 }));
@@ -789,6 +818,11 @@ app.post('/api/parts', asyncRoute(async (req: Request, res: Response) => {
     moderation: { status: 'pending' as PartStatus, submittedAt: new Date().toISOString() },
   };
   await insertRecord('parts', record);
+  await notifyAdmin(
+    `📦 Новая запчасть на модерации\n${record.title}\nOEM ${record.partNumber} · ${record.priceKgs} сом\n` +
+      `Продавец: ${record.storeName || record.companyName || '—'}, ${record.sellerPhone}\n` +
+      `Проверить: ${SITE_URL} → Панель управления → Автозапчасти`
+  );
   res.status(201).json({ success: true, id: record.id, status: 'pending' });
 }));
 
@@ -848,6 +882,175 @@ app.patch('/api/admin/parts/:id', requireAdmin, asyncRoute(async (req: Request, 
 app.delete('/api/admin/parts/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
   const ok = await deleteRecord('parts', req.params.id);
   if (!ok) return res.status(404).json({ success: false, error: 'Запчасть не найдена' });
+  res.json({ success: true });
+}));
+
+// ==========================================
+// PHOTO UPLOADS (Vercel Blob)
+// The browser shrinks photos to <= 1600px JPEG before sending, so bodies stay small.
+// ==========================================
+const uploadHits = new Map<string, number[]>(); // per-instance rate limit: 40 photos / 10 min / IP
+
+app.post('/api/upload', asyncRoute(async (req: Request, res: Response) => {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return res.status(503).json({ success: false, error: 'Загрузка фото пока не настроена' });
+  }
+  const ip = (req.get('x-forwarded-for') || req.ip || 'unknown').split(',')[0].trim();
+  const now = Date.now();
+  const recent = (uploadHits.get(ip) || []).filter((t) => now - t < 10 * 60_000);
+  if (recent.length >= 40) return res.status(429).json({ success: false, error: 'Слишком много фото. Попробуйте позже.' });
+
+  const m = typeof req.body?.dataUrl === 'string' && req.body.dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) return res.status(400).json({ success: false, error: 'Нужна картинка JPEG, PNG или WebP' });
+  const bytes = Buffer.from(m[2], 'base64');
+  if (bytes.length > 2_500_000) return res.status(413).json({ success: false, error: 'Фото слишком большое (максимум 2.5 МБ)' });
+  // Check the file really is an image (magic bytes), not just labelled as one
+  const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8;
+  const isPng = bytes.subarray(0, 4).toString('hex') === '89504e47';
+  const isWebp = bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP';
+  if (!isJpeg && !isPng && !isWebp) return res.status(400).json({ success: false, error: 'Файл не похож на картинку' });
+
+  recent.push(now);
+  uploadHits.set(ip, recent);
+  const ext = isPng ? 'png' : isWebp ? 'webp' : 'jpg';
+  const folder = req.body?.kind === 'car' ? 'cars' : 'parts';
+  const blob = await put(`${folder}/${randomUUID()}.${ext}`, bytes, { access: 'public', contentType: m[1] });
+  res.status(201).json({ success: true, url: blob.url });
+}));
+
+// ==========================================
+// CAR LISTINGS WITH MODERATION (same flow as parts)
+// ==========================================
+const CAR_BODY = ['Седан', 'Кроссовер', 'Внедорожник', 'Хэтчбек', 'Минивэн', 'Универсал', 'Пикап', 'Купе', 'Лифтбек'];
+const CAR_TRANS = ['Автомат', 'Вариатор', 'Механика', 'Робот'];
+const CAR_FUEL = ['Бензин', 'Газ-бензин', 'Дизель', 'Гибрид', 'Электро'];
+const CAR_DRIVE = ['Передний', 'Полный (4WD)', 'Задний'];
+const CAR_CUSTOMS = ['Растаможен в КР', 'Не растаможен', 'Учет РФ', 'Учет ЕАЭС'];
+const pick = (v: unknown, list: string[], fallback: string) => (list.includes(v as string) ? (v as string) : fallback);
+
+function sanitizeCar(body: any) {
+  const photos = (Array.isArray(body.photos) ? body.photos : [body.image]).map(imageUrl).filter(Boolean).slice(0, 15);
+  const brand = str(body.brand, 60), model = str(body.model, 80);
+  const year = Math.round(num(body.year, 1950, new Date().getFullYear() + 1));
+  const city = str(body.city, 60) || 'Бишкек';
+  return {
+    title: `${brand} ${model} ${year}`.trim(),
+    brand,
+    model,
+    generation: str(body.generation, 80) || undefined,
+    year,
+    priceUsd: Math.round(num(body.priceUsd, 0, 10_000_000)),
+    city,
+    region: str(body.region, 60) || city,
+    bodyType: pick(body.bodyType, CAR_BODY, 'Седан'),
+    transmission: pick(body.transmission, CAR_TRANS, 'Автомат'),
+    steering: body.steering === 'Правый' ? 'Правый' : 'Левый',
+    fuelType: pick(body.fuelType, CAR_FUEL, 'Бензин'),
+    engineVolume: num(body.engineVolume, 0, 10),
+    powerHp: Math.round(num(body.powerHp, 0, 2000)),
+    mileageKm: Math.round(num(body.mileageKm, 0, 3_000_000)),
+    drive: pick(body.drive, CAR_DRIVE, 'Передний'),
+    customs: pick(body.customs, CAR_CUSTOMS, 'Растаможен в КР'),
+    color: str(body.color, 40),
+    isExchange: Boolean(body.isExchange),
+    // Only an admin can mark a car as CarCheck-verified or a good price
+    hasCarCheckPass: false,
+    isGoodPrice: false,
+    plateNumber: str(body.plateNumber, 20).toUpperCase(),
+    vin: str(body.vin, 20).toUpperCase(),
+    viewsCount: 0,
+    sellerName: str(body.sellerName, 80),
+    sellerPhone: str(body.sellerPhone, 30),
+    sellerLocation: str(body.sellerLocation, 120) || city,
+    description: str(body.description, 3000) || '—',
+    features: (Array.isArray(body.features) ? body.features : []).map((f: unknown) => str(f, 60)).filter(Boolean).slice(0, 30),
+    image: photos[0] || '',
+    photos,
+  };
+}
+
+const carProblem = (c: ReturnType<typeof sanitizeCar>) => {
+  if (!c.brand || !c.model) return 'Укажите марку и модель';
+  if (!c.priceUsd) return 'Укажите цену';
+  if (!c.sellerName) return 'Укажите имя продавца';
+  if (!/\d{6,}/.test(c.sellerPhone.replace(/\D/g, ''))) return 'Укажите телефон продавца';
+  return null;
+};
+
+const publicCar = ({ moderation, ...car }: any) => ({
+  ...car,
+  publishedDate: car.publishedDate || (car.createdAt ? new Date(car.createdAt).toLocaleDateString('ru-RU') : ''),
+});
+
+app.get('/api/cars', asyncRoute(async (_req: Request, res: Response) => {
+  const cars = await listRecords('cars');
+  res.json({ success: true, cars: cars.filter((c: any) => c.moderation?.status === 'approved').map(publicCar) });
+}));
+
+app.post('/api/cars', asyncRoute(async (req: Request, res: Response) => {
+  const car = sanitizeCar(req.body || {});
+  const problem = carProblem(car);
+  if (problem) return res.status(400).json({ success: false, error: problem });
+  const phone = car.sellerPhone.replace(/\D/g, '');
+  const pendingFromPhone = (await listRecords('cars')).filter(
+    (c: any) => c.moderation?.status === 'pending' && c.sellerPhone?.replace(/\D/g, '') === phone
+  ).length;
+  if (pendingFromPhone >= 5) {
+    return res.status(429).json({ success: false, error: 'Слишком много объявлений на проверке с этого номера. Дождитесь модерации.' });
+  }
+  const now = new Date().toISOString();
+  const record = { id: `car-${randomUUID()}`, ...car, createdAt: now, moderation: { status: 'pending', submittedAt: now } };
+  await insertRecord('cars', record);
+  await notifyAdmin(
+    `🚗 Новое объявление на модерации\n${record.title} · ${record.priceUsd}\n${record.city} · ${record.mileageKm} км\n` +
+      `Продавец: ${record.sellerName}, ${record.sellerPhone}\nФото: ${record.photos.length}\n` +
+      `Проверить: ${SITE_URL} → Панель управления → Объявления авто`
+  );
+  res.status(201).json({ success: true, id: record.id, status: 'pending' });
+}));
+
+app.get('/api/admin/cars', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const status = String(req.query.status || 'all');
+  const cars = await listRecords('cars');
+  res.json({ success: true, cars: status === 'all' ? cars : cars.filter((c: any) => c.moderation?.status === status) });
+}));
+
+app.patch('/api/admin/cars/:id/moderate', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const { action, reason } = req.body || {};
+  if (action !== 'approve' && action !== 'reject') {
+    return res.status(400).json({ success: false, error: 'action должен быть approve или reject' });
+  }
+  const current = await getRecord<any>('cars', req.params.id);
+  if (!current) return res.status(404).json({ success: false, error: 'Объявление не найдено' });
+  const now = new Date().toISOString();
+  const updated = await updateRecord('cars', req.params.id, {
+    moderation: {
+      ...current.moderation,
+      status: action === 'approve' ? 'approved' : 'rejected',
+      reviewedAt: now,
+      reason: action === 'reject' ? str(reason, 300) || 'Не соответствует правилам' : undefined,
+    },
+    ...(action === 'approve' ? { publishedDate: new Date().toLocaleDateString('ru-RU') } : {}),
+  });
+  res.json({ success: true, car: updated });
+}));
+
+app.patch('/api/admin/cars/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const current = await getRecord<any>('cars', req.params.id);
+  if (!current) return res.status(404).json({ success: false, error: 'Объявление не найдено' });
+  const b = req.body || {};
+  const patch: any = {};
+  if (b.priceUsd !== undefined) patch.priceUsd = Math.round(num(b.priceUsd, 0, 10_000_000));
+  if (b.isUrgent !== undefined) patch.isUrgent = Boolean(b.isUrgent);
+  if (b.hasCarCheckPass !== undefined) patch.hasCarCheckPass = Boolean(b.hasCarCheckPass);
+  if (b.isGoodPrice !== undefined) patch.isGoodPrice = Boolean(b.isGoodPrice);
+  const updated = await updateRecord('cars', req.params.id, patch);
+  res.json({ success: true, car: updated });
+}));
+
+app.delete('/api/admin/cars/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const ok = await deleteRecord('cars', req.params.id);
+  if (!ok) return res.status(404).json({ success: false, error: 'Объявление не найдено' });
   res.json({ success: true });
 }));
 

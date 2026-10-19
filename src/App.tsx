@@ -54,9 +54,18 @@ import { ShieldCheck, Calculator, Sparkles, SlidersHorizontal, ArrowUpDown } fro
 import { WorkshopBooking } from './types/car';
 import { setSiteLanguage } from './i18n/domTranslator';
 import { useParts, isDbPart } from './api/parts';
+import { useCars, isDbCar } from './api/cars';
 
 export default function App() {
-  const [cars, setCars] = useState<Car[]>(INITIAL_CARS);
+  // Listings = approved cars from the database + built-in demo listings (demo edits stay local)
+  const storeCars = useCars();
+  const [demoCars, setDemoCars] = useState<Car[]>(INITIAL_CARS);
+  const cars = useMemo(() => [...storeCars.filter((c) => isDbCar(c.id)), ...demoCars], [storeCars, demoCars]);
+  const setCars: React.Dispatch<React.SetStateAction<Car[]>> = (next) =>
+    setDemoCars(() => {
+      const value = typeof next === 'function' ? next(cars) : next;
+      return value.filter((c) => !isDbCar(c.id));
+    });
   // Catalog = approved parts from the database + built-in demo listings (demo edits stay local)
   const storeParts = useParts();
   const [demoParts, setDemoParts] = useState<AutoPartItem[]>(AUTO_PARTS);
@@ -168,11 +177,9 @@ export default function App() {
     setIsAddListingOpen(true);
   };
 
-  // Добавление нового объявления авто
-  const handleAddCar = (newCar: Car) => {
-    setCars((prev) => [newCar, ...prev]);
-    setSelectedCar(newCar);
-    showToast('Ваше объявление успешно опубликовано на KGzone!');
+  // Новое объявление уходит на модерацию и появится в каталоге после одобрения
+  const handleCarSubmitted = () => {
+    showToast('Объявление отправлено на модерацию');
   };
 
   // Управление авто в кабинете продавца
@@ -701,7 +708,7 @@ export default function App() {
       <AddListingModal
         isOpen={isAddListingOpen}
         onClose={() => setIsAddListingOpen(false)}
-        onAddCar={handleAddCar}
+        onSubmitted={handleCarSubmitted}
         language={language}
         currentUser={userProfile}
       />

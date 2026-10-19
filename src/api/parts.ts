@@ -1,36 +1,17 @@
 import { useSyncExternalStore } from 'react';
 import type { AutoPartItem } from '../types/car';
 import { AUTO_PARTS } from '../data/mockData';
+import { call, type ModerationInfo, type ModerationStatus } from './admin';
+
+export { getAdminKey, setAdminKey, checkAdminKey } from './admin';
 
 // Client side of the parts catalog: public list, seller submissions (go to moderation),
-// and the admin moderation API (needs the ADMIN_TOKEN password, kept for the browser session).
+// and the admin moderation API.
 
-export type PartStatus = 'pending' | 'approved' | 'rejected';
+export type PartStatus = ModerationStatus;
 export interface ModeratedPart extends AutoPartItem {
   createdAt?: string;
-  moderation?: { status: PartStatus; submittedAt?: string; reviewedAt?: string; reason?: string };
-}
-
-const ADMIN_KEY = 'kgzone-admin-token';
-
-export const getAdminKey = (): string => {
-  try { return sessionStorage.getItem(ADMIN_KEY) || ''; } catch { return ''; }
-};
-export const setAdminKey = (key: string) => {
-  try { key ? sessionStorage.setItem(ADMIN_KEY, key) : sessionStorage.removeItem(ADMIN_KEY); } catch { /* private mode */ }
-};
-
-async function call<T>(url: string, init: RequestInit = {}, admin = false): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (admin) headers['x-admin-token'] = getAdminKey();
-  const res = await fetch(url, { ...init, headers: { ...headers, ...(init.headers as Record<string, string>) } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.success === false) {
-    const err = new Error(data.error || `Ошибка ${res.status}`) as Error & { status?: number };
-    err.status = res.status;
-    throw err;
-  }
-  return data as T;
+  moderation?: ModerationInfo;
 }
 
 // ---- shared catalog store (approved parts from the database + built-in demo listings) ----
@@ -71,18 +52,6 @@ export const submitPart = (part: Partial<AutoPartItem>) =>
   call<{ id: string; status: PartStatus }>('/api/parts', { method: 'POST', body: JSON.stringify(part) });
 
 // ---- admin ----
-export const checkAdminKey = async (key: string) => {
-  const prev = getAdminKey();
-  setAdminKey(key);
-  try {
-    await call('/api/admin/check', {}, true);
-    return true;
-  } catch {
-    setAdminKey(prev);
-    return false;
-  }
-};
-
 export const listAdminParts = (status: PartStatus | 'all' = 'all') =>
   call<{ parts: ModeratedPart[] }>(`/api/admin/parts?status=${status}`, {}, true).then((d) => d.parts);
 
