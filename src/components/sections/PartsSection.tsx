@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import {
-  AUTO_PARTS,
   POPULAR_BRANDS,
   ALL_CAR_BRANDS,
   getModelsForBrand,
@@ -9,6 +8,7 @@ import {
 } from '../../data/mockData';
 import { partFitsBrand, partFitsModel, partFitsGeneration, partInCategory, partMatchesSubPart } from '../../utils/partMatching';
 import { ModelPartsTree } from './ModelPartsTree';
+import { useParts } from '../../api/parts';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { PartDetailModal } from '../modals/PartDetailModal';
@@ -69,7 +69,13 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   const isKg = language === 'kg';
 
   // Live parts list (supports adding new parts dynamically)
-  const [partsList, setPartsList] = useState<AutoPartItem[]>(AUTO_PARTS);
+  // Shared catalog (approved database parts + demo listings) with local stock changes from orders
+  const storeParts = useParts();
+  const [stockOverrides, setStockOverrides] = useState<Record<string, Partial<AutoPartItem>>>({});
+  const partsList = useMemo(
+    () => storeParts.map((p) => (stockOverrides[p.id] ? { ...p, ...stockOverrides[p.id] } : p)),
+    [storeParts, stockOverrides]
+  );
 
   // View mode: Grid vs Drom-style Rows
   const [viewMode, setViewMode] = useState<'grid' | 'rows'>('grid');
@@ -120,20 +126,17 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   };
 
   const handleStockUpdate = (partId: string, delta: number) => {
-    setPartsList((prev) =>
-      prev.map((item) => {
-        if (item.id === partId) {
-          const newCount = Math.max(0, (item.stockCount || 0) + delta);
-          return {
-            ...item,
-            stockCount: newCount,
-            inStock: newCount > 0,
-            stockStatus: newCount === 0 ? 'Продано' : newCount < 2 ? 'Осталось мало' : 'В наличии',
-          };
-        }
-        return item;
-      })
-    );
+    const item = partsList.find((p) => p.id === partId);
+    if (!item) return;
+    const newCount = Math.max(0, (item.stockCount || 0) + delta);
+    setStockOverrides((prev) => ({
+      ...prev,
+      [partId]: {
+        stockCount: newCount,
+        inStock: newCount > 0,
+        stockStatus: newCount === 0 ? 'Продано' : newCount < 2 ? 'Осталось мало' : 'В наличии',
+      },
+    }));
   };
 
   const availableModels = getModelsForBrand(selectedBrand);
@@ -1255,9 +1258,6 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
         onClose={() => setIsSellerPortalOpen(false)}
         language={language}
         currency={currency}
-        onAddPart={(newPart) => {
-          setPartsList((prev) => [newPart, ...prev]);
-        }}
         existingParts={partsList}
         onUpdatePartStock={handleStockUpdate}
       />

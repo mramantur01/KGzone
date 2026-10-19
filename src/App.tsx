@@ -53,10 +53,19 @@ import { KyrgyzSectionDivider, KochkorMuyuzIcon, TundukIcon } from './components
 import { ShieldCheck, Calculator, Sparkles, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 import { WorkshopBooking } from './types/car';
 import { setSiteLanguage } from './i18n/domTranslator';
+import { useParts, isDbPart } from './api/parts';
 
 export default function App() {
   const [cars, setCars] = useState<Car[]>(INITIAL_CARS);
-  const [parts, setParts] = useState<AutoPartItem[]>(AUTO_PARTS);
+  // Catalog = approved parts from the database + built-in demo listings (demo edits stay local)
+  const storeParts = useParts();
+  const [demoParts, setDemoParts] = useState<AutoPartItem[]>(AUTO_PARTS);
+  const parts = useMemo(() => [...storeParts.filter((p) => isDbPart(p.id)), ...demoParts], [storeParts, demoParts]);
+  const setParts: React.Dispatch<React.SetStateAction<AutoPartItem[]>> = (next) =>
+    setDemoParts((prev) => {
+      const value = typeof next === 'function' ? next(parts) : next;
+      return value.filter((p) => !isDbPart(p.id));
+    });
   const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>(INITIAL_REGISTERED_USERS);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(INITIAL_SITE_SETTINGS);
   const [currency, setCurrency] = useState<Currency>('USD');

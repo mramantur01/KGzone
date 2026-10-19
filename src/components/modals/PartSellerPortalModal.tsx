@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AutoPartItem, Currency, Language } from '../../types/car';
+import { submitPart } from '../../api/parts';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import {
@@ -49,7 +50,6 @@ interface PartSellerPortalModalProps {
   onClose: () => void;
   language: Language;
   currency: Currency;
-  onAddPart: (newPart: AutoPartItem) => void;
   existingParts: AutoPartItem[];
   onUpdatePartStock: (partId: string, delta: number) => void;
 }
@@ -59,7 +59,6 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   onClose,
   language,
   currency,
-  onAddPart,
   existingParts,
   onUpdatePartStock,
 }) => {
@@ -198,7 +197,9 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   ];
 
   // SUBMIT NEW PART
-  const handleCreatePart = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleCreatePart = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!partTitle.trim() || !partOEM.trim()) {
       showNotification('Пожалуйста, заполните название и OEM артикул');
@@ -244,8 +245,17 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
       deliveryAvailable: true,
     };
 
-    onAddPart(newPart);
-    showNotification(`Запчасть «${newPart.title}» успешно добавлена в каталог KGzone!`);
+    // Goes to the moderation queue; it appears in the catalog once an admin approves it
+    setIsSubmitting(true);
+    try {
+      await submitPart(newPart);
+    } catch (err: any) {
+      showNotification(err?.message || 'Не удалось отправить заявку. Попробуйте ещё раз.');
+      return;
+    } finally {
+      setIsSubmitting(false);
+    }
+    showNotification(`Запчасть «${newPart.title}» отправлена на модерацию. Она появится в каталоге после проверки администратором.`);
     
     // reset form
     setPartTitle('');
@@ -725,10 +735,11 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-red-950/50 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-red-950/50 cursor-pointer"
                 >
                   <Plus size={16} />
-                  <span>{isKg ? 'Каталогго жарыялоо' : 'Опубликовать автозапчасть в KGzone'}</span>
+                  <span>{isSubmitting ? 'Отправка...' : 'Отправить на модерацию'}</span>
                 </button>
               </div>
 

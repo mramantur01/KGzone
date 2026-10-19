@@ -11,6 +11,8 @@ import {
 } from '../../types/car';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { AnalyticsCharts } from './AnalyticsCharts';
+import { PartsModerationPanel } from './PartsModerationPanel';
+import { adminAddPart, adminDeletePart, adminUpdatePart, isDbPart } from '../../api/parts';
 
 interface SiteControlPanelModalProps {
   isOpen: boolean;
@@ -117,20 +119,32 @@ export const SiteControlPanelModal: React.FC<SiteControlPanelModalProps> = ({
   };
 
   // 2. PART MANAGEMENT ACTIONS
-  const handleDeletePart = (partId: string) => {
-    if (confirm('Удалить эту запчасть из каталога?')) {
+  // Database parts go through the admin API; built-in demo listings only change locally
+  const needAdminLogin = (e: any) =>
+    showToast(e?.status === 401 ? 'Войдите паролем администратора в блоке «Модерация запчастей» выше' : e?.message || 'Ошибка');
+
+  const handleDeletePart = async (partId: string) => {
+    if (!confirm('Удалить эту запчасть из каталога?')) return;
+    if (isDbPart(partId)) {
+      try { await adminDeletePart(partId); } catch (e) { return needAdminLogin(e); }
+    } else {
       onUpdateParts(parts.filter((p) => p.id !== partId));
-      showToast('Запчасть удалена');
     }
+    showToast('Запчасть удалена');
   };
 
-  const handleTogglePartStock = (partId: string) => {
-    const updated = parts.map((p) => (p.id === partId ? { ...p, inStock: !p.inStock } : p));
-    onUpdateParts(updated);
+  const handleTogglePartStock = async (partId: string) => {
+    const part = parts.find((p) => p.id === partId);
+    if (!part) return;
+    if (isDbPart(partId)) {
+      try { await adminUpdatePart(partId, { stockCount: part.inStock ? 0 : Math.max(1, part.stockCount) }); } catch (e) { return needAdminLogin(e); }
+    } else {
+      onUpdateParts(parts.map((p) => (p.id === partId ? { ...p, inStock: !p.inStock } : p)));
+    }
     showToast('Статус наличия запчасти изменен');
   };
 
-  const handleCreatePart = (e: React.FormEvent) => {
+  const handleCreatePart = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPartForm.title || !newPartForm.partNumber) {
       showToast('Пожалуйста, заполните название и OEM артикул');
@@ -158,7 +172,12 @@ export const SiteControlPanelModal: React.FC<SiteControlPanelModalProps> = ({
       deliveryAvailable: true,
     };
 
-    onUpdateParts([created, ...parts]);
+    // Parts added by an admin are published right away (saved in the database)
+    try {
+      await adminAddPart(created);
+    } catch (err) {
+      return needAdminLogin(err);
+    }
     setIsAddingPart(false);
     showToast(`Запчасть «${created.title}» добавлена в каталог!`);
   };
@@ -641,6 +660,9 @@ export const SiteControlPanelModal: React.FC<SiteControlPanelModalProps> = ({
               {/* TAB 2: AUTO PARTS MANAGEMENT */}
               {activeTab === 'parts' && (
                 <div>
+                  <div className="mb-5">
+                    <PartsModerationPanel />
+                  </div>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <div>
                       <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">

@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { timingSafeEqual, randomUUID } from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import { Redis } from '@upstash/redis';
 
@@ -17,7 +18,7 @@ const __dirname = path.dirname(__filename);
 // Each collection is a hash (id -> JSON document) plus a sorted set that keeps
 // newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
-type Collection = 'orders' | 'bookings' | 'reviews';
+type Collection = 'orders' | 'bookings' | 'reviews' | 'parts';
 
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -25,7 +26,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 
 const isDatabaseConnected = Boolean(redis);
 
-const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [] };
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [] };
 let readyPromise: Promise<void> | null = null;
 
 const dataKey = (c: Collection) => `kgzone:${c}`;
@@ -96,6 +97,22 @@ async function updateRecord<T = any>(c: Collection, id: string, patch: Partial<T
   return updated;
 }
 
+async function getRecord<T = any>(c: Collection, id: string): Promise<T | null> {
+  if (!redis) return memory[c].find((r) => r.id === id) ?? null;
+  return (await redis.hget<T>(dataKey(c), id)) ?? null;
+}
+
+async function deleteRecord(c: Collection, id: string): Promise<boolean> {
+  if (!redis) {
+    const i = memory[c].findIndex((r) => r.id === id);
+    if (i < 0) return false;
+    memory[c].splice(i, 1);
+    return true;
+  }
+  const [removed] = await redis.pipeline().hdel(dataKey(c), id).zrem(orderKey(c), id).exec<[number, number]>();
+  return removed > 0;
+}
+
 async function countRecords(c: Collection): Promise<number> {
   if (!redis) return memory[c].length;
   return redis.zcard(orderKey(c));
@@ -121,7 +138,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make sure the DB table exists and is seeded before any API call touches it
 app.use('/api', (_req: Request, res: Response, next) => {
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews })
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [] })
     .then(() => next())
     .catch((err) => {
       console.error('[DB] init failed:', err);
@@ -134,8 +151,9 @@ app.use('/api', (_req: Request, res: Response, next) => {
 const isAdmin = (req: Request) => {
   const token = process.env.ADMIN_TOKEN;
   if (!token) return false;
-  const header = req.get('x-admin-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
-  return header === token;
+  const header = req.get('x-admin-token') || req.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+  const a = Buffer.from(header), b = Buffer.from(token);
+  return a.length === b.length && timingSafeEqual(a, b);
 };
 
 const requireAdmin = (req: Request, res: Response, next: () => void) => {
@@ -660,6 +678,177 @@ app.post('/api/reviews', asyncRoute(async (req: Request, res: Response) => {
 
   await insertRecord('reviews', newReview);
   res.status(201).json({ success: true, review: newReview });
+}));
+
+// ==========================================
+// AUTO PARTS CATALOG WITH MODERATION
+// Sellers submit parts -> status 'pending'; an admin approves or rejects them.
+// Only approved parts are public. Parts added by an admin are approved right away.
+// ==========================================
+
+type PartStatus = 'pending' | 'approved' | 'rejected';
+
+const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+const num = (v: unknown, min: number, max: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : 0;
+};
+// Photos: our own /parts/... files or https links only (no data:/javascript: URLs)
+const imageUrl = (v: unknown) => {
+  const s = str(v, 600);
+  return /^\/parts\/[\w.-]+$/.test(s) || /^https:\/\/[^\s"'<>]+$/.test(s) ? s : '';
+};
+
+const PART_CONDITIONS = ['Новый (Оригинал)', 'Б/у (Контрактный)', 'Дубликат (OEM)', 'Новый', 'Б/У с разбора'];
+
+// Whitelist and clamp everything a seller can send
+function sanitizePart(body: any) {
+  const images = (Array.isArray(body.images) ? body.images : [body.image]).map(imageUrl).filter(Boolean).slice(0, 8);
+  const compatibility = (Array.isArray(body.compatibility) ? body.compatibility : []).slice(0, 20).map((c: any) => ({
+    brand: str(c?.brand, 60),
+    model: str(c?.model, 80),
+    bodyCode: str(c?.bodyCode, 60),
+    years: str(c?.years, 30),
+    engine: str(c?.engine, 60),
+  })).filter((c: any) => c.brand && c.model);
+  const stockCount = Math.round(num(body.stockCount, 0, 9999));
+  return {
+    title: str(body.title, 160),
+    category: str(body.category, 80),
+    subcategory: str(body.subcategory, 80) || undefined,
+    brand: str(body.brand, 60),
+    model: str(body.model, 80),
+    generation: str(body.generation, 80) || undefined,
+    bodyCode: str(body.bodyCode, 80) || undefined,
+    partNumber: str(body.partNumber, 60).toUpperCase(),
+    priceKgs: Math.round(num(body.priceKgs, 0, 100_000_000)),
+    condition: PART_CONDITIONS.includes(body.condition) ? body.condition : 'Новый',
+    inStock: stockCount > 0,
+    stockCount,
+    stockStatus: stockCount > 1 ? 'В наличии' : stockCount === 1 ? 'Осталось мало' : 'Под заказ (2-3 дня)',
+    market: str(body.market, 80) || 'Кудайберген',
+    storeName: str(body.storeName, 120),
+    storeLocation: str(body.storeLocation, 160),
+    storeCity: str(body.storeCity, 60) || 'Бишкек',
+    sellerPhone: str(body.sellerPhone, 30),
+    sellerWhatsapp: str(body.sellerWhatsapp, 30).replace(/\D/g, '') || undefined,
+    image: images[0] || '/parts/wm-03.jpg',
+    images: images.length ? images : undefined,
+    hasCompressionVideo: Boolean(body.hasCompressionVideo),
+    compressionBar: body.hasCompressionVideo ? num(body.compressionBar, 0, 30) : undefined,
+    videoTitle: str(body.videoTitle, 120) || undefined,
+    compatibility: compatibility.length ? compatibility : undefined,
+    sellerType: body.sellerType === 'legal' ? 'legal' : 'individual',
+    companyName: str(body.companyName, 120) || undefined,
+    inn: str(body.inn, 20).replace(/\D/g, '') || undefined,
+    containerInfo: str(body.containerInfo, 120) || undefined,
+    directionsGuide: str(body.directionsGuide, 300) || undefined,
+    paymentMethods: (Array.isArray(body.paymentMethods) ? body.paymentMethods : []).map((p: unknown) => str(p, 40)).filter(Boolean).slice(0, 8),
+    countryOfImport: str(body.countryOfImport, 60) || undefined,
+    warrantyDays: Math.round(num(body.warrantyDays, 0, 3650)),
+    description: str(body.description, 2000) || undefined,
+    deliveryAvailable: body.deliveryAvailable !== false,
+  };
+}
+
+const partProblem = (p: ReturnType<typeof sanitizePart>) => {
+  if (!p.title) return 'Укажите название запчасти';
+  if (!p.partNumber) return 'Укажите OEM артикул';
+  if (!p.brand) return 'Укажите марку авто';
+  if (!p.priceKgs) return 'Укажите цену';
+  if (!/\d{6,}/.test(p.sellerPhone.replace(/\D/g, ''))) return 'Укажите телефон продавца';
+  return null;
+};
+
+// Public: approved parts only, without moderation details
+const publicPart = ({ moderation, ...part }: any) => part;
+
+app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
+  const parts = await listRecords('parts');
+  res.json({ success: true, parts: parts.filter((p: any) => p.moderation?.status === 'approved').map(publicPart) });
+}));
+
+// Seller submission -> moderation queue
+app.post('/api/parts', asyncRoute(async (req: Request, res: Response) => {
+  const part = sanitizePart(req.body || {});
+  const problem = partProblem(part);
+  if (problem) return res.status(400).json({ success: false, error: problem });
+
+  // Basic flood protection: at most 20 parts waiting for review per phone number
+  const phone = part.sellerPhone.replace(/\D/g, '');
+  const all = await listRecords('parts');
+  const pendingFromPhone = all.filter((p: any) => p.moderation?.status === 'pending' && p.sellerPhone?.replace(/\D/g, '') === phone).length;
+  if (pendingFromPhone >= 20) {
+    return res.status(429).json({ success: false, error: 'Слишком много заявок на модерации с этого номера. Дождитесь проверки.' });
+  }
+
+  const record = {
+    id: `part-${randomUUID()}`,
+    ...part,
+    createdAt: new Date().toISOString(),
+    moderation: { status: 'pending' as PartStatus, submittedAt: new Date().toISOString() },
+  };
+  await insertRecord('parts', record);
+  res.status(201).json({ success: true, id: record.id, status: 'pending' });
+}));
+
+// Lets the admin panel check the password before showing moderation tools
+app.get('/api/admin/check', requireAdmin, (_req: Request, res: Response) => {
+  res.json({ success: true });
+});
+
+app.get('/api/admin/parts', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const status = String(req.query.status || 'all');
+  const parts = await listRecords('parts');
+  res.json({ success: true, parts: status === 'all' ? parts : parts.filter((p: any) => p.moderation?.status === status) });
+}));
+
+// Admin-added parts are published immediately
+app.post('/api/admin/parts', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const part = sanitizePart(req.body || {});
+  const problem = partProblem({ ...part, sellerPhone: part.sellerPhone || '000000' });
+  if (problem) return res.status(400).json({ success: false, error: problem });
+  const now = new Date().toISOString();
+  const record = {
+    id: `part-${randomUUID()}`,
+    ...part,
+    createdAt: now,
+    moderation: { status: 'approved' as PartStatus, submittedAt: now, reviewedAt: now, reviewedBy: 'admin' },
+  };
+  await insertRecord('parts', record);
+  res.status(201).json({ success: true, part: publicPart(record) });
+}));
+
+app.patch('/api/admin/parts/:id/moderate', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const { action, reason } = req.body || {};
+  if (action !== 'approve' && action !== 'reject') {
+    return res.status(400).json({ success: false, error: 'action должен быть approve или reject' });
+  }
+  const current = await getRecord<any>('parts', req.params.id);
+  if (!current) return res.status(404).json({ success: false, error: 'Запчасть не найдена' });
+  const moderation = {
+    ...current.moderation,
+    status: (action === 'approve' ? 'approved' : 'rejected') as PartStatus,
+    reviewedAt: new Date().toISOString(),
+    reason: action === 'reject' ? str(reason, 300) || 'Не соответствует правилам' : undefined,
+  };
+  const updated = await updateRecord('parts', req.params.id, { moderation });
+  res.json({ success: true, part: updated });
+}));
+
+// Edit price / stock / text of a published part
+app.patch('/api/admin/parts/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const current = await getRecord<any>('parts', req.params.id);
+  if (!current) return res.status(404).json({ success: false, error: 'Запчасть не найдена' });
+  const clean = sanitizePart({ ...current, ...(req.body || {}) });
+  const updated = await updateRecord('parts', req.params.id, clean);
+  res.json({ success: true, part: updated });
+}));
+
+app.delete('/api/admin/parts/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const ok = await deleteRecord('parts', req.params.id);
+  if (!ok) return res.status(404).json({ success: false, error: 'Запчасть не найдена' });
+  res.json({ success: true });
 }));
 
 // Admin system analytics & live telemetry

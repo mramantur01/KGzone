@@ -14,6 +14,7 @@ import {
 import { USD_TO_KGS_RATE, ALL_CAR_BRANDS, PARTS_CATEGORIES } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { AnalyticsCharts } from './AnalyticsCharts';
+import { adminAddPart } from '../../api/parts';
 import {
   User,
   ShoppingBag,
@@ -520,7 +521,7 @@ export const UserCabinet: React.FC<UserCabinetProps> = ({
   };
 
   // PART ACTIONS IN CONTROL PANEL
-  const handleCreateNewPart = (e: React.FormEvent) => {
+  const handleCreateNewPart = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPartForm.title || !newPartForm.partNumber) {
       showToast('Заполните название детали и OEM артикул');
@@ -547,7 +548,13 @@ export const UserCabinet: React.FC<UserCabinetProps> = ({
       stockStatus: 'В наличии',
     };
 
-    setParts((prev) => [created, ...prev]);
+    // Saved in the database and published right away (admin password required)
+    try {
+      await adminAddPart(created);
+    } catch (err: any) {
+      showToast(err?.status === 401 ? 'Нужен пароль администратора: Панель управления → Автозапчасти → Модерация' : err?.message || 'Ошибка');
+      return;
+    }
     setIsAddingPart(false);
     showToast('Новая автозапчасть успешно добавлена в каталог Кудайберген!');
   };
