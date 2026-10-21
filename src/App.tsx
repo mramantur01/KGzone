@@ -40,13 +40,14 @@ import { FavoritesModal } from './components/modals/FavoritesModal';
 import { PartsSection } from './components/sections/PartsSection';
 import { ReviewsSection } from './components/sections/ReviewsSection';
 import { NewsSection } from './components/sections/NewsSection';
-import { UserCabinet } from './components/cabinet/UserCabinet';
+import { AccountCabinet, type PartsSearchPreset } from './components/account/AccountCabinet';
+import { AuthModal } from './components/auth/AuthModal';
+import { useAuth, isStaff, type Account } from './api/auth';
 import { LandingHero } from './components/sections/LandingHero';
 import { WorkshopSection } from './components/sections/WorkshopSection';
 import { FaqSection } from './components/sections/FaqSection';
 import { PromotionsSection } from './components/sections/PromotionsSection';
 import { SiteControlPanelModal } from './components/cabinet/SiteControlPanelModal';
-import { AuthCabinetModal } from './components/modals/AuthCabinetModal';
 import { AIConsultantChatbot } from './components/chatbot/AIConsultantChatbot';
 import { Footer } from './components/layout/Footer';
 import { KyrgyzSectionDivider, KochkorMuyuzIcon, TundukIcon } from './components/ornaments/KyrgyzOrnaments';
@@ -55,6 +56,28 @@ import { WorkshopBooking } from './types/car';
 import { setSiteLanguage } from './i18n/domTranslator';
 import { useParts, isDbPart } from './api/parts';
 import { useCars, isDbCar } from './api/cars';
+
+// Older components still expect the UserProfile shape; build it from the signed-in account
+function accountToProfile(a: Account | null): UserProfile {
+  return {
+    id: a?.id || 'guest',
+    name: a?.name || '',
+    phone: a ? `+${a.phone}` : '',
+    email: a?.email || '',
+    city: a?.city || 'Бишкек',
+    registeredDate: a ? new Date(a.createdAt).toLocaleDateString('ru-RU') : '',
+    avatar: '',
+    activeRole: 'seller',
+    siteRole: a?.role === 'admin' ? 'owner' : a?.role === 'moderator' ? 'admin' : 'user',
+    isApprovedAdmin: a?.role === 'admin' || a?.role === 'moderator',
+    adminRequestStatus: 'none',
+    walletBalanceKgs: 0,
+    isPhoneVerified: Boolean(a?.phoneVerified),
+    activeAdsCount: 0,
+    dealsCount: 0,
+    rating: 0,
+  };
+}
 
 export default function App() {
   // Listings = approved cars from the database + built-in demo listings (demo edits stay local)
@@ -101,14 +124,22 @@ export default function App() {
   }, [language]);
 
   // Состояния личного кабинета (Покупатель & Продавец)
-  const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
+  const { user: account } = useAuth();
+  const staff = isStaff(account);
+  const userProfile: UserProfile = useMemo(() => accountToProfile(account), [account]);
+  const isAuthenticated = Boolean(account);
   const [buyerOrders, setBuyerOrders] = useState<BuyerOrder[]>(INITIAL_BUYER_ORDERS);
   const [sellerOrders, setSellerOrders] = useState<SellerIncomingOrder[]>(INITIAL_SELLER_INCOMING_ORDERS);
   const [savedChecks, setSavedChecks] = useState<SavedCarCheck[]>(INITIAL_SAVED_CARCHECKS);
   const [sellerStoreProfile, setSellerStoreProfile] = useState<SellerStoreProfile>(INITIAL_SELLER_STORE);
 
   // Избранное
-  const [favorites, setFavorites] = useState<string[]>(['car-1', 'car-3']);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try { const v = JSON.parse(localStorage.getItem('kgzone-car-favorites') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+  });
+  React.useEffect(() => {
+    try { localStorage.setItem('kgzone-car-favorites', JSON.stringify(favorites)); } catch { /* storage unavailable */ }
+  }, [favorites]);
 
   // Модальные окна
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
@@ -121,7 +152,8 @@ export default function App() {
   const [authModalNotice, setAuthModalNotice] = useState<string | null>(null);
   const [authModalInitialTab, setAuthModalInitialTab] = useState<'login' | 'register'>('login');
   const [pendingPostAfterAuth, setPendingPostAfterAuth] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(true); // By default authenticated as userProfile
+  const [partsPreset, setPartsPreset] = useState<PartsSearchPreset | null>(null);
+  const [partsSellSignal, setPartsSellSignal] = useState(0);
 
   // Фильтры
   const [filters, setFilters] = useState({
@@ -158,6 +190,27 @@ export default function App() {
       showToast(exists ? 'Удалено из избранного' : 'Добавлено в избранное');
       return updated;
     });
+  };
+
+  const openAuth = (tab: 'login' | 'register', notice?: string) => {
+    setAuthModalInitialTab(tab);
+    setAuthModalNotice(notice || null);
+    setIsCabinetAuthModalOpen(true);
+  };
+
+  // Header "Личный кабинет": open the cabinet when signed in, otherwise the sign-in window
+  const openCabinet = () => {
+    if (account) setActiveTab('cabinet');
+    else openAuth('login');
+  };
+
+  const sellPart = () => {
+    if (!account) {
+      openAuth('register', 'Чтобы продать запчасть, войдите или зарегистрируйтесь.');
+      return;
+    }
+    setActiveTab('parts');
+    setPartsSellSignal((n) => n + 1);
   };
 
   // Проверка авторизации перед подачей объявления
@@ -338,9 +391,9 @@ export default function App() {
         selectedCity={selectedCity}
         setSelectedCity={setSelectedCity}
         favoritesCount={favorites.length}
-        userName={userProfile.name}
+        userName={account?.name || ''}
         userSiteRole={userProfile.siteRole}
-        isApprovedAdmin={userProfile.isApprovedAdmin}
+        isApprovedAdmin={staff}
         onOpenFavorites={() => setIsFavoritesOpen(true)}
         onOpenAddListing={handleTriggerPostAd}
         onOpenCarCheck={() => {
@@ -348,8 +401,8 @@ export default function App() {
           setIsCarCheckOpen(true);
         }}
         onOpenCustomsCalc={() => setIsCustomsCalcOpen(true)}
-        onOpenControlPanel={() => setIsControlPanelOpen(true)}
-        onOpenCabinetAuth={() => setIsCabinetAuthModalOpen(true)}
+        onOpenControlPanel={staff ? () => setIsControlPanelOpen(true) : undefined}
+        onOpenCabinetAuth={openCabinet}
       />
 
       {/* Основной контент */}
@@ -540,6 +593,10 @@ export default function App() {
             language={language}
             onOrderCreated={handleOrderCreated}
             onNavigateToCabinet={() => setActiveTab('cabinet')}
+            preset={partsPreset}
+            openSellerSignal={partsSellSignal}
+            isSignedIn={isAuthenticated}
+            onRequireAuth={(notice) => openAuth('register', notice)}
           />
         )}
 
@@ -582,35 +639,19 @@ export default function App() {
 
         {/* Единый Личный кабинет (вход, регистрация, управление сайтом и личный профиль) */}
         {activeTab === 'cabinet' && (
-          <UserCabinet
-            user={userProfile}
-            setUser={setUserProfile}
-            buyerOrders={buyerOrders}
-            setBuyerOrders={setBuyerOrders}
-            savedChecks={savedChecks}
+          <AccountCabinet
             cars={cars}
-            setCars={setCars}
-            parts={parts}
-            setParts={setParts}
-            registeredUsers={registeredUsers}
-            setRegisteredUsers={setRegisteredUsers}
-            siteSettings={siteSettings}
-            setSiteSettings={setSiteSettings}
-            onUpdateCarPrice={handleUpdateCarPrice}
-            onToggleCarUrgent={handleToggleCarUrgent}
-            onRemoveCar={handleRemoveCar}
+            favoriteCarIds={favorites}
+            onToggleCarFavorite={toggleFavorite}
             onSelectCar={(c) => setSelectedCar(c)}
-            onOpenAddListing={() => setIsAddListingOpen(true)}
-            onOpenCarCheckWithPlate={handleOpenCarCheckWithPlate}
-            onOpenControlPanel={() => setIsControlPanelOpen(true)}
-            onOpenCabinetAuth={() => setIsCabinetAuthModalOpen(true)}
-            onRequestAdminRole={() => {
-              setRegisteredUsers((prev) =>
-                prev.map((u) => (u.id === userProfile.id ? { ...u, status: 'pending_admin' as const } : u))
-              );
+            onOpenAuth={(tab) => openAuth(tab)}
+            onSellPart={sellPart}
+            onSellCar={handleTriggerPostAd}
+            onFindParts={(preset) => {
+              setPartsPreset({ ...preset });
+              setActiveTab('parts');
+              window.scrollTo({ top: 0 });
             }}
-            currency={currency}
-            language={language}
           />
         )}
       </main>
@@ -628,15 +669,15 @@ export default function App() {
         onOpenWorkshop={() => setActiveTab('workshop')}
         onOpenFaq={() => setActiveTab('faq')}
         onOpenPromotions={() => setActiveTab('promotions')}
-        onOpenControlPanel={() => setIsControlPanelOpen(true)}
+        onOpenControlPanel={staff ? () => setIsControlPanelOpen(true) : undefined}
       />
 
       {/* Модальная Панель Управления Сайтом */}
       <SiteControlPanelModal
-        isOpen={isControlPanelOpen}
+        isOpen={isControlPanelOpen && staff}
         onClose={() => setIsControlPanelOpen(false)}
         currentUser={userProfile}
-        onSwitchUser={(u) => setUserProfile(u)}
+        onSwitchUser={() => undefined}
         cars={cars}
         onUpdateCars={(updated) => setCars(updated)}
         parts={parts}
@@ -650,33 +691,21 @@ export default function App() {
       />
 
       {/* Модальное окно входа и регистрации в Личный кабинет (в точности как на образце) */}
-      <AuthCabinetModal
+      <AuthModal
         isOpen={isCabinetAuthModalOpen}
         onClose={() => {
           setIsCabinetAuthModalOpen(false);
           setAuthModalNotice(null);
-          setPendingPostAfterAuth(false);
         }}
-        currentUser={userProfile}
-        registeredUsers={registeredUsers}
-        promptNotice={authModalNotice}
+        notice={authModalNotice}
         initialTab={authModalInitialTab}
-        onRegisterNewUser={(newUser) => {
-          setRegisteredUsers((prev) => [newUser, ...prev]);
-        }}
-        onSuccessLogin={(loggedInUser) => {
-          setUserProfile(loggedInUser);
-          setIsAuthenticated(true);
-          showToast(`Добро пожаловать, ${loggedInUser.name}!`);
-
-          // Если пользователь хотел подать объявление — открываем форму подачи
+        onSuccess={() => {
+          showToast('Вы вошли в аккаунт');
+          // Continue what the visitor wanted to do before signing in
           if (pendingPostAfterAuth) {
             setPendingPostAfterAuth(false);
-            setAuthModalNotice(null);
-            setTimeout(() => {
-              setIsAddListingOpen(true);
-            }, 300);
-          } else {
+            setTimeout(() => setIsAddListingOpen(true), 300);
+          } else if (activeTab !== 'parts') {
             setActiveTab('cabinet');
           }
         }}

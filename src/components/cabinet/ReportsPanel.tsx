@@ -32,8 +32,7 @@ export const ReportsPanel: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const key = getAdminKey();
-    if (key) checkAdminKey(key).then((ok) => { if (ok) load(); });
+    checkAdminKey(getAdminKey()).then((ok) => { if (ok) load(); });
   }, [load]);
 
   const act = async (id: string, status: ListingReport['status']) => {

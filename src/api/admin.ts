@@ -14,7 +14,7 @@ export type ApiError = Error & { status?: number };
 
 export async function call<T>(url: string, init: RequestInit = {}, admin = false): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (admin) headers['x-admin-token'] = getAdminKey();
+  if (admin && getAdminKey()) headers['x-admin-token'] = getAdminKey();
   const res = await fetch(url, { ...init, headers: { ...headers, ...(init.headers as Record<string, string>) } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.success === false) {

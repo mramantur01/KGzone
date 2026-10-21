@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { recordView, recordContact } from '../../utils/viewHistory';
 import { ReportListingButton } from '../common/ReportListingButton';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
@@ -66,7 +67,12 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
   const [copiedOEM, setCopiedOEM] = useState<boolean>(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(false);
   const [isPhoneRevealed, setIsPhoneRevealed] = useState<boolean>(false);
-  const [viewsCount, setViewsCount] = useState<number>(part.views || 248);
+  const viewsCount = part.views || 0;
+
+  useEffect(() => {
+    recordView({ kind: 'part', id: part.id, title: part.title, image: part.image, price: `${part.priceKgs.toLocaleString('ru-RU')} сом` });
+    setSelectedImageIdx(0);
+  }, [part.id]);
 
   const handleCopyOEM = () => {
     navigator.clipboard.writeText(part.partNumber);
@@ -76,7 +82,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
 
   const handleRevealPhone = () => {
     setIsPhoneRevealed(true);
-    setViewsCount((prev) => prev + 1);
+    recordContact('part', part.id);
   };
 
   const cleanPhone = part.sellerPhone.replace(/[^0-9]/g, '');
@@ -121,7 +127,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                 <span>•</span>
                 <span>{part.containerInfo || part.storeLocation}</span>
                 <span>•</span>
-                <span className="text-neutral-400 font-mono">👁️ {viewsCount}</span>
+                {viewsCount > 0 && <span className="text-neutral-400 font-mono">👁️ {viewsCount}</span>}
                 <span>•</span>
                 <span className="text-neutral-400">{part.createdAt || 'Сегодня'}</span>
               </div>
@@ -398,6 +404,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
 
                   <a
                     href={whatsappUrl}
+                    onClick={() => recordContact('part', part.id)}
                     target="_blank"
                     rel="noreferrer"
                     className="py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 transition-all cursor-pointer"

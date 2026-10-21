@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AutoPartItem, Currency, Language } from '../../types/car';
 import { submitPart } from '../../api/parts';
 import { uploadPhoto } from '../../api/upload';
+import { useAuth } from '../../api/auth';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import {
@@ -138,6 +139,21 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   const [whatsapp, setWhatsapp] = useState('');
   const [mbankRequisites, setMbankRequisites] = useState('');
   const [isCabinetSaved, setIsCabinetSaved] = useState(false);
+
+  // Contacts come from the signed-in account; the seller can still change them for this listing
+  const { user: account } = useAuth();
+  React.useEffect(() => {
+    if (!account) return;
+    setSellerType(account.accountType);
+    setSellerName(account.name);
+    setPhone(`+${account.phone}`);
+    if (account.company) {
+      setCompanyName(account.company.name);
+      setInn(account.company.inn);
+      if (account.company.actualAddress) setContainerInfo(account.company.actualAddress);
+    }
+    if (['Бишкек', 'Ош', 'Джалал-Абад', 'Каракол', 'Токмок', 'Нарын', 'Талас', 'Баткен', 'Кара-Балта', 'Кант'].includes(account.city)) setSellerCity(account.city);
+  }, [account?.id]);
 
   // --- TAB 3: SELLER ORDERS STATE ---
   // Orders are not routed to individual sellers yet (needs seller accounts); the list starts empty

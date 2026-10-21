@@ -42,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
   selectedCity,
   setSelectedCity,
   favoritesCount,
-  userName = 'Амантур',
+  userName = '',
   userSiteRole = 'owner',
   isApprovedAdmin = true,
   onOpenFavorites,
@@ -304,8 +304,8 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Две строки: Личный \n кабинет жирным белым шрифтом */}
             <div className="flex flex-col text-left leading-[1.15]">
-              <span className="text-white font-black text-xs sm:text-sm tracking-tight">Личный</span>
-              <span className="text-white font-black text-xs sm:text-sm tracking-tight">кабинет</span>
+              <span className="text-white font-black text-xs sm:text-sm tracking-tight max-w-[110px] truncate" data-no-i18n={userName ? '' : undefined}>{userName ? userName.split(' ')[0] : 'Войти'}</span>
+              <span className="text-white font-black text-xs sm:text-sm tracking-tight">{userName ? 'Кабинет' : 'Регистрация'}</span>
             </div>
           </button>
 
@@ -428,7 +428,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => {
                 if (onOpenCabinetAuth) onOpenCabinetAuth();
-                setActiveTab('cabinet');
+                else setActiveTab('cabinet');
                 setMobileMenuOpen(false);
               }}
               className={`w-full p-3 rounded-2xl text-left border flex items-center gap-3 transition-colors ${
@@ -439,8 +439,8 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <User size={22} className="text-amber-400 shrink-0" strokeWidth={1.8} />
               <div className="flex flex-col text-left leading-[1.15]">
-                <span className="text-white font-black text-sm tracking-tight">Личный</span>
-                <span className="text-white font-black text-sm tracking-tight">кабинет</span>
+                <span className="text-white font-black text-sm tracking-tight">{userName ? 'Личный' : 'Войти /'}</span>
+                <span className="text-white font-black text-sm tracking-tight">{userName ? 'кабинет' : 'Регистрация'}</span>
               </div>
             </button>
 

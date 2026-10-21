@@ -53,10 +53,9 @@ export function ModerationPanel<T extends ModeratedItem>(props: ModerationPanelP
     }
   }, [list]);
 
-  // Restore the session password silently
+  // Signed-in admins/moderators get in automatically; otherwise restore the session password
   useEffect(() => {
-    const key = getAdminKey();
-    if (key) checkAdminKey(key).then((ok) => { setAuthed(ok); if (ok) load(); });
+    checkAdminKey(getAdminKey()).then((ok) => { setAuthed(ok); if (ok) load(); });
   }, [load]);
 
   const login = async (e: React.FormEvent) => {

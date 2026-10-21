@@ -4,6 +4,7 @@ import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KyrgyzPlateBadge, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { CarImagePreview } from '../common/CarImagePreview';
 import { ReportListingButton } from '../common/ReportListingButton';
+import { recordView, recordContact } from '../../utils/viewHistory';
 import {
   X,
   Phone,
@@ -45,7 +46,11 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
 
-  useEffect(() => setPhotoIndex(0), [car?.id]);
+  useEffect(() => {
+    setPhotoIndex(0);
+    if (car) recordView({ kind: 'car', id: car.id, title: car.title, image: car.image, price: `$${car.priceUsd.toLocaleString('ru-RU')}` });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [car?.id]);
 
   if (!car) return null;
 
@@ -248,7 +253,7 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
                   </a>
                 ) : (
                   <button
-                    onClick={() => setShowPhone(true)}
+                    onClick={() => { setShowPhone(true); recordContact('car', car.id); }}
                     className="w-full py-2.5 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
                   >
                     <Phone size={16} />
@@ -258,6 +263,7 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
 
                 <a
                   href={whatsappUrl}
+                  onClick={() => recordContact('car', car.id)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"

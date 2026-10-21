@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { timingSafeEqual, randomUUID } from 'crypto';
+import { timingSafeEqual, randomUUID, randomBytes, createHmac, scrypt } from 'crypto';
 import { put } from '@vercel/blob';
 import { GoogleGenAI } from '@google/genai';
 import { Redis } from '@upstash/redis';
@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 // Each collection is a hash (id -> JSON document) plus a sorted set that keeps
 // newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
-type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports';
+type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit';
 
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -27,7 +27,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 
 const isDatabaseConnected = Boolean(redis);
 
-const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [] };
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [] };
 let readyPromise: Promise<void> | null = null;
 
 const dataKey = (c: Collection) => `kgzone:${c}`;
@@ -139,7 +139,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make sure the DB table exists and is seeded before any API call touches it
 app.use('/api', (_req: Request, res: Response, next) => {
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [] })
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [] })
     .then(() => next())
     .catch((err) => {
       console.error('[DB] init failed:', err);
@@ -157,9 +157,18 @@ const isAdmin = (req: Request) => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
+// Admin password header, or a signed-in admin/moderator account (see the accounts section below)
 const requireAdmin = (req: Request, res: Response, next: () => void) => {
-  if (isAdmin(req)) return next();
-  res.status(401).json({ success: false, error: 'Требуется доступ администратора' });
+  if (isAdmin(req)) { (req as any).actor = 'admin-token'; return next(); }
+  getSessionUser(req)
+    .then((user) => {
+      if (user && (user.role === 'admin' || user.role === 'moderator')) {
+        (req as any).actor = user;
+        return next();
+      }
+      res.status(401).json({ success: false, error: 'Требуется доступ администратора' });
+    })
+    .catch(() => res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' }));
 };
 
 // Express 4 does not catch rejected promises from async handlers
@@ -339,6 +348,7 @@ app.get('/api/orders', requireAdmin, asyncRoute(async (_req: Request, res: Respo
 }));
 
 app.post('/api/orders', asyncRoute(async (req: Request, res: Response) => {
+  const buyer = await getSessionUser(req);
   const {
     customerName,
     customerPhone,
@@ -376,6 +386,7 @@ app.post('/api/orders', asyncRoute(async (req: Request, res: Response) => {
     deliveryAddress: deliveryAddress || 'Самовывоз',
     status: 'Новый',
     comment: comment || '',
+    ...(buyer ? { userId: buyer.id } : {}),
   };
 
   await insertRecord('orders', newOrder);
@@ -792,16 +803,24 @@ const partProblem = (p: ReturnType<typeof sanitizePart>) => {
 };
 
 // Public: approved parts only, without moderation details
-const publicPart = ({ moderation, ...part }: any) => part;
+const publicPart = ({ moderation, ownerId, ...part }: any, verified?: Set<string>) => ({
+  ...part,
+  sellerVerified: Boolean(ownerId && verified?.has(ownerId)),
+});
+
+const isLive = (l: any) => l.moderation?.status === 'approved' && (l.listingStatus ?? 'active') === 'active';
+const verifiedOwners = async () =>
+  new Set((await listRecords<UserRecord>('users')).filter((u) => u.company?.status === 'verified').map((u) => u.id));
 
 app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
-  const parts = await listRecords('parts');
-  res.json({ success: true, parts: parts.filter((p: any) => p.moderation?.status === 'approved').map(publicPart) });
+  const [parts, verified] = await Promise.all([listRecords('parts'), verifiedOwners()]);
+  res.json({ success: true, parts: parts.filter(isLive).map((p: any) => publicPart(p, verified)) });
 }));
 
 // Seller submission -> moderation queue
-app.post('/api/parts', asyncRoute(async (req: Request, res: Response) => {
-  const part = sanitizePart(req.body || {});
+app.post('/api/parts', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const owner: UserRecord = (req as any).user;
+  const part = sanitizePart({ ...(req.body || {}), sellerType: owner.accountType });
   const problem = partProblem(part);
   if (problem) return res.status(400).json({ success: false, error: problem });
 
@@ -816,6 +835,7 @@ app.post('/api/parts', asyncRoute(async (req: Request, res: Response) => {
   const record = {
     id: `part-${randomUUID()}`,
     ...part,
+    ownerId: owner.id,
     createdAt: new Date().toISOString(),
     moderation: { status: 'pending' as PartStatus, submittedAt: new Date().toISOString() },
   };
@@ -829,8 +849,9 @@ app.post('/api/parts', asyncRoute(async (req: Request, res: Response) => {
 }));
 
 // Lets the admin panel check the password before showing moderation tools
-app.get('/api/admin/check', requireAdmin, (_req: Request, res: Response) => {
-  res.json({ success: true });
+app.get('/api/admin/check', requireAdmin, (req: Request, res: Response) => {
+  const actor = (req as any).actor;
+  res.json({ success: true, role: actor === 'admin-token' ? 'admin' : actor.role });
 });
 
 app.get('/api/admin/parts', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
@@ -979,17 +1000,18 @@ const carProblem = (c: ReturnType<typeof sanitizeCar>) => {
   return null;
 };
 
-const publicCar = ({ moderation, ...car }: any) => ({
+const publicCar = ({ moderation, ownerId, ...car }: any) => ({
   ...car,
   publishedDate: car.publishedDate || (car.createdAt ? new Date(car.createdAt).toLocaleDateString('ru-RU') : ''),
 });
 
 app.get('/api/cars', asyncRoute(async (_req: Request, res: Response) => {
   const cars = await listRecords('cars');
-  res.json({ success: true, cars: cars.filter((c: any) => c.moderation?.status === 'approved').map(publicCar) });
+  res.json({ success: true, cars: cars.filter(isLive).map(publicCar) });
 }));
 
-app.post('/api/cars', asyncRoute(async (req: Request, res: Response) => {
+app.post('/api/cars', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const owner: UserRecord = (req as any).user;
   const car = sanitizeCar(req.body || {});
   const problem = carProblem(car);
   if (problem) return res.status(400).json({ success: false, error: problem });
@@ -1001,7 +1023,7 @@ app.post('/api/cars', asyncRoute(async (req: Request, res: Response) => {
     return res.status(429).json({ success: false, error: 'Слишком много объявлений на проверке с этого номера. Дождитесь модерации.' });
   }
   const now = new Date().toISOString();
-  const record = { id: `car-${randomUUID()}`, ...car, createdAt: now, moderation: { status: 'pending', submittedAt: now } };
+  const record = { id: `car-${randomUUID()}`, ...car, ownerId: owner.id, createdAt: now, moderation: { status: 'pending', submittedAt: now } };
   await insertRecord('cars', record);
   await notifyAdmin(
     `🚗 Новое объявление на модерации\n${record.title} · ${record.priceUsd}\n${record.city} · ${record.mileageKm} км\n` +
@@ -1054,6 +1076,545 @@ app.delete('/api/admin/cars/:id', requireAdmin, asyncRoute(async (req: Request, 
   const ok = await deleteRecord('cars', req.params.id);
   if (!ok) return res.status(404).json({ success: false, error: 'Объявление не найдено' });
   res.json({ success: true });
+}));
+
+// ---------------------------------------------------------------------------
+// Accounts: registration, sign-in (httpOnly session cookie), roles, company profiles,
+// seller listings management and admin user management.
+// Roles: user (buyer/seller), moderator (moderation queues), admin (everything).
+// The first admin is created by entering the ADMIN_TOKEN once ("claim admin").
+// ---------------------------------------------------------------------------
+
+type AccountType = 'individual' | 'legal';
+type UserRole = 'user' | 'moderator' | 'admin';
+type CompanyStatus = 'unverified' | 'pending' | 'verified' | 'needs_docs' | 'rejected' | 'blocked';
+
+interface CompanyProfile {
+  name: string;
+  inn: string;
+  legalAddress: string;
+  actualAddress: string;
+  contactPerson: string;
+  contactPhone: string;
+  contactEmail: string;
+  bankDetails: string;
+  status: CompanyStatus;
+  statusComment?: string;
+  submittedAt?: string;
+  reviewedAt?: string;
+}
+
+interface GarageCar {
+  id: string;
+  brand: string;
+  model: string;
+  generation?: string;
+  year?: number;
+  vin?: string;
+}
+
+interface UserRecord {
+  id: string;
+  accountType: AccountType;
+  name: string;
+  phone: string; // digits only, e.g. 996700123456
+  email: string;
+  city: string;
+  passwordHash: string;
+  role: UserRole;
+  blocked: boolean;
+  tokenVersion: number;
+  phoneVerified: boolean;
+  createdAt: string;
+  lastLoginAt?: string;
+  company?: CompanyProfile;
+  garage: GarageCar[];
+}
+
+const SESSION_COOKIE = 'kgz_session';
+const SESSION_DAYS = 30;
+// Derived from ADMIN_TOKEN so no extra secret is needed; SESSION_SECRET overrides it.
+// Without either (local development) a random per-process secret is used.
+const SESSION_SECRET =
+  process.env.SESSION_SECRET ||
+  (process.env.ADMIN_TOKEN ? createHmac('sha256', process.env.ADMIN_TOKEN).update('kgzone-session-v1').digest('hex') : randomBytes(32).toString('hex'));
+
+const scryptAsync = (password: string, salt: Buffer) =>
+  new Promise<Buffer>((resolve, reject) => scrypt(password, salt, 64, (err, key) => (err ? reject(err) : resolve(key))));
+
+async function hashPassword(password: string) {
+  const salt = randomBytes(16);
+  const key = await scryptAsync(password, salt);
+  return `scrypt$${salt.toString('base64')}$${key.toString('base64')}`;
+}
+
+async function verifyPassword(password: string, stored: string) {
+  const [scheme, saltB64, keyB64] = stored.split('$');
+  if (scheme !== 'scrypt' || !saltB64 || !keyB64) return false;
+  const expected = Buffer.from(keyB64, 'base64');
+  const key = await scryptAsync(password, Buffer.from(saltB64, 'base64'));
+  return key.length === expected.length && timingSafeEqual(key, expected);
+}
+
+const sign = (payload: string) => createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+
+function makeSessionToken(user: UserRecord) {
+  const payload = `${user.id}.${Date.now() + SESSION_DAYS * 86_400_000}.${user.tokenVersion}`;
+  return `${payload}.${sign(payload)}`;
+}
+
+function setSessionCookie(res: Response, user: UserRecord) {
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=${makeSessionToken(user)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86_400}${isProd ? '; Secure' : ''}`
+  );
+}
+
+function clearSessionCookie(res: Response) {
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProd ? '; Secure' : ''}`);
+}
+
+function readCookie(req: Request, name: string) {
+  const header = req.get('cookie') || '';
+  for (const part of header.split(';')) {
+    const [k, ...v] = part.trim().split('=');
+    if (k === name) return decodeURIComponent(v.join('='));
+  }
+  return '';
+}
+
+async function getSessionUser(req: Request): Promise<UserRecord | null> {
+  const token = readCookie(req, SESSION_COOKIE);
+  const parts = token.split('.');
+  if (parts.length !== 4) return null;
+  const [id, exp, version, sig] = parts;
+  const expected = sign(`${id}.${exp}.${version}`);
+  const a = Buffer.from(sig), b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  if (Number(exp) < Date.now()) return null;
+  const user = await getRecord<UserRecord>('users', id);
+  if (!user || user.blocked || String(user.tokenVersion) !== version) return null;
+  return user;
+}
+
+const publicUser = (u: UserRecord) => {
+  const { passwordHash, tokenVersion, ...rest } = u;
+  return rest;
+};
+
+const normalizePhone = (v: unknown) => {
+  let d = String(v ?? '').replace(/\D/g, '');
+  if (d.length === 10 && d.startsWith('0')) d = '996' + d.slice(1);
+  if (d.length === 9) d = '996' + d;
+  return d.length >= 10 && d.length <= 15 ? d : '';
+};
+const normalizeEmail = (v: unknown) => {
+  const e = str(v, 120).toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) ? e : '';
+};
+
+async function findUserByLogin(login: string) {
+  const phone = normalizePhone(login);
+  const email = normalizeEmail(login);
+  const users = await listRecords<UserRecord>('users');
+  return users.find((u) => (phone && u.phone === phone) || (email && u.email === email)) || null;
+}
+
+// Simple in-memory limiter (per serverless instance) against password guessing and floods
+const hitLog = new Map<string, number[]>();
+function tooMany(key: string, limit: number, windowMs: number) {
+  const now = Date.now();
+  const hits = (hitLog.get(key) || []).filter((t) => now - t < windowMs);
+  hits.push(now);
+  hitLog.set(key, hits);
+  return hits.length > limit;
+}
+const clientIp = (req: Request) => (req.get('x-forwarded-for') || req.ip || 'unknown').split(',')[0].trim();
+
+async function audit(actor: UserRecord | 'admin-token', action: string, target: string, details: Record<string, unknown> = {}) {
+  await insertRecord('audit', {
+    id: `aud-${randomUUID()}`,
+    at: new Date().toISOString(),
+    actorId: actor === 'admin-token' ? 'admin-token' : actor.id,
+    actorName: actor === 'admin-token' ? 'Пароль администратора' : actor.name,
+    action,
+    target,
+    details,
+  });
+}
+
+function sanitizeCompany(body: any, previous?: CompanyProfile): CompanyProfile {
+  return {
+    name: str(body?.name, 160),
+    inn: str(body?.inn, 20).replace(/\D/g, ''),
+    legalAddress: str(body?.legalAddress, 200),
+    actualAddress: str(body?.actualAddress, 200),
+    contactPerson: str(body?.contactPerson, 120),
+    contactPhone: str(body?.contactPhone, 30),
+    contactEmail: str(body?.contactEmail, 120),
+    bankDetails: str(body?.bankDetails, 400),
+    status: previous?.status ?? 'unverified',
+    statusComment: previous?.statusComment,
+    submittedAt: previous?.submittedAt,
+    reviewedAt: previous?.reviewedAt,
+  };
+}
+
+// Function declaration (hoisted): routes defined earlier in the file use it
+function requireUser(req: Request, res: Response, next: () => void) {
+  getSessionUser(req)
+    .then((user) => {
+      if (!user) return res.status(401).json({ success: false, error: 'Войдите в аккаунт' });
+      (req as any).user = user;
+      next();
+    })
+    .catch(() => res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' }));
+}
+
+// Admin password header OR a signed-in admin (and, unless adminOnly, a moderator)
+const staffGuard = (adminOnly: boolean) => (req: Request, res: Response, next: () => void) => {
+  if (isAdmin(req)) { (req as any).actor = 'admin-token'; return next(); }
+  getSessionUser(req)
+    .then((user) => {
+      if (user && (user.role === 'admin' || (!adminOnly && user.role === 'moderator'))) {
+        (req as any).actor = user;
+        return next();
+      }
+      res.status(401).json({ success: false, error: 'Требуется доступ администратора' });
+    })
+    .catch(() => res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' }));
+};
+const requireAdminOnly = staffGuard(true);
+
+app.post('/api/auth/register', asyncRoute(async (req: Request, res: Response) => {
+  if (tooMany(`reg:${clientIp(req)}`, 10, 60 * 60_000)) {
+    return res.status(429).json({ success: false, error: 'Слишком много регистраций. Попробуйте позже.' });
+  }
+  const b = req.body || {};
+  const accountType: AccountType = b.accountType === 'legal' ? 'legal' : 'individual';
+  const name = str(b.name, 120);
+  const phone = normalizePhone(b.phone);
+  const email = b.email ? normalizeEmail(b.email) : '';
+  const password = typeof b.password === 'string' ? b.password : '';
+  const city = str(b.city, 60) || 'Бишкек';
+  if (!name) return res.status(400).json({ success: false, error: 'Укажите имя' });
+  if (!phone) return res.status(400).json({ success: false, error: 'Укажите телефон, например +996 700 123 456' });
+  if (b.email && !email) return res.status(400).json({ success: false, error: 'Неверный адрес почты' });
+  if (password.length < 8) return res.status(400).json({ success: false, error: 'Пароль должен быть не короче 8 символов' });
+  if (password.length > 200) return res.status(400).json({ success: false, error: 'Слишком длинный пароль' });
+
+  let company: CompanyProfile | undefined;
+  if (accountType === 'legal') {
+    company = sanitizeCompany(b.company);
+    if (!company.name) return res.status(400).json({ success: false, error: 'Укажите название компании' });
+    if (!/^\d{10,14}$/.test(company.inn)) return res.status(400).json({ success: false, error: 'Укажите ИНН компании (10–14 цифр)' });
+  }
+
+  const users = await listRecords<UserRecord>('users');
+  if (users.some((u) => u.phone === phone)) return res.status(409).json({ success: false, error: 'Этот телефон уже зарегистрирован. Войдите в аккаунт.' });
+  if (email && users.some((u) => u.email === email)) return res.status(409).json({ success: false, error: 'Эта почта уже зарегистрирована' });
+
+  const now = new Date().toISOString();
+  const user: UserRecord = {
+    id: `usr-${randomUUID()}`,
+    accountType,
+    name,
+    phone,
+    email,
+    city,
+    passwordHash: await hashPassword(password),
+    role: 'user',
+    blocked: false,
+    tokenVersion: 1,
+    phoneVerified: false,
+    createdAt: now,
+    lastLoginAt: now,
+    company,
+    garage: [],
+  };
+  await insertRecord('users', user);
+  setSessionCookie(res, user);
+  if (company) await notifyAdmin(`🏢 Новая компания: ${company.name} (ИНН ${company.inn})\n${name}, +${phone}`);
+  res.status(201).json({ success: true, user: publicUser(user) });
+}));
+
+app.post('/api/auth/login', asyncRoute(async (req: Request, res: Response) => {
+  const login = str(req.body?.login, 120);
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (tooMany(`login:${clientIp(req)}`, 20, 15 * 60_000) || tooMany(`login:${login.toLowerCase()}`, 8, 15 * 60_000)) {
+    return res.status(429).json({ success: false, error: 'Слишком много попыток входа. Подождите 15 минут.' });
+  }
+  const user = login && password ? await findUserByLogin(login) : null;
+  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    return res.status(401).json({ success: false, error: 'Неверный телефон/почта или пароль' });
+  }
+  if (user.blocked) return res.status(403).json({ success: false, error: 'Аккаунт заблокирован. Обратитесь в поддержку.' });
+  const updated = (await updateRecord<UserRecord>('users', user.id, { lastLoginAt: new Date().toISOString() })) || user;
+  setSessionCookie(res, updated);
+  res.json({ success: true, user: publicUser(updated) });
+}));
+
+app.post('/api/auth/logout', (_req: Request, res: Response) => {
+  clearSessionCookie(res);
+  res.json({ success: true });
+});
+
+app.get('/api/auth/me', asyncRoute(async (req: Request, res: Response) => {
+  const user = await getSessionUser(req);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, user: user ? publicUser(user) : null });
+}));
+
+app.patch('/api/auth/me', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const b = req.body || {};
+  const patch: Partial<UserRecord> = {};
+  if (b.name !== undefined) {
+    const name = str(b.name, 120);
+    if (!name) return res.status(400).json({ success: false, error: 'Укажите имя' });
+    patch.name = name;
+  }
+  if (b.city !== undefined) patch.city = str(b.city, 60) || user.city;
+  if (b.email !== undefined) {
+    const email = b.email ? normalizeEmail(b.email) : '';
+    if (b.email && !email) return res.status(400).json({ success: false, error: 'Неверный адрес почты' });
+    if (email && email !== user.email && (await listRecords<UserRecord>('users')).some((u) => u.email === email)) {
+      return res.status(409).json({ success: false, error: 'Эта почта уже зарегистрирована' });
+    }
+    patch.email = email;
+  }
+  if (b.company !== undefined && user.accountType === 'legal') {
+    const next = sanitizeCompany(b.company, user.company);
+    if (!next.name) return res.status(400).json({ success: false, error: 'Укажите название компании' });
+    if (!/^\d{10,14}$/.test(next.inn)) return res.status(400).json({ success: false, error: 'Укажите ИНН компании (10–14 цифр)' });
+    // Changing the legal identity of a verified company requires a new check
+    if (user.company?.status === 'verified' && (next.name !== user.company.name || next.inn !== user.company.inn)) {
+      next.status = 'unverified';
+      next.statusComment = 'Название или ИНН изменены — нужна повторная проверка';
+    }
+    patch.company = next;
+  }
+  const updated = await updateRecord<UserRecord>('users', user.id, patch);
+  res.json({ success: true, user: publicUser(updated!) });
+}));
+
+app.post('/api/auth/password', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const { current, next } = req.body || {};
+  if (tooMany(`pwd:${user.id}`, 10, 15 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много попыток. Подождите.' });
+  if (typeof current !== 'string' || !(await verifyPassword(current, user.passwordHash))) {
+    return res.status(400).json({ success: false, error: 'Текущий пароль неверный' });
+  }
+  if (typeof next !== 'string' || next.length < 8 || next.length > 200) {
+    return res.status(400).json({ success: false, error: 'Новый пароль должен быть не короче 8 символов' });
+  }
+  // Bumping tokenVersion signs out every other device
+  const updated = await updateRecord<UserRecord>('users', user.id, { passwordHash: await hashPassword(next), tokenVersion: user.tokenVersion + 1 });
+  setSessionCookie(res, updated!);
+  res.json({ success: true });
+}));
+
+app.post('/api/auth/forgot', (_req: Request, res: Response) => {
+  res.status(501).json({
+    success: false,
+    error: 'Восстановление пароля по SMS пока не подключено. Напишите администратору сайта — он сбросит пароль после проверки, что номер ваш.',
+  });
+});
+
+app.post('/api/auth/company/submit', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  if (user.accountType !== 'legal' || !user.company) return res.status(400).json({ success: false, error: 'Это не аккаунт компании' });
+  if (['pending', 'verified', 'blocked'].includes(user.company.status)) {
+    return res.status(400).json({ success: false, error: 'Заявка уже на проверке или компания подтверждена' });
+  }
+  const c = user.company;
+  if (!c.legalAddress || !c.contactPerson) return res.status(400).json({ success: false, error: 'Заполните юридический адрес и контактное лицо' });
+  const updated = await updateRecord<UserRecord>('users', user.id, {
+    company: { ...c, status: 'pending', submittedAt: new Date().toISOString() },
+  });
+  await notifyAdmin(`🏢 Компания отправлена на проверку: ${c.name} (ИНН ${c.inn})\nПроверить: ${SITE_URL} → Личный кабинет → Пользователи`);
+  res.json({ success: true, user: publicUser(updated!) });
+}));
+
+app.put('/api/auth/garage', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const list = Array.isArray(req.body?.garage) ? req.body.garage : [];
+  const garage: GarageCar[] = list.slice(0, 10).map((c: any) => ({
+    id: str(c?.id, 60) || `car-${randomUUID()}`,
+    brand: str(c?.brand, 60),
+    model: str(c?.model, 80),
+    generation: str(c?.generation, 80) || undefined,
+    year: c?.year ? Math.round(num(c.year, 1950, new Date().getFullYear() + 1)) : undefined,
+    vin: str(c?.vin, 17).toUpperCase() || undefined,
+  })).filter((c: GarageCar) => c.brand && c.model);
+  const updated = await updateRecord<UserRecord>('users', user.id, { garage });
+  res.json({ success: true, user: publicUser(updated!) });
+}));
+
+// One-time bootstrap: a signed-in user who knows ADMIN_TOKEN becomes an admin
+app.post('/api/auth/claim-admin', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  if (tooMany(`claim:${clientIp(req)}`, 5, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много попыток' });
+  const token = process.env.ADMIN_TOKEN;
+  const given = Buffer.from(String(req.body?.adminToken || ''));
+  if (!token || given.length !== Buffer.byteLength(token) || !timingSafeEqual(given, Buffer.from(token))) {
+    return res.status(401).json({ success: false, error: 'Неверный пароль администратора' });
+  }
+  const updated = await updateRecord<UserRecord>('users', user.id, { role: 'admin' });
+  await audit(user, 'claim-admin', user.id);
+  res.json({ success: true, user: publicUser(updated!) });
+}));
+
+// --- Seller's own listings -------------------------------------------------
+
+type ListingKind = 'parts' | 'cars';
+const listingKind = (v: string): ListingKind | null => (v === 'parts' || v === 'cars' ? v : null);
+
+app.get('/api/my/listings', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const [parts, cars] = await Promise.all([listRecords('parts'), listRecords('cars')]);
+  res.json({
+    success: true,
+    parts: parts.filter((p: any) => p.ownerId === user.id),
+    cars: cars.filter((c: any) => c.ownerId === user.id),
+  });
+}));
+
+async function ownListing(req: Request, res: Response) {
+  const user: UserRecord = (req as any).user;
+  const kind = listingKind(req.params.kind);
+  if (!kind) { res.status(404).json({ success: false, error: 'Не найдено' }); return null; }
+  const item: any = await getRecord(kind, req.params.id);
+  if (!item || item.ownerId !== user.id) { res.status(404).json({ success: false, error: 'Объявление не найдено' }); return null; }
+  return { kind, item, user };
+}
+
+// Edit: price/stock-only changes stay published, anything else goes back to moderation
+app.patch('/api/my/:kind/:id', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const own = await ownListing(req, res);
+  if (!own) return;
+  const { kind, item } = own;
+  const merged = { ...item, ...(req.body || {}) };
+  const clean: any = kind === 'parts' ? sanitizePart(merged) : sanitizeCar(merged);
+  const problem = kind === 'parts' ? partProblem(clean) : carProblem(clean);
+  if (problem) return res.status(400).json({ success: false, error: problem });
+  const quickFields = kind === 'parts' ? ['priceKgs', 'stockCount', 'inStock', 'stockStatus'] : ['priceUsd'];
+  // Compare what the seller actually sent (re-sanitizing fills defaults that would look like changes)
+  const body = req.body || {};
+  const changed = Object.keys(body).filter((k) => k in clean && JSON.stringify(clean[k]) !== JSON.stringify(item[k]));
+  const needsReview = changed.some((k) => !quickFields.includes(k));
+  const patch: any = { ...clean, updatedAt: new Date().toISOString() };
+  // Keep fields only an admin may set
+  if (kind === 'cars') { patch.hasCarCheckPass = item.hasCarCheckPass; patch.isGoodPrice = item.isGoodPrice; patch.viewsCount = item.viewsCount; }
+  if (kind === 'parts') patch.views = item.views;
+  if (needsReview && item.moderation?.status !== 'pending') {
+    patch.moderation = { status: 'pending', submittedAt: new Date().toISOString(), reason: 'Изменено продавцом' };
+  }
+  const updated = await updateRecord(kind, item.id, patch);
+  if (needsReview) await notifyAdmin(`✏️ Объявление изменено и ждёт проверки: ${clean.title}`);
+  res.json({ success: true, item: updated, needsReview });
+}));
+
+app.post('/api/my/:kind/:id/status', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const own = await ownListing(req, res);
+  if (!own) return;
+  const status = ['active', 'inactive', 'sold'].includes(req.body?.status) ? req.body.status : null;
+  if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
+  const updated = await updateRecord(own.kind, own.item.id, { listingStatus: status, statusChangedAt: new Date().toISOString() });
+  res.json({ success: true, item: updated });
+}));
+
+// "Поднять": moves an approved, active listing to the top, at most once a day
+app.post('/api/my/:kind/:id/raise', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const own = await ownListing(req, res);
+  if (!own) return;
+  const { kind, item } = own;
+  if (item.moderation?.status !== 'approved' || (item.listingStatus ?? 'active') !== 'active') {
+    return res.status(400).json({ success: false, error: 'Поднять можно только опубликованное активное объявление' });
+  }
+  const last = Date.parse(item.raisedAt || item.createdAt || 0);
+  const wait = last + 86_400_000 - Date.now();
+  if (wait > 0) return res.status(429).json({ success: false, error: `Поднять снова можно через ${Math.ceil(wait / 3_600_000)} ч.` });
+  const updated = await updateRecord(kind, item.id, { raisedAt: new Date().toISOString() });
+  res.json({ success: true, item: updated });
+}));
+
+app.delete('/api/my/:kind/:id', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const own = await ownListing(req, res);
+  if (!own) return;
+  await deleteRecord(own.kind, own.item.id);
+  res.json({ success: true });
+}));
+
+// View / contact counters for database listings (approximate; one hit per IP per listing per hour)
+app.post('/api/stats/:kind/:id', asyncRoute(async (req: Request, res: Response) => {
+  const kind = listingKind(req.params.kind);
+  const type = req.body?.type === 'contact' ? 'contact' : 'view';
+  if (!kind) return res.status(404).json({ success: false });
+  if (tooMany(`stat:${type}:${kind}:${req.params.id}:${clientIp(req)}`, 1, 60 * 60_000)) return res.json({ success: true });
+  const item: any = await getRecord(kind, req.params.id);
+  if (!item) return res.json({ success: true });
+  const field = type === 'contact' ? 'contactsCount' : kind === 'cars' ? 'viewsCount' : 'views';
+  await updateRecord(kind, item.id, { [field]: (item[field] || 0) + 1 });
+  res.json({ success: true });
+}));
+
+app.get('/api/my/orders', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const orders = await listRecords('orders');
+  res.json({ success: true, orders: orders.filter((o: any) => o.userId === user.id) });
+}));
+
+// --- Admin: users, companies, audit log ------------------------------------
+
+app.get('/api/admin/users', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
+  const [users, parts, cars] = await Promise.all([listRecords<UserRecord>('users'), listRecords('parts'), listRecords('cars')]);
+  const counts = new Map<string, number>();
+  [...parts, ...cars].forEach((l: any) => l.ownerId && counts.set(l.ownerId, (counts.get(l.ownerId) || 0) + 1));
+  res.json({ success: true, users: users.map((u) => ({ ...publicUser(u), listingsCount: counts.get(u.id) || 0 })) });
+}));
+
+app.patch('/api/admin/users/:id', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  const actor = (req as any).actor as UserRecord | 'admin-token';
+  const target = await getRecord<UserRecord>('users', req.params.id);
+  if (!target) return res.status(404).json({ success: false, error: 'Пользователь не найден' });
+  const b = req.body || {};
+  const patch: Partial<UserRecord> = {};
+  if (b.role !== undefined) {
+    if (!['user', 'moderator', 'admin'].includes(b.role)) return res.status(400).json({ success: false, error: 'Неверная роль' });
+    if (actor !== 'admin-token' && actor.id === target.id && b.role !== 'admin') {
+      return res.status(400).json({ success: false, error: 'Нельзя снять права администратора с самого себя' });
+    }
+    patch.role = b.role;
+  }
+  if (b.blocked !== undefined) {
+    if (actor !== 'admin-token' && actor.id === target.id) return res.status(400).json({ success: false, error: 'Нельзя заблокировать самого себя' });
+    patch.blocked = Boolean(b.blocked);
+    if (patch.blocked) patch.tokenVersion = target.tokenVersion + 1; // sign out everywhere
+  }
+  if (b.companyStatus !== undefined && target.company) {
+    const statuses: CompanyStatus[] = ['unverified', 'pending', 'verified', 'needs_docs', 'rejected', 'blocked'];
+    if (!statuses.includes(b.companyStatus)) return res.status(400).json({ success: false, error: 'Неверный статус компании' });
+    patch.company = { ...target.company, status: b.companyStatus, statusComment: str(b.companyComment, 500) || undefined, reviewedAt: new Date().toISOString() };
+  }
+  const updated = await updateRecord<UserRecord>('users', target.id, patch);
+  await audit(actor, 'update-user', target.id, { ...b });
+  res.json({ success: true, user: publicUser(updated!) });
+}));
+
+// Generates a temporary password the admin passes to the user (after checking the phone is theirs)
+app.post('/api/admin/users/:id/reset-password', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  const actor = (req as any).actor as UserRecord | 'admin-token';
+  const target = await getRecord<UserRecord>('users', req.params.id);
+  if (!target) return res.status(404).json({ success: false, error: 'Пользователь не найден' });
+  const temp = randomBytes(6).toString('base64url');
+  await updateRecord<UserRecord>('users', target.id, { passwordHash: await hashPassword(temp), tokenVersion: target.tokenVersion + 1 });
+  await audit(actor, 'reset-password', target.id);
+  res.json({ success: true, tempPassword: temp });
+}));
+
+app.get('/api/admin/audit', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
+  res.json({ success: true, entries: (await listRecords('audit')).slice(0, 300) });
 }));
 
 // Complaints about listings (parts or cars) -> admin queue

@@ -77,6 +77,12 @@ interface PartsSectionProps {
   language: Language;
   onOrderCreated?: (order: BuyerOrder) => void;
   onNavigateToCabinet?: () => void;
+  /** Filters requested from elsewhere (e.g. "Мои автомобили" in the cabinet) */
+  preset?: { brand?: string; model?: string; year?: string; search?: string } | null;
+  /** Incremented to open the "sell a part" form */
+  openSellerSignal?: number;
+  isSignedIn?: boolean;
+  onRequireAuth?: (notice: string) => void;
 }
 
 export const PartsSection: React.FC<PartsSectionProps> = ({
@@ -84,6 +90,10 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   language,
   onOrderCreated,
   onNavigateToCabinet,
+  preset,
+  openSellerSignal = 0,
+  isSignedIn = false,
+  onRequireAuth,
 }) => {
   const isKg = language === 'kg';
 
@@ -125,6 +135,32 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   const [vinError, setVinError] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const favoriteIds = usePartFavorites();
+
+  // Selling requires an account (listings belong to their seller)
+  const openSellerPortal = () => {
+    if (!isSignedIn) {
+      onRequireAuth?.(isKg ? 'Тетик сатуу үчүн аккаунтка кириңиз же катталыңыз.' : 'Чтобы продать запчасть, войдите или зарегистрируйтесь.');
+      return;
+    }
+    setIsSellerPortalOpen(true);
+  };
+
+  React.useEffect(() => {
+    if (openSellerSignal > 0 && isSignedIn) setIsSellerPortalOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSellerSignal]);
+
+  React.useEffect(() => {
+    if (!preset) return;
+    setSearchQuery(preset.search || '');
+    setSelectedBrand(preset.brand || '');
+    setSelectedModel(preset.model || '');
+    setSelectedGeneration('');
+    setSelectedYear(preset.year || '');
+    setSelectedCategory('Все');
+    setSelectedSubPart('Все');
+    setIsModelTreeHidden(false);
+  }, [preset]);
 
   // Track revealed phone numbers (anti-spam Drom feature)
   const [revealedPhones, setRevealedPhones] = useState<Record<string, boolean>>({});
@@ -661,7 +697,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
           <div className="flex items-center gap-2.5">
             <button
-              onClick={() => setIsSellerPortalOpen(true)}
+              onClick={() => openSellerPortal()}
               className="py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer hover:scale-102"
             >
               <Store size={16} />
@@ -683,7 +719,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
             setSelectedCityOrMarket('Дордой Моторс');
             showToast('Фильтр: Оптика и кузовные детали на Дордой-Авто');
           }}
-          onOpenSellerRegistration={() => setIsSellerPortalOpen(true)}
+          onOpenSellerRegistration={() => openSellerPortal()}
           onSelectMarket={(m) => {
             setSelectedCityOrMarket(m);
             showToast(`Фильтр по рынку: ${m}`);
@@ -1474,14 +1510,14 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
       )}
 
       {/* 2 & 3. SELLER PORTAL & PART UPLOAD MODAL */}
-      <PartSellerPortalModal
+      {isSellerPortalOpen && <PartSellerPortalModal
         isOpen={isSellerPortalOpen}
         onClose={() => setIsSellerPortalOpen(false)}
         language={language}
         currency={currency}
         existingParts={partsList}
         onUpdatePartStock={handleStockUpdate}
-      />
+      />}
 
       {/* ALL BRANDS MODAL */}
       <AllBrandsModal
