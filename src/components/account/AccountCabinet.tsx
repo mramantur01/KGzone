@@ -4,6 +4,8 @@ import {
   LogOut, Loader2, Trash2, Search, Bell, MessageSquare,
 } from 'lucide-react';
 import { MessagesPanel } from '../chat/MessagesPanel';
+import { CompanyCabinet } from '../company/CompanyCabinet';
+import { useCompany } from '../../api/company';
 import { useUnreadMessages } from '../../api/chat';
 import type { AutoPartItem, Car } from '../../types/car';
 import {
@@ -40,7 +42,7 @@ interface Props {
   onFindParts: (preset: PartsSearchPreset) => void;
 }
 
-type Section = 'overview' | 'messages' | 'listings' | 'favorites' | 'history' | 'garage' | 'orders' | 'company' | 'profile' | 'moderation' | 'users';
+type Section = 'overview' | 'business' | 'messages' | 'listings' | 'favorites' | 'history' | 'garage' | 'orders' | 'company' | 'profile' | 'moderation' | 'users';
 
 const card = 'p-4 sm:p-5 rounded-2xl bg-white border border-slate-200';
 const inputCls = 'w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#C8102E] focus:outline-hidden';
@@ -63,6 +65,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const history = useViewHistory();
   const [section, setSection] = useState<Section>('overview');
   const unreadMessages = useUnreadMessages(Boolean(user));
+  const biz = useCompany(user?.id);
   const [seen, setSeen] = useState<Record<string, string[]>>(readSeen);
 
   // Profile form
@@ -142,6 +145,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
   const nav: { id: Section; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: 'overview', label: 'Обзор', icon: LayoutDashboard },
+    ...(biz.info ? [{ id: 'business' as Section, label: 'Бизнес-кабинет', icon: Building2 }] : []),
     { id: 'messages', label: 'Сообщения', icon: MessageSquare, badge: unreadMessages || undefined },
     { id: 'listings', label: 'Мои объявления', icon: ListChecks },
     { id: 'favorites', label: 'Избранное', icon: Heart, badge: partFavIds.length + favoriteCarIds.length },
@@ -220,6 +224,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{isLegal ? 'Юридическое лицо' : 'Физическое лицо'}</span>
               {user.role !== 'user' && <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">{user.role === 'admin' ? 'Администратор' : 'Модератор'}</span>}
               {user.company?.status === 'verified' && <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Проверенная компания</span>}
+              {!isLegal && biz.info && <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800" data-no-i18n>{biz.info.company.name}</span>}
             </div>
           </div>
           <nav className="flex flex-wrap lg:flex-col gap-1.5">
@@ -297,6 +302,10 @@ export const AccountCabinet: React.FC<Props> = (props) => {
           )}
 
           {section === 'messages' && <MessagesPanel />}
+
+          {section === 'business' && biz.info && (
+            <CompanyCabinet info={biz.info} onChanged={biz.reload} onOpenMessages={() => setSection('messages')} />
+          )}
 
           {section === 'listings' && <MyListingsPanel onSellPart={onSellPart} onSellCar={onSellCar} />}
 

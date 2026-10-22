@@ -356,6 +356,10 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                   <div className="text-xs">
                     <span className="text-neutral-400 mr-2">OEM / Артикул:</span>
                     <span className="font-mono font-bold text-amber-400">{part.partNumber}</span>
+                    {part.manufacturer && <span className="ml-2 text-neutral-400">· {isKg ? 'Өндүрүүчү' : 'Производитель'}: <span className="text-white" data-no-i18n>{part.manufacturer}</span></span>}
+                    {part.crossNumbers?.length ? (
+                      <div className="mt-1 text-neutral-400">{isKg ? 'Кросс-номерлер' : 'Кросс-номера'}: <span className="font-mono text-neutral-200" data-no-i18n>{part.crossNumbers.join(', ')}</span></div>
+                    ) : null}
                   </div>
                   <button
                     onClick={handleCopyOEM}

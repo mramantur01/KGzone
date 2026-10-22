@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 // Each collection is a hash (id -> JSON document) plus a sorted set that keeps
 // newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
-type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews';
+type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews' | 'memberships';
 
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -27,7 +27,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 
 const isDatabaseConnected = Boolean(redis);
 
-const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [] };
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [] };
 let readyPromise: Promise<void> | null = null;
 
 const dataKey = (c: Collection) => `kgzone:${c}`;
@@ -139,7 +139,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make sure the DB table exists and is seeded before any API call touches it
 app.use('/api', (_req: Request, res: Response, next) => {
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [] })
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [] })
     .then(() => next())
     .catch((err) => {
       console.error('[DB] init failed:', err);
@@ -778,6 +778,12 @@ function sanitizePart(body: any) {
     compressionBar: body.hasCompressionVideo ? num(body.compressionBar, 0, 30) : undefined,
     videoTitle: str(body.videoTitle, 120) || undefined,
     compatibility: compatibility.length ? compatibility : undefined,
+    sku: str(body.sku, 60) || undefined,
+    crossNumbers: (Array.isArray(body.crossNumbers) ? body.crossNumbers : String(body.crossNumbers || '').split(/[,;\n]+/))
+      .map((x: unknown) => str(x, 40).toUpperCase()).filter(Boolean).slice(0, 30),
+    manufacturer: str(body.manufacturer, 60) || undefined,
+    warehouseId: str(body.warehouseId, 60) || undefined,
+    oldPriceKgs: (() => { const o = Math.round(num(body.oldPriceKgs, 0, 100_000_000)); return o > num(body.priceKgs, 0, 100_000_000) ? o : undefined; })(),
     sellerType: body.sellerType === 'legal' ? 'legal' : 'individual',
     companyName: str(body.companyName, 120) || undefined,
     inn: str(body.inn, 20).replace(/\D/g, '') || undefined,
@@ -1105,6 +1111,7 @@ interface CompanyProfile {
   contactPhone: string;
   contactEmail: string;
   bankDetails: string;
+  warehouses?: { id: string; name: string; address: string }[];
   status: CompanyStatus;
   statusComment?: string;
   submittedAt?: string;
@@ -1264,6 +1271,7 @@ function sanitizeCompany(body: any, previous?: CompanyProfile): CompanyProfile {
     statusComment: previous?.statusComment,
     submittedAt: previous?.submittedAt,
     reviewedAt: previous?.reviewedAt,
+    warehouses: previous?.warehouses,
   };
 }
 
@@ -1655,22 +1663,33 @@ const MAX_MESSAGES = 300;
 
 const conversationView = (c: Conversation, me: string) => {
   const lastRead = c.readAt?.[me] || '';
+  const isBuyer = c.buyerId === me;
   return {
     id: c.id,
     kind: c.kind,
     listingId: c.listingId,
     listingTitle: c.listingTitle,
     listingImage: c.listingImage,
-    role: c.buyerId === me ? 'buyer' : 'seller',
-    otherName: c.buyerId === me ? c.sellerName : c.buyerName,
+    role: isBuyer ? 'buyer' : 'seller',
+    otherName: isBuyer ? c.sellerName : c.buyerName,
     lastMessage: c.messages[c.messages.length - 1] || null,
     lastAt: c.lastAt,
     unread: c.messages.filter((m) => m.from !== me && m.at > lastRead).length,
   };
 };
 
-async function myConversations(userId: string) {
-  return (await listRecords<Conversation>('conversations')).filter((c) => c.buyerId === userId || c.sellerId === userId);
+async function myConversations(user: UserRecord) {
+  const ctx = await companyContext(user);
+  const companyId = ctx && ctx.can('messages') ? ctx.companyId : null;
+  return (await listRecords<Conversation>('conversations')).filter(
+    (c) => c.buyerId === user.id || c.sellerId === user.id || (companyId && c.sellerId === companyId)
+  );
+}
+
+async function canAccessConversation(user: UserRecord, c: Conversation) {
+  if (c.buyerId === user.id || c.sellerId === user.id) return true;
+  const ctx = await companyContext(user);
+  return Boolean(ctx && ctx.can('messages') && c.sellerId === ctx.companyId);
 }
 
 const cleanText = (v: unknown) => str(v, 2000).replace(/\s+\n/g, '\n');
@@ -1691,7 +1710,7 @@ app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res:
 
   const now = new Date().toISOString();
   const message: ChatMessage = { id: randomUUID(), from: user.id, text, at: now };
-  const existing = (await myConversations(user.id)).find((c) => c.kind === kind && c.listingId === listing.id && c.buyerId === user.id);
+  const existing = (await myConversations(user)).find((c) => c.kind === kind && c.listingId === listing.id && c.buyerId === user.id);
   if (existing) {
     const updated = await updateRecord<Conversation>('conversations', existing.id, {
       messages: [...existing.messages, message].slice(-MAX_MESSAGES),
@@ -1720,7 +1739,7 @@ app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res:
 
 app.get('/api/conversations', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
-  const list = (await myConversations(user.id)).map((c) => conversationView(c, user.id)).sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+  const list = (await myConversations(user)).map((c) => conversationView(c, user.id)).sort((a, b) => b.lastAt.localeCompare(a.lastAt));
   res.setHeader('Cache-Control', 'no-store');
   res.json({ success: true, conversations: list, unread: list.reduce((n, c) => n + c.unread, 0) });
 }));
@@ -1728,7 +1747,7 @@ app.get('/api/conversations', requireUser, asyncRoute(async (req: Request, res: 
 app.get('/api/conversations/:id', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
   const c = await getRecord<Conversation>('conversations', req.params.id);
-  if (!c || (c.buyerId !== user.id && c.sellerId !== user.id)) return res.status(404).json({ success: false, error: 'Диалог не найден' });
+  if (!c || !(await canAccessConversation(user, c))) return res.status(404).json({ success: false, error: 'Диалог не найден' });
   const updated = await updateRecord<Conversation>('conversations', c.id, { readAt: { ...c.readAt, [user.id]: new Date().toISOString() } });
   res.setHeader('Cache-Control', 'no-store');
   res.json({
@@ -1744,7 +1763,7 @@ app.post('/api/conversations/:id/messages', requireUser, asyncRoute(async (req: 
   const text = cleanText(req.body?.text);
   if (!text) return res.status(400).json({ success: false, error: 'Напишите сообщение' });
   const c = await getRecord<Conversation>('conversations', req.params.id);
-  if (!c || (c.buyerId !== user.id && c.sellerId !== user.id)) return res.status(404).json({ success: false, error: 'Диалог не найден' });
+  if (!c || !(await canAccessConversation(user, c))) return res.status(404).json({ success: false, error: 'Диалог не найден' });
   const now = new Date().toISOString();
   const updated = await updateRecord<Conversation>('conversations', c.id, {
     messages: [...c.messages, { id: randomUUID(), from: user.id, text, at: now }].slice(-MAX_MESSAGES),
@@ -1787,7 +1806,7 @@ app.get('/api/sellers/:id/reviews', asyncRoute(async (req: Request, res: Respons
   const viewer = await getSessionUser(req);
   let canReview = false;
   if (viewer && viewer.id !== seller.id) {
-    const talked = (await myConversations(viewer.id)).some((c) => c.buyerId === viewer.id && c.sellerId === seller.id);
+    const talked = (await myConversations(viewer)).some((c) => c.buyerId === viewer.id && c.sellerId === seller.id);
     canReview = talked && !reviews.some((r) => r.authorId === viewer.id);
   }
   res.json({
@@ -1809,7 +1828,7 @@ app.post('/api/sellers/:id/reviews', requireUser, asyncRoute(async (req: Request
   const user: UserRecord = (req as any).user;
   const seller = await getRecord<UserRecord>('users', req.params.id);
   if (!seller || seller.id === user.id) return res.status(400).json({ success: false, error: 'Нельзя оставить отзыв этому продавцу' });
-  const conv = (await myConversations(user.id)).find((c) => c.buyerId === user.id && c.sellerId === seller.id);
+  const conv = (await myConversations(user)).find((c) => c.buyerId === user.id && c.sellerId === seller.id);
   if (!conv) return res.status(403).json({ success: false, error: 'Отзыв можно оставить после переписки с продавцом' });
   const all = await listRecords<SellerReview>('sellerReviews');
   if (all.some((r) => r.sellerId === seller.id && r.authorId === user.id)) return res.status(409).json({ success: false, error: 'Вы уже оставили отзыв этому продавцу' });
@@ -1839,6 +1858,428 @@ app.patch('/api/admin/seller-reviews/:id', requireAdmin, asyncRoute(async (req: 
   if (!updated) return res.status(404).json({ success: false, error: 'Отзыв не найден' });
   await audit((req as any).actor, req.body?.hidden ? 'hide-review' : 'show-review', req.params.id);
   res.json({ success: true });
+}));
+
+// ---------------------------------------------------------------------------
+// Company (business) cabinet: employees with roles, catalog management, bulk actions,
+// CSV import/export, warehouses, company orders, statistics and a company action log.
+// A company is identified by its owner's user id (the legal-entity account).
+// Permissions are checked here on the server for every request.
+// ---------------------------------------------------------------------------
+
+type StaffRole = 'owner' | 'shop_admin' | 'sales_manager' | 'warehouse' | 'accountant';
+type Permission = 'catalog.edit' | 'stock.edit' | 'import' | 'export' | 'orders' | 'orders.view' | 'messages' | 'staff' | 'warehouses' | 'company.edit' | 'finance' | 'audit';
+
+const ROLE_PERMISSIONS: Record<StaffRole, Permission[]> = {
+  owner: ['catalog.edit', 'stock.edit', 'import', 'export', 'orders', 'orders.view', 'messages', 'staff', 'warehouses', 'company.edit', 'finance', 'audit'],
+  shop_admin: ['catalog.edit', 'stock.edit', 'import', 'export', 'orders', 'orders.view', 'messages', 'warehouses', 'company.edit', 'audit'],
+  sales_manager: ['orders', 'orders.view', 'messages', 'export'],
+  warehouse: ['stock.edit', 'export'],
+  accountant: ['finance', 'orders.view', 'export'],
+};
+const STAFF_ROLES = Object.keys(ROLE_PERMISSIONS).filter((r) => r !== 'owner') as StaffRole[];
+
+interface Membership {
+  id: string;
+  companyId: string;
+  userId: string;
+  role: StaffRole;
+  addedBy: string;
+  createdAt: string;
+}
+
+interface Warehouse {
+  id: string;
+  name: string;
+  address: string;
+}
+
+interface CompanyContext {
+  companyId: string;
+  owner: UserRecord;
+  role: StaffRole;
+  can: (p: Permission) => boolean;
+}
+
+async function companyContext(user: UserRecord): Promise<CompanyContext | null> {
+  const make = (owner: UserRecord, role: StaffRole): CompanyContext => ({
+    companyId: owner.id,
+    owner,
+    role,
+    can: (p) => ROLE_PERMISSIONS[role].includes(p),
+  });
+  if (user.accountType === 'legal' && user.company) return make(user, 'owner');
+  const m = (await listRecords<Membership>('memberships')).find((x) => x.userId === user.id);
+  if (!m) return null;
+  const owner = await getRecord<UserRecord>('users', m.companyId);
+  if (!owner || owner.blocked || !owner.company) return null;
+  return make(owner, m.role);
+}
+
+// requireUser + company membership + (optionally) a permission
+const requireCompany = (perm?: Permission) => (req: Request, res: Response, next: () => void) => {
+  requireUser(req, res, () => {
+    companyContext((req as any).user)
+      .then((ctx) => {
+        if (!ctx) return res.status(403).json({ success: false, error: 'Нет доступа к кабинету компании' });
+        if (perm && !ctx.can(perm)) return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к этому действию' });
+        (req as any).company = ctx;
+        next();
+      })
+      .catch(() => res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' }));
+  });
+};
+
+const companyAudit = (ctx: CompanyContext, actor: UserRecord, action: string, target: string, details: Record<string, unknown> = {}) =>
+  insertRecord('audit', {
+    id: `aud-${randomUUID()}`,
+    at: new Date().toISOString(),
+    companyId: ctx.companyId,
+    actorId: actor.id,
+    actorName: actor.name,
+    action,
+    target,
+    details,
+  });
+
+const companyParts = async (companyId: string) => (await listRecords('parts')).filter((p: any) => p.ownerId === companyId);
+
+// Listings of verified companies are trusted and published right away; others go to moderation
+const initialModeration = (ctx: CompanyContext) => {
+  const now = new Date().toISOString();
+  return ctx.owner.company?.status === 'verified'
+    ? { status: 'approved' as const, submittedAt: now, reviewedAt: now, reason: 'Проверенная компания' }
+    : { status: 'pending' as const, submittedAt: now };
+};
+
+const companyPartDefaults = (ctx: CompanyContext) => ({
+  sellerType: 'legal',
+  companyName: ctx.owner.company!.name,
+  inn: ctx.owner.company!.inn,
+  storeName: ctx.owner.company!.name,
+  storeCity: ctx.owner.city,
+  sellerPhone: ctx.owner.company!.contactPhone || `+${ctx.owner.phone}`,
+});
+
+app.get('/api/company', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const c = ctx.owner.company!;
+  res.json({
+    success: true,
+    role: ctx.role,
+    permissions: ROLE_PERMISSIONS[ctx.role],
+    company: {
+      id: ctx.companyId,
+      name: c.name,
+      inn: c.inn,
+      status: c.status,
+      city: ctx.owner.city,
+      legalAddress: c.legalAddress,
+      actualAddress: c.actualAddress,
+      contactPhone: c.contactPhone,
+      bankDetails: ctx.can('finance') ? c.bankDetails : undefined,
+      warehouses: (c as any).warehouses || [],
+    },
+  });
+}));
+
+// --- Employees ---
+
+app.get('/api/company/staff', requireCompany('staff'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const members = (await listRecords<Membership>('memberships')).filter((m) => m.companyId === ctx.companyId);
+  const users = new Map((await listRecords<UserRecord>('users')).map((u) => [u.id, u]));
+  res.json({
+    success: true,
+    staff: members.map((m) => {
+      const u = users.get(m.userId);
+      return { id: m.id, userId: m.userId, role: m.role, createdAt: m.createdAt, name: u?.name || '—', phone: u?.phone || '', blocked: Boolean(u?.blocked) };
+    }),
+  });
+}));
+
+app.post('/api/company/staff', requireCompany('staff'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const actor: UserRecord = (req as any).user;
+  const role = STAFF_ROLES.includes(req.body?.role) ? (req.body.role as StaffRole) : null;
+  if (!role) return res.status(400).json({ success: false, error: 'Выберите роль сотрудника' });
+  const phone = normalizePhone(req.body?.phone);
+  if (!phone) return res.status(400).json({ success: false, error: 'Укажите телефон сотрудника' });
+  const target = (await listRecords<UserRecord>('users')).find((u) => u.phone === phone);
+  if (!target) return res.status(404).json({ success: false, error: 'Пользователь с таким телефоном не найден. Попросите сотрудника сначала зарегистрироваться на сайте как физическое лицо.' });
+  if (target.id === ctx.companyId) return res.status(400).json({ success: false, error: 'Это владелец компании' });
+  if (target.accountType === 'legal') return res.status(400).json({ success: false, error: 'Сотрудником может быть только аккаунт физического лица' });
+  const memberships = await listRecords<Membership>('memberships');
+  if (memberships.some((m) => m.userId === target.id)) return res.status(409).json({ success: false, error: 'Этот пользователь уже работает в компании на KGzone' });
+  if (memberships.filter((m) => m.companyId === ctx.companyId).length >= 50) return res.status(400).json({ success: false, error: 'Слишком много сотрудников' });
+  const m: Membership = { id: `mem-${randomUUID()}`, companyId: ctx.companyId, userId: target.id, role, addedBy: actor.id, createdAt: new Date().toISOString() };
+  await insertRecord('memberships', m);
+  await companyAudit(ctx, actor, 'staff-add', target.id, { name: target.name, role });
+  res.status(201).json({ success: true });
+}));
+
+app.patch('/api/company/staff/:id', requireCompany('staff'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const m = await getRecord<Membership>('memberships', req.params.id);
+  if (!m || m.companyId !== ctx.companyId) return res.status(404).json({ success: false, error: 'Сотрудник не найден' });
+  const role = STAFF_ROLES.includes(req.body?.role) ? (req.body.role as StaffRole) : null;
+  if (!role) return res.status(400).json({ success: false, error: 'Выберите роль сотрудника' });
+  await updateRecord('memberships', m.id, { role });
+  await companyAudit(ctx, (req as any).user, 'staff-role', m.userId, { role });
+  res.json({ success: true });
+}));
+
+app.delete('/api/company/staff/:id', requireCompany('staff'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const m = await getRecord<Membership>('memberships', req.params.id);
+  if (!m || m.companyId !== ctx.companyId) return res.status(404).json({ success: false, error: 'Сотрудник не найден' });
+  await deleteRecord('memberships', m.id);
+  await companyAudit(ctx, (req as any).user, 'staff-remove', m.userId);
+  res.json({ success: true });
+}));
+
+// An employee can leave the company themselves
+app.delete('/api/company/membership', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const m = (await listRecords<Membership>('memberships')).find((x) => x.userId === user.id);
+  if (!m) return res.status(404).json({ success: false, error: 'Вы не состоите в компании' });
+  await deleteRecord('memberships', m.id);
+  res.json({ success: true });
+}));
+
+// --- Warehouses ---
+
+app.put('/api/company/warehouses', requireCompany('warehouses'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const list = Array.isArray(req.body?.warehouses) ? req.body.warehouses : [];
+  const warehouses: Warehouse[] = list.slice(0, 20).map((w: any) => ({
+    id: str(w?.id, 60) || `wh-${randomUUID().slice(0, 8)}`,
+    name: str(w?.name, 80),
+    address: str(w?.address, 200),
+  })).filter((w: Warehouse) => w.name);
+  await updateRecord<UserRecord>('users', ctx.companyId, { company: { ...ctx.owner.company!, warehouses } as any });
+  await companyAudit(ctx, (req as any).user, 'warehouses', ctx.companyId, { count: warehouses.length });
+  res.json({ success: true, warehouses });
+}));
+
+// --- Catalog ---
+
+app.get('/api/company/parts', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  res.json({ success: true, parts: await companyParts(ctx.companyId) });
+}));
+
+app.post('/api/company/parts', requireCompany('catalog.edit'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const part = sanitizePart({ ...(req.body || {}), ...companyPartDefaults(ctx) });
+  const problem = partProblem(part);
+  if (problem) return res.status(400).json({ success: false, error: problem });
+  const now = new Date().toISOString();
+  const record = { id: `part-${randomUUID()}`, ...part, ownerId: ctx.companyId, createdBy: (req as any).user.id, createdAt: now, moderation: initialModeration(ctx) };
+  await insertRecord('parts', record);
+  await companyAudit(ctx, (req as any).user, 'part-create', record.id, { title: record.title });
+  res.status(201).json({ success: true, part: record });
+}));
+
+const STOCK_FIELDS = ['stockCount', 'warehouseId'];
+
+app.patch('/api/company/parts/:id', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const item: any = await getRecord('parts', req.params.id);
+  if (!item || item.ownerId !== ctx.companyId) return res.status(404).json({ success: false, error: 'Товар не найден' });
+  const body = req.body || {};
+  const keys = Object.keys(body);
+  const stockOnly = keys.every((k) => STOCK_FIELDS.includes(k));
+  if (!(ctx.can('catalog.edit') || (stockOnly && ctx.can('stock.edit')))) {
+    return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к этому действию' });
+  }
+  const clean: any = sanitizePart({ ...item, ...body, ...companyPartDefaults(ctx) });
+  const problem = partProblem(clean);
+  if (problem) return res.status(400).json({ success: false, error: problem });
+  const quick = ['priceKgs', 'oldPriceKgs', 'stockCount', 'warehouseId', 'inStock', 'stockStatus'];
+  const changed = keys.filter((k) => k in clean && JSON.stringify(clean[k]) !== JSON.stringify(item[k]));
+  const patch: any = { ...clean, views: item.views, updatedAt: new Date().toISOString() };
+  if (changed.some((k) => !quick.includes(k)) && ctx.owner.company?.status !== 'verified') {
+    patch.moderation = { status: 'pending', submittedAt: new Date().toISOString(), reason: 'Изменено продавцом' };
+  }
+  const updated = await updateRecord('parts', item.id, patch);
+  await companyAudit(ctx, (req as any).user, 'part-edit', item.id, { fields: changed });
+  res.json({ success: true, part: updated });
+}));
+
+// Bulk actions on selected items
+app.post('/api/company/parts/bulk', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const actor: UserRecord = (req as any).user;
+  const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 1000).map((x: unknown) => String(x)) : [];
+  const action = String(req.body?.action || '');
+  const value = Number(req.body?.value);
+  const needs: Record<string, Permission> = { price: 'catalog.edit', discount: 'catalog.edit', clearDiscount: 'catalog.edit', stock: 'stock.edit', archive: 'catalog.edit', activate: 'catalog.edit', sold: 'catalog.edit', delete: 'catalog.edit', warehouse: 'stock.edit' };
+  if (!needs[action]) return res.status(400).json({ success: false, error: 'Неизвестное действие' });
+  if (!ctx.can(needs[action])) return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к этому действию' });
+  if (['price', 'discount', 'stock'].includes(action) && !Number.isFinite(value)) return res.status(400).json({ success: false, error: 'Укажите значение' });
+  const mine = new Set((await companyParts(ctx.companyId)).map((p: any) => p.id));
+  let done = 0;
+  for (const id of ids) {
+    if (!mine.has(id)) continue;
+    const p: any = await getRecord('parts', id);
+    if (!p) continue;
+    const now = new Date().toISOString();
+    if (action === 'delete') { await deleteRecord('parts', id); done++; continue; }
+    let patch: any = {};
+    if (action === 'price') {
+      // value: percent change when mode=percent, otherwise a new fixed price
+      const next = req.body?.mode === 'percent' ? p.priceKgs * (1 + value / 100) : value;
+      patch.priceKgs = Math.max(1, Math.round(next));
+    } else if (action === 'discount') {
+      if (value <= 0 || value >= 90) return res.status(400).json({ success: false, error: 'Скидка от 1 до 89%' });
+      const base = p.oldPriceKgs || p.priceKgs;
+      patch = { oldPriceKgs: base, priceKgs: Math.max(1, Math.round(base * (1 - value / 100))) };
+    } else if (action === 'clearDiscount') {
+      if (p.oldPriceKgs) patch = { priceKgs: p.oldPriceKgs, oldPriceKgs: undefined };
+    } else if (action === 'stock') {
+      const count = Math.max(0, Math.round(value));
+      patch = { stockCount: count, inStock: count > 0, stockStatus: count > 1 ? 'В наличии' : count === 1 ? 'Осталось мало' : 'Под заказ (2-3 дня)' };
+    } else if (action === 'warehouse') {
+      patch = { warehouseId: str(req.body?.warehouseId, 60) || undefined };
+    } else if (action === 'archive') patch = { listingStatus: 'inactive' };
+    else if (action === 'activate') patch = { listingStatus: 'active' };
+    else if (action === 'sold') patch = { listingStatus: 'sold' };
+    await updateRecord('parts', id, { ...patch, updatedAt: now });
+    done++;
+  }
+  await companyAudit(ctx, actor, `bulk-${action}`, ctx.companyId, { count: done, value: Number.isFinite(value) ? value : undefined });
+  res.json({ success: true, updated: done });
+}));
+
+// CSV import (rows already parsed in the browser). Max 500 rows per request.
+app.post('/api/company/import', requireCompany('import'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const actor: UserRecord = (req as any).user;
+  const rows: any[] = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!rows.length) return res.status(400).json({ success: false, error: 'Файл пустой' });
+  if (rows.length > 500) return res.status(400).json({ success: false, error: 'Не больше 500 строк за раз. Разделите файл на части.' });
+  if (tooMany(`import:${ctx.companyId}`, 20, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много загрузок. Попробуйте через час.' });
+
+  // Rows with an SKU that already exists update that item instead of creating a duplicate
+  const existing = await companyParts(ctx.companyId);
+  const bySku = new Map(existing.filter((p: any) => p.sku).map((p: any) => [p.sku, p]));
+  const errors: { row: number; error: string }[] = [];
+  let created = 0, updated = 0;
+  const moderation = initialModeration(ctx);
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i] || {};
+    const prev: any = r.sku ? bySku.get(str(r.sku, 60)) : undefined;
+    const part: any = sanitizePart({ ...(prev || {}), ...r, ...companyPartDefaults(ctx) });
+    const problem = partProblem(part);
+    if (problem) { errors.push({ row: i + 2, error: problem }); continue; }
+    const now = new Date().toISOString();
+    if (prev) {
+      await updateRecord('parts', prev.id, { ...part, views: prev.views, updatedAt: now, ...(ctx.owner.company?.status === 'verified' ? {} : { moderation }) });
+      updated++;
+    } else {
+      await insertRecord('parts', { id: `part-${randomUUID()}`, ...part, ownerId: ctx.companyId, createdBy: actor.id, createdAt: now, moderation });
+      created++;
+    }
+  }
+  await companyAudit(ctx, actor, 'import', ctx.companyId, { created, updated, errors: errors.length });
+  if (created + updated > 0 && moderation.status === 'pending') {
+    await notifyAdmin(`📥 Импорт товаров: ${ctx.owner.company!.name}\nНовых: ${created}, обновлено: ${updated}\nПроверить: ${SITE_URL} → Личный кабинет → Модерация`);
+  }
+  res.json({ success: true, created, updated, errors, moderation: moderation.status });
+}));
+
+const csvCell = (v: unknown) => {
+  const s = Array.isArray(v) ? v.join(', ') : v === undefined || v === null ? '' : String(v);
+  return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const EXPORT_COLUMNS = ['sku', 'title', 'category', 'brand', 'model', 'generation', 'partNumber', 'crossNumbers', 'manufacturer', 'condition', 'priceKgs', 'oldPriceKgs', 'stockCount', 'warehouseId', 'description', 'images', 'listingStatus', 'moderation', 'views'];
+
+app.get('/api/company/export', requireCompany('export'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const parts = await companyParts(ctx.companyId);
+  const lines = [EXPORT_COLUMNS.join(';')].concat(
+    parts.map((p: any) =>
+      EXPORT_COLUMNS.map((c) => csvCell(c === 'moderation' ? p.moderation?.status : c === 'listingStatus' ? p.listingStatus || 'active' : p[c])).join(';')
+    )
+  );
+  await companyAudit(ctx, (req as any).user, 'export', ctx.companyId, { count: parts.length });
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="kgzone-catalog-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send('﻿' + lines.join('\r\n'));
+}));
+
+// --- Orders ---
+
+const COMPANY_ORDER_STATUSES = ['Новый', 'В обработке', 'Готов к выдаче', 'Выполнен', 'Отменен'];
+
+async function companyOrders(companyId: string) {
+  const ids = new Set((await companyParts(companyId)).map((p: any) => p.id));
+  return (await listRecords<OrderRecord>('orders')).filter((o) => ids.has(o.partId));
+}
+
+app.get('/api/company/orders', requireCompany('orders.view'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  res.json({ success: true, orders: await companyOrders(ctx.companyId), statuses: COMPANY_ORDER_STATUSES });
+}));
+
+app.patch('/api/company/orders/:id', requireCompany('orders'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const status = COMPANY_ORDER_STATUSES.includes(req.body?.status) ? req.body.status : null;
+  if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
+  const order = (await companyOrders(ctx.companyId)).find((o) => o.id === req.params.id);
+  if (!order) return res.status(404).json({ success: false, error: 'Заказ не найден' });
+  await updateRecord<OrderRecord>('orders', order.id, { status });
+  // A completed order takes the item off the stock
+  if (status === 'Выполнен' && order.status !== 'Выполнен') {
+    const p: any = await getRecord('parts', order.partId);
+    if (p && p.stockCount > 0) {
+      const count = p.stockCount - 1;
+      await updateRecord('parts', p.id, { stockCount: count, inStock: count > 0, stockStatus: count > 1 ? 'В наличии' : count === 1 ? 'Осталось мало' : 'Под заказ (2-3 дня)' });
+    }
+  }
+  await companyAudit(ctx, (req as any).user, 'order-status', order.id, { status, orderNumber: order.orderNumber });
+  res.json({ success: true });
+}));
+
+// --- Statistics & log ---
+
+app.get('/api/company/stats', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const parts = await companyParts(ctx.companyId);
+  const orders = ctx.can('orders.view') ? await companyOrders(ctx.companyId) : [];
+  const views = parts.reduce((n: number, p: any) => n + (p.views || 0), 0);
+  const contacts = parts.reduce((n: number, p: any) => n + (p.contactsCount || 0), 0);
+  const live = parts.filter((p: any) => isLive(p));
+  res.json({
+    success: true,
+    listings: {
+      total: parts.length,
+      active: live.length,
+      pending: parts.filter((p: any) => p.moderation?.status === 'pending').length,
+      rejected: parts.filter((p: any) => p.moderation?.status === 'rejected').length,
+      archived: parts.filter((p: any) => p.listingStatus === 'inactive').length,
+      sold: parts.filter((p: any) => p.listingStatus === 'sold').length,
+      outOfStock: live.filter((p: any) => !p.stockCount).length,
+    },
+    views,
+    contacts,
+    conversion: views ? Math.round((contacts / views) * 1000) / 10 : 0,
+    orders: ctx.can('orders.view')
+      ? {
+          total: orders.length,
+          open: orders.filter((o) => !['Выполнен', 'Отменен'].includes(o.status)).length,
+          completed: orders.filter((o) => o.status === 'Выполнен').length,
+          revenueKgs: ctx.can('finance') ? orders.filter((o) => o.status === 'Выполнен').reduce((n, o) => n + (o.priceKgs || 0), 0) : undefined,
+        }
+      : undefined,
+    top: [...parts].sort((a: any, b: any) => (b.views || 0) - (a.views || 0)).slice(0, 5).map((p: any) => ({ id: p.id, title: p.title, views: p.views || 0, contacts: p.contactsCount || 0 })),
+  });
+}));
+
+app.get('/api/company/audit', requireCompany('audit'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  res.json({ success: true, entries: (await listRecords('audit')).filter((a: any) => a.companyId === ctx.companyId).slice(0, 300) });
 }));
 
 // Complaints about listings (parts or cars) -> admin queue

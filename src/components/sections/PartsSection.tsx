@@ -476,7 +476,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
           (part.subPartName && part.subPartName.toLowerCase().includes(q)) ||
           (part.storeLocation && part.storeLocation.toLowerCase().includes(q)) ||
           (part.containerInfo && part.containerInfo.toLowerCase().includes(q)) ||
-          (part.bodyCode && part.bodyCode.toLowerCase().includes(q));
+          (part.bodyCode && part.bodyCode.toLowerCase().includes(q)) ||
+          (part.manufacturer && part.manufacturer.toLowerCase().includes(q)) ||
+          !!part.crossNumbers?.some((c) => c.toLowerCase().includes(q));
         if (!matchesQuery) return false;
       }
 
@@ -552,7 +554,8 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     // Relevance: exact OEM match first, then OEM contains, then title
     const q = searchQuery.toLowerCase().trim();
     const relevance = (p: AutoPartItem) =>
-      !q ? 0 : (p.partNumber.toLowerCase() === q ? 4 : 0) + (p.partNumber.toLowerCase().includes(q) ? 2 : 0) + (p.title.toLowerCase().includes(q) ? 1 : 0);
+      !q ? 0 : (p.partNumber.toLowerCase() === q ? 4 : 0) + (p.partNumber.toLowerCase().includes(q) ? 2 : 0) +
+        (p.crossNumbers?.some((c) => c.toLowerCase() === q) ? 3 : 0) + (p.title.toLowerCase().includes(q) ? 1 : 0);
 
     // Sorting
     result.sort((a, b) => {
@@ -1279,6 +1282,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                             <div className="text-lg font-black text-emerald-400 leading-none">
                               {part.priceKgs.toLocaleString()} сом
                             </div>
+                            {part.oldPriceKgs ? (
+                              <div className="text-[11px] text-neutral-500 line-through mt-0.5">{part.oldPriceKgs.toLocaleString()} сом</div>
+                            ) : null}
                             <div className="text-[10px] text-neutral-400 mt-1">
                               ~ ${priceUsd.toLocaleString()} USD
                             </div>

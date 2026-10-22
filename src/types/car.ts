@@ -128,6 +128,11 @@ export interface AutoPartItem {
   description?: string;
   deliveryAvailable?: boolean;
   pickupAvailable?: boolean;
+  sku?: string;
+  crossNumbers?: string[];
+  manufacturer?: string;
+  warehouseId?: string;
+  oldPriceKgs?: number;
   /** Registered seller (database listings only) */
   sellerId?: string;
   sellerVerified?: boolean;
