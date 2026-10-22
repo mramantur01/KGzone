@@ -37,6 +37,7 @@ export interface Car {
   image: string;
   photos: string[];
   photoCredit?: { text: string; url: string };
+  sellerId?: string;
 }
 
 export interface CarCheckReport {
@@ -127,6 +128,11 @@ export interface AutoPartItem {
   description?: string;
   deliveryAvailable?: boolean;
   pickupAvailable?: boolean;
+  /** Registered seller (database listings only) */
+  sellerId?: string;
+  sellerVerified?: boolean;
+  sellerRating?: number;
+  sellerReviewsCount?: number;
   views?: number;
   createdAt?: string;
   originalType?: 'original' | 'analog';

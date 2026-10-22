@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   LayoutDashboard, ListChecks, Heart, History, CarFront, ShoppingBag, Building2, UserCog, ShieldCheck, Users,
-  LogOut, Loader2, Trash2, Search, Bell,
+  LogOut, Loader2, Trash2, Search, Bell, MessageSquare,
 } from 'lucide-react';
+import { MessagesPanel } from '../chat/MessagesPanel';
+import { useUnreadMessages } from '../../api/chat';
 import type { AutoPartItem, Car } from '../../types/car';
 import {
   useAuth, logout, updateProfile, changePassword, submitCompanyForReview, saveGarage, claimAdmin,
@@ -38,7 +40,7 @@ interface Props {
   onFindParts: (preset: PartsSearchPreset) => void;
 }
 
-type Section = 'overview' | 'listings' | 'favorites' | 'history' | 'garage' | 'orders' | 'company' | 'profile' | 'moderation' | 'users';
+type Section = 'overview' | 'messages' | 'listings' | 'favorites' | 'history' | 'garage' | 'orders' | 'company' | 'profile' | 'moderation' | 'users';
 
 const card = 'p-4 sm:p-5 rounded-2xl bg-white border border-slate-200';
 const inputCls = 'w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#C8102E] focus:outline-hidden';
@@ -60,6 +62,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const partFavIds = usePartFavorites();
   const history = useViewHistory();
   const [section, setSection] = useState<Section>('overview');
+  const unreadMessages = useUnreadMessages(Boolean(user));
   const [seen, setSeen] = useState<Record<string, string[]>>(readSeen);
 
   // Profile form
@@ -139,6 +142,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
   const nav: { id: Section; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: 'overview', label: 'Обзор', icon: LayoutDashboard },
+    { id: 'messages', label: 'Сообщения', icon: MessageSquare, badge: unreadMessages || undefined },
     { id: 'listings', label: 'Мои объявления', icon: ListChecks },
     { id: 'favorites', label: 'Избранное', icon: Heart, badge: partFavIds.length + favoriteCarIds.length },
     { id: 'history', label: 'История просмотров', icon: History },
@@ -291,6 +295,8 @@ export const AccountCabinet: React.FC<Props> = (props) => {
               </div>
             </>
           )}
+
+          {section === 'messages' && <MessagesPanel />}
 
           {section === 'listings' && <MyListingsPanel onSellPart={onSellPart} onSellCar={onSellCar} />}
 

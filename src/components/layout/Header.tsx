@@ -20,6 +20,7 @@ interface HeaderProps {
   setSelectedCity: (city: string) => void;
   favoritesCount: number;
   userName?: string;
+  unreadCount?: number;
   userSiteRole?: 'owner' | 'admin' | 'user';
   isApprovedAdmin?: boolean;
   onOpenFavorites: () => void;
@@ -43,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   setSelectedCity,
   favoritesCount,
   userName = '',
+  unreadCount = 0,
   userSiteRole = 'owner',
   isApprovedAdmin = true,
   onOpenFavorites,
@@ -300,7 +302,14 @@ export const Header: React.FC<HeaderProps> = ({
             title="Личный кабинет"
           >
             {/* Желтый / золотой контурный значок пользователя */}
-            <User size={20} className="text-amber-400 shrink-0 group-hover:scale-105 transition-transform" strokeWidth={1.8} />
+            <span className="relative shrink-0">
+              <User size={20} className="text-amber-400 group-hover:scale-105 transition-transform" strokeWidth={1.8} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-black leading-4 text-center" title="Новые сообщения">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </span>
 
             {/* Две строки: Личный \n кабинет жирным белым шрифтом */}
             <div className="flex flex-col text-left leading-[1.15]">

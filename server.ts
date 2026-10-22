@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 // Each collection is a hash (id -> JSON document) plus a sorted set that keeps
 // newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
-type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit';
+type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews';
 
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -27,7 +27,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 
 const isDatabaseConnected = Boolean(redis);
 
-const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [] };
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [] };
 let readyPromise: Promise<void> | null = null;
 
 const dataKey = (c: Collection) => `kgzone:${c}`;
@@ -139,7 +139,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make sure the DB table exists and is seeded before any API call touches it
 app.use('/api', (_req: Request, res: Response, next) => {
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [] })
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [] })
     .then(() => next())
     .catch((err) => {
       console.error('[DB] init failed:', err);
@@ -803,18 +803,24 @@ const partProblem = (p: ReturnType<typeof sanitizePart>) => {
 };
 
 // Public: approved parts only, without moderation details
-const publicPart = ({ moderation, ownerId, ...part }: any, verified?: Set<string>) => ({
-  ...part,
-  sellerVerified: Boolean(ownerId && verified?.has(ownerId)),
-});
+const publicPart = ({ moderation, ownerId, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>) => {
+  const r = ownerId ? ratings?.get(ownerId) : undefined;
+  return {
+    ...part,
+    sellerId: ownerId || undefined,
+    sellerVerified: Boolean(ownerId && verified?.has(ownerId)),
+    sellerRating: r ? Math.round((r.sum / r.count) * 10) / 10 : undefined,
+    sellerReviewsCount: r?.count || 0,
+  };
+};
 
 const isLive = (l: any) => l.moderation?.status === 'approved' && (l.listingStatus ?? 'active') === 'active';
 const verifiedOwners = async () =>
   new Set((await listRecords<UserRecord>('users')).filter((u) => u.company?.status === 'verified').map((u) => u.id));
 
 app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
-  const [parts, verified] = await Promise.all([listRecords('parts'), verifiedOwners()]);
-  res.json({ success: true, parts: parts.filter(isLive).map((p: any) => publicPart(p, verified)) });
+  const [parts, verified, ratings] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings()]);
+  res.json({ success: true, parts: parts.filter(isLive).map((p: any) => publicPart(p, verified, ratings)) });
 }));
 
 // Seller submission -> moderation queue
@@ -1002,6 +1008,7 @@ const carProblem = (c: ReturnType<typeof sanitizeCar>) => {
 
 const publicCar = ({ moderation, ownerId, ...car }: any) => ({
   ...car,
+  sellerId: ownerId || undefined,
   publishedDate: car.publishedDate || (car.createdAt ? new Date(car.createdAt).toLocaleDateString('ru-RU') : ''),
 });
 
@@ -1615,6 +1622,223 @@ app.post('/api/admin/users/:id/reset-password', requireAdminOnly, asyncRoute(asy
 
 app.get('/api/admin/audit', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, entries: (await listRecords('audit')).slice(0, 300) });
+}));
+
+// ---------------------------------------------------------------------------
+// Messages between buyers and sellers (per listing) and seller reviews.
+// A buyer can review a seller only after writing to them about one of their listings.
+// ---------------------------------------------------------------------------
+
+interface ChatMessage {
+  id: string;
+  from: string; // user id
+  text: string;
+  at: string;
+}
+
+interface Conversation {
+  id: string;
+  kind: ListingKind;
+  listingId: string;
+  listingTitle: string;
+  listingImage: string;
+  buyerId: string;
+  buyerName: string;
+  sellerId: string;
+  sellerName: string;
+  messages: ChatMessage[];
+  lastAt: string;
+  readAt: Record<string, string>; // user id -> last read time
+}
+
+const MAX_MESSAGES = 300;
+
+const conversationView = (c: Conversation, me: string) => {
+  const lastRead = c.readAt?.[me] || '';
+  return {
+    id: c.id,
+    kind: c.kind,
+    listingId: c.listingId,
+    listingTitle: c.listingTitle,
+    listingImage: c.listingImage,
+    role: c.buyerId === me ? 'buyer' : 'seller',
+    otherName: c.buyerId === me ? c.sellerName : c.buyerName,
+    lastMessage: c.messages[c.messages.length - 1] || null,
+    lastAt: c.lastAt,
+    unread: c.messages.filter((m) => m.from !== me && m.at > lastRead).length,
+  };
+};
+
+async function myConversations(userId: string) {
+  return (await listRecords<Conversation>('conversations')).filter((c) => c.buyerId === userId || c.sellerId === userId);
+}
+
+const cleanText = (v: unknown) => str(v, 2000).replace(/\s+\n/g, '\n');
+
+// Start (or continue) a conversation about a listing
+app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  if (tooMany(`msg:${user.id}`, 30, 10 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много сообщений. Подождите немного.' });
+  const kind = listingKind(String(req.body?.kind || ''));
+  const text = cleanText(req.body?.text);
+  if (!kind) return res.status(400).json({ success: false, error: 'Неверное объявление' });
+  if (!text) return res.status(400).json({ success: false, error: 'Напишите сообщение' });
+  const listing: any = await getRecord(kind, str(req.body?.listingId, 80));
+  if (!listing || !listing.ownerId || !isLive(listing)) return res.status(404).json({ success: false, error: 'Объявление не найдено или снято с публикации' });
+  if (listing.ownerId === user.id) return res.status(400).json({ success: false, error: 'Это ваше объявление' });
+  const seller = await getRecord<UserRecord>('users', listing.ownerId);
+  if (!seller || seller.blocked) return res.status(404).json({ success: false, error: 'Продавец недоступен' });
+
+  const now = new Date().toISOString();
+  const message: ChatMessage = { id: randomUUID(), from: user.id, text, at: now };
+  const existing = (await myConversations(user.id)).find((c) => c.kind === kind && c.listingId === listing.id && c.buyerId === user.id);
+  if (existing) {
+    const updated = await updateRecord<Conversation>('conversations', existing.id, {
+      messages: [...existing.messages, message].slice(-MAX_MESSAGES),
+      lastAt: now,
+      readAt: { ...existing.readAt, [user.id]: now },
+    });
+    return res.json({ success: true, conversation: conversationView(updated!, user.id) });
+  }
+  const conv: Conversation = {
+    id: `conv-${randomUUID()}`,
+    kind,
+    listingId: listing.id,
+    listingTitle: listing.title,
+    listingImage: listing.image || '',
+    buyerId: user.id,
+    buyerName: user.company?.name || user.name,
+    sellerId: seller.id,
+    sellerName: seller.company?.name || seller.name,
+    messages: [message],
+    lastAt: now,
+    readAt: { [user.id]: now },
+  };
+  await insertRecord('conversations', conv);
+  res.status(201).json({ success: true, conversation: conversationView(conv, user.id) });
+}));
+
+app.get('/api/conversations', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const list = (await myConversations(user.id)).map((c) => conversationView(c, user.id)).sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, conversations: list, unread: list.reduce((n, c) => n + c.unread, 0) });
+}));
+
+app.get('/api/conversations/:id', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const c = await getRecord<Conversation>('conversations', req.params.id);
+  if (!c || (c.buyerId !== user.id && c.sellerId !== user.id)) return res.status(404).json({ success: false, error: 'Диалог не найден' });
+  const updated = await updateRecord<Conversation>('conversations', c.id, { readAt: { ...c.readAt, [user.id]: new Date().toISOString() } });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    success: true,
+    conversation: conversationView(updated!, user.id),
+    messages: updated!.messages.map((m) => ({ ...m, mine: m.from === user.id })),
+  });
+}));
+
+app.post('/api/conversations/:id/messages', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  if (tooMany(`msg:${user.id}`, 30, 10 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много сообщений. Подождите немного.' });
+  const text = cleanText(req.body?.text);
+  if (!text) return res.status(400).json({ success: false, error: 'Напишите сообщение' });
+  const c = await getRecord<Conversation>('conversations', req.params.id);
+  if (!c || (c.buyerId !== user.id && c.sellerId !== user.id)) return res.status(404).json({ success: false, error: 'Диалог не найден' });
+  const now = new Date().toISOString();
+  const updated = await updateRecord<Conversation>('conversations', c.id, {
+    messages: [...c.messages, { id: randomUUID(), from: user.id, text, at: now }].slice(-MAX_MESSAGES),
+    lastAt: now,
+    readAt: { ...c.readAt, [user.id]: now },
+  });
+  res.json({ success: true, messages: updated!.messages.map((m) => ({ ...m, mine: m.from === user.id })) });
+}));
+
+// --- Seller reviews ---------------------------------------------------------
+
+interface SellerReview {
+  id: string;
+  sellerId: string;
+  authorId: string;
+  authorName: string;
+  rating: number;
+  text: string;
+  listingTitle: string;
+  createdAt: string;
+  hidden?: boolean;
+}
+
+async function sellerRatings() {
+  const map = new Map<string, { sum: number; count: number }>();
+  for (const r of await listRecords<SellerReview>('sellerReviews')) {
+    if (r.hidden) continue;
+    const m = map.get(r.sellerId) || { sum: 0, count: 0 };
+    m.sum += r.rating;
+    m.count += 1;
+    map.set(r.sellerId, m);
+  }
+  return map;
+}
+
+app.get('/api/sellers/:id/reviews', asyncRoute(async (req: Request, res: Response) => {
+  const seller = await getRecord<UserRecord>('users', req.params.id);
+  if (!seller) return res.status(404).json({ success: false, error: 'Продавец не найден' });
+  const reviews = (await listRecords<SellerReview>('sellerReviews')).filter((r) => r.sellerId === seller.id && !r.hidden);
+  const viewer = await getSessionUser(req);
+  let canReview = false;
+  if (viewer && viewer.id !== seller.id) {
+    const talked = (await myConversations(viewer.id)).some((c) => c.buyerId === viewer.id && c.sellerId === seller.id);
+    canReview = talked && !reviews.some((r) => r.authorId === viewer.id);
+  }
+  res.json({
+    success: true,
+    seller: {
+      id: seller.id,
+      name: seller.company?.name || seller.name,
+      accountType: seller.accountType,
+      verified: seller.company?.status === 'verified',
+      since: seller.createdAt,
+    },
+    rating: reviews.length ? Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) * 10) / 10 : null,
+    reviews: reviews.map(({ authorId, ...r }) => r),
+    canReview,
+  });
+}));
+
+app.post('/api/sellers/:id/reviews', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const seller = await getRecord<UserRecord>('users', req.params.id);
+  if (!seller || seller.id === user.id) return res.status(400).json({ success: false, error: 'Нельзя оставить отзыв этому продавцу' });
+  const conv = (await myConversations(user.id)).find((c) => c.buyerId === user.id && c.sellerId === seller.id);
+  if (!conv) return res.status(403).json({ success: false, error: 'Отзыв можно оставить после переписки с продавцом' });
+  const all = await listRecords<SellerReview>('sellerReviews');
+  if (all.some((r) => r.sellerId === seller.id && r.authorId === user.id)) return res.status(409).json({ success: false, error: 'Вы уже оставили отзыв этому продавцу' });
+  const rating = Math.round(num(req.body?.rating, 1, 5));
+  const text = str(req.body?.text, 1000);
+  if (!rating) return res.status(400).json({ success: false, error: 'Поставьте оценку от 1 до 5' });
+  const review: SellerReview = {
+    id: `srv-${randomUUID()}`,
+    sellerId: seller.id,
+    authorId: user.id,
+    authorName: user.name.split(' ')[0],
+    rating,
+    text,
+    listingTitle: conv.listingTitle,
+    createdAt: new Date().toISOString(),
+  };
+  await insertRecord('sellerReviews', review);
+  res.status(201).json({ success: true });
+}));
+
+// Admin can hide abusive reviews
+app.get('/api/admin/seller-reviews', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
+  res.json({ success: true, reviews: await listRecords('sellerReviews') });
+}));
+app.patch('/api/admin/seller-reviews/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const updated = await updateRecord('sellerReviews', req.params.id, { hidden: Boolean(req.body?.hidden) });
+  if (!updated) return res.status(404).json({ success: false, error: 'Отзыв не найден' });
+  await audit((req as any).actor, req.body?.hidden ? 'hide-review' : 'show-review', req.params.id);
+  res.json({ success: true });
 }));
 
 // Complaints about listings (parts or cars) -> admin queue

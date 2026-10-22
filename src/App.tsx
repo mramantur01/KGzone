@@ -43,6 +43,7 @@ import { NewsSection } from './components/sections/NewsSection';
 import { AccountCabinet, type PartsSearchPreset } from './components/account/AccountCabinet';
 import { AuthModal } from './components/auth/AuthModal';
 import { useAuth, isStaff, type Account } from './api/auth';
+import { useUnreadMessages } from './api/chat';
 import { LandingHero } from './components/sections/LandingHero';
 import { WorkshopSection } from './components/sections/WorkshopSection';
 import { FaqSection } from './components/sections/FaqSection';
@@ -128,6 +129,7 @@ export default function App() {
   const staff = isStaff(account);
   const userProfile: UserProfile = useMemo(() => accountToProfile(account), [account]);
   const isAuthenticated = Boolean(account);
+  const unreadMessages = useUnreadMessages(isAuthenticated);
   const [buyerOrders, setBuyerOrders] = useState<BuyerOrder[]>(INITIAL_BUYER_ORDERS);
   const [sellerOrders, setSellerOrders] = useState<SellerIncomingOrder[]>(INITIAL_SELLER_INCOMING_ORDERS);
   const [savedChecks, setSavedChecks] = useState<SavedCarCheck[]>(INITIAL_SAVED_CARCHECKS);
@@ -203,6 +205,12 @@ export default function App() {
     if (account) setActiveTab('cabinet');
     else openAuth('login');
   };
+
+  React.useEffect(() => {
+    const onAsk = (e: Event) => openAuth('login', (e as CustomEvent).detail?.notice);
+    window.addEventListener('kgz:open-auth', onAsk);
+    return () => window.removeEventListener('kgz:open-auth', onAsk);
+  });
 
   const sellPart = () => {
     if (!account) {
@@ -392,6 +400,7 @@ export default function App() {
         setSelectedCity={setSelectedCity}
         favoritesCount={favorites.length}
         userName={account?.name || ''}
+        unreadCount={unreadMessages}
         userSiteRole={userProfile.siteRole}
         isApprovedAdmin={staff}
         onOpenFavorites={() => setIsFavoritesOpen(true)}

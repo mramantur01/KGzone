@@ -1253,6 +1253,8 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           <div className="flex items-center gap-1 min-w-0">
                             {partSellerType(part) === 'legal' ? <Building size={11} className="shrink-0" /> : <User size={11} className="shrink-0" />}
                             <span className="truncate">{part.storeName || part.companyName || (isKg ? 'Көрсөтүлгөн эмес' : 'Не указано')}</span>
+                            {part.sellerVerified && <ShieldCheck size={11} className="text-emerald-400 shrink-0" />}
+                            {part.sellerRating ? <span className="shrink-0 text-amber-400">★ {part.sellerRating}</span> : null}
                             <span className="text-neutral-600">·</span>
                             <span className="shrink-0">{part.storeCity || part.city || (isKg ? 'Көрсөтүлгөн эмес' : 'Не указано')}</span>
                           </div>

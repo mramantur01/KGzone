@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { recordView, recordContact } from '../../utils/viewHistory';
 import { ReportListingButton } from '../common/ReportListingButton';
+import { SellerContactBlock } from '../chat/SellerContactBlock';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
@@ -547,6 +548,12 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
             </div>
 
           </div>
+
+          {part.sellerId && (
+            <div className="pt-6 border-t border-neutral-800">
+              <SellerContactBlock kind="parts" listingId={part.id} listingTitle={part.title} sellerId={part.sellerId} dark />
+            </div>
+          )}
 
           {sellerParts.length > 0 && (
             <div className="pt-6 border-t border-neutral-800">

@@ -4,6 +4,7 @@ import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KyrgyzPlateBadge, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { CarImagePreview } from '../common/CarImagePreview';
 import { ReportListingButton } from '../common/ReportListingButton';
+import { SellerContactBlock } from '../chat/SellerContactBlock';
 import { recordView, recordContact } from '../../utils/viewHistory';
 import {
   X,
@@ -170,6 +171,12 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
               </div>
             </div>
           </div>
+
+          {car.sellerId && (
+            <div className="mb-6">
+              <SellerContactBlock kind="cars" listingId={car.id} listingTitle={car.title} sellerId={car.sellerId} />
+            </div>
+          )}
 
           {/* Галерея / Главное фото */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
