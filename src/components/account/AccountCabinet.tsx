@@ -23,6 +23,7 @@ import { MyListingsPanel } from './MyListingsPanel';
 import { AdminUsersPanel } from './AdminUsersPanel';
 import { PartsModerationPanel, CarsModerationPanel } from '../cabinet/PartsModerationPanel';
 import { ReportsPanel } from '../cabinet/ReportsPanel';
+import { CatalogStatusCard } from '../catalog/CatalogStatusCard';
 
 export interface PartsSearchPreset {
   brand?: string;
@@ -578,6 +579,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
           {section === 'moderation' && staff && (
             <div className="space-y-4">
               <h2 className="text-lg font-black text-slate-900">Модерация</h2>
+              <CatalogStatusCard />
               <CarsModerationPanel />
               <PartsModerationPanel />
               <ReportsPanel />

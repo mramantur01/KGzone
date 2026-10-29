@@ -11,6 +11,9 @@ import { partFitsBrand, partFitsModel, partFitsGeneration, partInCategory, partM
 import { ModelPartsTree } from './ModelPartsTree';
 import { useParts } from '../../api/parts';
 import { decodeVin, type VinInfo } from '../../utils/vin';
+import { findCatalogVehicles, getCatalogStatus, looksLikeFrame, type CatalogVehicle } from '../../api/catalog';
+import { CatalogBrowser } from '../catalog/CatalogBrowser';
+import { CrossesPanel } from '../catalog/CrossesPanel';
 import { brandPath, categoryPath, partPath, setPath, setTitle, slugify, type Route } from '../../seo/routes';
 import { togglePartFavorite, usePartFavorites } from '../../utils/partFavorites';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
@@ -138,6 +141,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   const [vinInput, setVinInput] = useState('');
   const [vinInfo, setVinInfo] = useState<VinInfo | null>(null);
   const [vinError, setVinError] = useState<string | null>(null);
+  const [vinBusy, setVinBusy] = useState(false);
+  const [catalogVehicles, setCatalogVehicles] = useState<CatalogVehicle[] | null>(null);
+  const [catalogProvider, setCatalogProvider] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const favoriteIds = usePartFavorites();
   const [selectedPartForDetail, setSelectedPartForDetail] = useState<AutoPartItem | null>(null);
@@ -641,12 +647,39 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   React.useEffect(() => setVisibleCount(PAGE_SIZE), [filteredParts.length, sortBy]);
   const shownParts = filteredParts.slice(0, visibleCount);
 
-  const handleVinSearch = () => {
+  const handleVinSearch = async () => {
     setVinError(null);
-    const info = decodeVin(vinInput);
+    setCatalogVehicles(null);
+    const q = vinInput.trim().toUpperCase().replace(/\s/g, '');
+    const info = decodeVin(q);
+
+    // Connected catalog (Laximo / TecDoc): exact vehicle by VIN or Japanese frame number
+    const status = await getCatalogStatus().catch(() => null);
+    if (status?.configured && (info || (status.features.frame && looksLikeFrame(q)))) {
+      setVinBusy(true);
+      try {
+        const vehicles = await findCatalogVehicles(q);
+        if (vehicles.length) {
+          setCatalogVehicles(vehicles);
+          setCatalogProvider(status.provider || '');
+          setVinInfo(null);
+          return;
+        }
+        setVinError(isKg ? 'Бул номер боюнча унаа каталогдон табылган жок' : 'По этому номеру автомобиль в каталоге не найден');
+      } catch (e: any) {
+        if (e?.status !== 503) setVinError(e?.message || 'Каталог временно не отвечает');
+      } finally {
+        setVinBusy(false);
+      }
+    }
+
     if (!info) {
       setVinInfo(null);
-      setVinError(isKg ? 'VIN 17 белгиден турат (I, O, Q тамгаларысыз). Япон унааларында көбүнчө кузов номери болот — аны издөөгө жазыңыз.' : 'VIN — 17 символов без букв I, O, Q. У японских авто часто номер кузова вместо VIN — введите его в поиск.');
+      setVinError(
+        looksLikeFrame(q)
+          ? (isKg ? 'Кузов номери боюнча тандоо каталог туташтырылгандан кийин иштейт. Азырынча номерди издөөгө жазыңыз.' : 'Подбор по номеру кузова заработает после подключения каталога. Пока введите номер в поиск.')
+          : (isKg ? 'VIN 17 белгиден турат (I, O, Q тамгаларысыз). Япон унааларында көбүнчө кузов номери болот — аны издөөгө жазыңыз.' : 'VIN — 17 символов без букв I, O, Q. У японских авто часто номер кузова вместо VIN — введите его в поиск.')
+      );
       return;
     }
     setVinInfo(info);
@@ -1003,14 +1036,15 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                   value={vinInput}
                   onChange={(e) => setVinInput(e.target.value.toUpperCase())}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleVinSearch(); }}
-                  placeholder={isKg ? '17 белгилүү VIN' : 'VIN из 17 символов'}
-                  maxLength={20}
+                  placeholder={isKg ? 'VIN же кузов номери' : 'VIN или номер кузова'}
+                  maxLength={25}
                   className="flex-1 min-w-0 px-2.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white font-mono uppercase"
                 />
                 <button
                   type="button"
                   onClick={handleVinSearch}
-                  className="px-3 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold cursor-pointer shrink-0"
+                  disabled={vinBusy}
+                  className="px-3 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-bold cursor-pointer shrink-0"
                 >
                   {isKg ? 'Тандоо' : 'Подобрать'}
                 </button>
@@ -1024,6 +1058,29 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                   {vinInfo.region ? ' · ' + vinInfo.region : ''}.{' '}
                   {isKg ? 'Моделди тизмеден тандаңыз. Так тандоо үчүн VIN-каталог туташтырылышы керек.' : 'Выберите модель из списка. Точный подбор по VIN требует подключения VIN-каталога.'}
                 </p>
+              )}
+              {catalogVehicles && (
+                <CatalogBrowser
+                  vehicles={catalogVehicles}
+                  provider={catalogProvider}
+                  onClose={() => setCatalogVehicles(null)}
+                  onPickVehicle={(v) => {
+                    const brand = ALL_CAR_BRANDS.find((b) => b.toLowerCase() === v.brand.toLowerCase());
+                    if (brand) {
+                      setSelectedBrand(brand);
+                      const model = getModelsForBrand(brand).find((m) => v.model.toLowerCase().startsWith(m.toLowerCase()));
+                      setSelectedModel(model || '');
+                      setSelectedGeneration('');
+                    }
+                  }}
+                  onSearchOem={(oem) => {
+                    setSearchQuery(oem);
+                    setSelectedBrand('');
+                    setSelectedModel('');
+                    setSelectedYear('');
+                    setSelectedCategory('Все');
+                  }}
+                />
               )}
             </div>
           </div>
@@ -1188,6 +1245,12 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                 isKg={isKg}
               />
             )}
+
+            <CrossesPanel
+              query={searchQuery}
+              onSearch={(n) => setSearchQuery(n)}
+              onOpenPart={(id) => { const p = partsList.find((x) => x.id === id); if (p) setSelectedPartForDetail(p); }}
+            />
 
             {filteredParts.length === 0 ? (
               <div className="bg-neutral-900/90 rounded-3xl border border-neutral-800 p-12 text-center my-4">

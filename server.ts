@@ -2598,6 +2598,188 @@ app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet)(\/.*)
     .catch((err) => { console.error('[SEO] render failed:', err); next(); });
 });
 
+// ---------------------------------------------------------------------------
+// Parts catalogs (VIN / frame number lookup, OEM numbers, cross references).
+// One interface, several providers. Choose with CATALOG_PROVIDER=laximo|tecdoc and set that
+// provider's credentials (see catalogProviders below). Without them only the built-in
+// "local" features work: cross search across KGzone listings by OEM and cross numbers.
+// Paid lookups are cached (Redis when available) and rate limited per visitor.
+// ---------------------------------------------------------------------------
+
+interface CatalogVehicle {
+  /** Provider-specific reference needed for the next calls (opaque to the browser) */
+  ref: string;
+  brand: string;
+  model: string;
+  modification?: string;
+  year?: string;
+  engine?: string;
+  bodyCode?: string;
+  market?: string;
+}
+interface CatalogGroup { id: string; name: string; parentId?: string }
+interface CatalogPart { oem: string; name: string; quantity?: string; note?: string; brand?: string }
+interface CatalogCross { brand: string; number: string; name?: string }
+
+interface CatalogProvider {
+  id: 'laximo' | 'tecdoc';
+  name: string;
+  /** true once the credentials are present */
+  configured: boolean;
+  features: { vin: boolean; frame: boolean; groups: boolean; crosses: boolean };
+  findVehicles(query: string): Promise<CatalogVehicle[]>;
+  listGroups(vehicleRef: string): Promise<CatalogGroup[]>;
+  listParts(vehicleRef: string, groupId: string): Promise<CatalogPart[]>;
+  findCrosses(oem: string, brand?: string): Promise<CatalogCross[]>;
+}
+
+class CatalogNotReady extends Error {}
+
+const notReady = (provider: string) => () => {
+  // Filled in after access is granted: see the provider's API documentation and the
+  // method contract above. Until then the site reports "catalog not connected".
+  throw new CatalogNotReady(`${provider}: модуль подключения ещё не дописан — нужен доступ к API и документации`);
+};
+
+// Laximo (laximo.ru): original catalogs, VIN and Japanese frame numbers.
+// Env: LAXIMO_LOGIN, LAXIMO_KEY. Typical flow: find vehicle by VIN/frame -> categories ->
+// units (assembly diagrams) -> details (OEM numbers); Aftermarket service for crosses.
+const laximoProvider: CatalogProvider = {
+  id: 'laximo',
+  name: 'Laximo',
+  configured: Boolean(process.env.LAXIMO_LOGIN && process.env.LAXIMO_KEY),
+  features: { vin: true, frame: true, groups: true, crosses: true },
+  findVehicles: notReady('Laximo'),
+  listGroups: notReady('Laximo'),
+  listParts: notReady('Laximo'),
+  findCrosses: notReady('Laximo'),
+};
+
+// TecDoc (TecAlliance): aftermarket catalog and cross references.
+// Env: TECDOC_API_KEY, TECDOC_PROVIDER_ID.
+const tecdocProvider: CatalogProvider = {
+  id: 'tecdoc',
+  name: 'TecDoc',
+  configured: Boolean(process.env.TECDOC_API_KEY && process.env.TECDOC_PROVIDER_ID),
+  features: { vin: true, frame: false, groups: true, crosses: true },
+  findVehicles: notReady('TecDoc'),
+  listGroups: notReady('TecDoc'),
+  listParts: notReady('TecDoc'),
+  findCrosses: notReady('TecDoc'),
+};
+
+const catalogProviders: Record<string, CatalogProvider> = { laximo: laximoProvider, tecdoc: tecdocProvider };
+const activeCatalog = (): CatalogProvider | null => {
+  const p = catalogProviders[(process.env.CATALOG_PROVIDER || '').toLowerCase()];
+  return p && p.configured ? p : null;
+};
+
+// Cache: Redis (shared between server instances) or memory
+const memCache = new Map<string, { at: number; value: unknown }>();
+const CATALOG_TTL = 7 * 86_400; // seconds; catalogs change rarely and lookups are paid
+async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const k = `kgzone:catalog:${createHmac('sha1', 'kgz').update(key).digest('hex')}`;
+  if (redis) {
+    const hit = await redis.get<T>(k);
+    if (hit !== null && hit !== undefined) return hit;
+  } else {
+    const hit = memCache.get(k);
+    if (hit && Date.now() - hit.at < CATALOG_TTL * 1000) return hit.value as T;
+  }
+  const value = await fn();
+  if (redis) await redis.set(k, value as any, { ex: CATALOG_TTL });
+  else { memCache.set(k, { at: Date.now(), value }); if (memCache.size > 2000) memCache.delete(memCache.keys().next().value!); }
+  return value;
+}
+
+const normOem = (v: unknown) => String(v ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+// Runs a provider call and turns "not ready" / failures into clear answers
+async function catalogCall<T>(res: Response, fn: (p: CatalogProvider) => Promise<T>) {
+  const provider = activeCatalog();
+  if (!provider) return res.status(503).json({ success: false, configured: false, error: 'Каталог запчастей (Laximo / TecDoc) пока не подключён' });
+  try {
+    return res.json({ success: true, provider: provider.name, result: await fn(provider) });
+  } catch (err: any) {
+    if (err instanceof CatalogNotReady) return res.status(503).json({ success: false, configured: false, error: err.message });
+    console.error('[catalog]', err);
+    return res.status(502).json({ success: false, error: 'Каталог временно не отвечает. Попробуйте позже.' });
+  }
+}
+
+const catalogLimited = (req: Request, res: Response) => {
+  if (tooMany(`catalog:${clientIp(req)}`, 30, 10 * 60_000)) {
+    res.status(429).json({ success: false, error: 'Слишком много запросов к каталогу. Подождите несколько минут.' });
+    return true;
+  }
+  return false;
+};
+
+app.get('/api/catalog/status', (_req: Request, res: Response) => {
+  const p = activeCatalog();
+  res.json({
+    success: true,
+    configured: Boolean(p),
+    provider: p?.name || null,
+    features: p?.features || { vin: false, frame: false, groups: false, crosses: false },
+    available: Object.values(catalogProviders).map((x) => ({ id: x.id, name: x.name, configured: x.configured })),
+    selected: (process.env.CATALOG_PROVIDER || '').toLowerCase() || null,
+  });
+});
+
+// VIN or frame number -> vehicles (several when the number is ambiguous)
+app.get('/api/catalog/vehicles', (req: Request, res: Response) => {
+  if (catalogLimited(req, res)) return;
+  const q = String(req.query.q || '').toUpperCase().replace(/\s+/g, '').slice(0, 30);
+  if (q.length < 6) return res.status(400).json({ success: false, error: 'Введите VIN (17 символов) или номер кузова' });
+  catalogCall(res, (p) => cached(`${p.id}:veh:${q}`, () => p.findVehicles(q)));
+});
+
+app.get('/api/catalog/groups', (req: Request, res: Response) => {
+  if (catalogLimited(req, res)) return;
+  const ref = String(req.query.vehicle || '').slice(0, 500);
+  if (!ref) return res.status(400).json({ success: false, error: 'Не выбран автомобиль' });
+  catalogCall(res, (p) => cached(`${p.id}:groups:${ref}`, () => p.listGroups(ref)));
+});
+
+app.get('/api/catalog/parts', (req: Request, res: Response) => {
+  if (catalogLimited(req, res)) return;
+  const ref = String(req.query.vehicle || '').slice(0, 500);
+  const group = String(req.query.group || '').slice(0, 200);
+  if (!ref || !group) return res.status(400).json({ success: false, error: 'Не выбран узел' });
+  catalogCall(res, (p) => cached(`${p.id}:parts:${ref}:${group}`, () => p.listParts(ref, group)));
+});
+
+// Cross references: KGzone listings with this OEM/cross number (always) + catalog analogues (when connected)
+app.get('/api/catalog/crosses', asyncRoute(async (req: Request, res: Response) => {
+  const oem = normOem(req.query.oem);
+  if (oem.length < 4) return res.status(400).json({ success: false, error: 'Введите OEM-номер' });
+  const parts = (await listRecords('parts')).filter(isLive);
+  const local = parts
+    .filter((p: any) => normOem(p.partNumber) === oem || (p.crossNumbers || []).some((c: string) => normOem(c) === oem))
+    .slice(0, 50)
+    .map((p: any) => ({ id: p.id, title: p.title, partNumber: p.partNumber, priceKgs: p.priceKgs, city: p.storeCity, image: p.image }));
+
+  let external: CatalogCross[] = [];
+  let externalError: string | null = null;
+  const provider = activeCatalog();
+  if (provider?.features.crosses && !catalogLimited(req, res)) {
+    try {
+      external = await cached(`${provider.id}:cross:${oem}`, () => provider.findCrosses(oem, String(req.query.brand || '') || undefined));
+    } catch (err: any) {
+      externalError = err instanceof CatalogNotReady ? err.message : 'Каталог временно не отвечает';
+    }
+  }
+  if (res.headersSent) return;
+  // Listings that carry one of the catalog analogues
+  const crossSet = new Set(external.map((c) => normOem(c.number)));
+  const viaCrosses = crossSet.size
+    ? parts.filter((p: any) => crossSet.has(normOem(p.partNumber)) && !local.some((l) => l.id === p.id)).slice(0, 50)
+        .map((p: any) => ({ id: p.id, title: p.title, partNumber: p.partNumber, priceKgs: p.priceKgs, city: p.storeCity, image: p.image }))
+    : [];
+  res.json({ success: true, oem, local, viaCrosses, external, catalog: provider?.name || null, externalError });
+}));
+
 // Complaints about listings (parts or cars) -> admin queue
 const REPORT_REASONS = ['Неверная цена', 'Товар уже продан', 'Мошенничество', 'Неверное описание или фото', 'Спам или дубликат', 'Другое'];
 const reportHits = new Map<string, number[]>();
