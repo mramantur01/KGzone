@@ -11,6 +11,7 @@ import { partFitsBrand, partFitsModel, partFitsGeneration, partInCategory, partM
 import { ModelPartsTree } from './ModelPartsTree';
 import { useParts } from '../../api/parts';
 import { decodeVin, type VinInfo } from '../../utils/vin';
+import { brandPath, categoryPath, partPath, setPath, setTitle, slugify, type Route } from '../../seo/routes';
 import { togglePartFavorite, usePartFavorites } from '../../utils/partFavorites';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
@@ -84,6 +85,8 @@ interface PartsSectionProps {
   openSellerSignal?: number;
   isSignedIn?: boolean;
   onRequireAuth?: (notice: string) => void;
+  /** Category / brand / part from the page address */
+  route?: Route | null;
 }
 
 export const PartsSection: React.FC<PartsSectionProps> = ({
@@ -95,6 +98,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   openSellerSignal = 0,
   isSignedIn = false,
   onRequireAuth,
+  route,
 }) => {
   const isKg = language === 'kg';
 
@@ -136,6 +140,45 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   const [vinError, setVinError] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const favoriteIds = usePartFavorites();
+  const [selectedPartForDetail, setSelectedPartForDetail] = useState<AutoPartItem | null>(null);
+  const [pendingPartId, setPendingPartId] = useState<string | undefined>(route?.partId);
+
+  // Apply category / brand / part from the address (/zapchasti/dvigatel, /zapchasti/marka/toyota, /zapchast/<id>)
+  React.useEffect(() => {
+    if (!route) return;
+    if (route.category) { setSelectedCategory(route.category); setSelectedSubPart('Все'); }
+    if (route.brandSlug) {
+      const brand = ALL_CAR_BRANDS.find((b) => slugify(b) === route.brandSlug);
+      if (brand) { setSelectedBrand(brand); setSelectedModel(''); setSelectedGeneration(''); }
+    }
+    if (route.partId) setPendingPartId(decodeURIComponent(route.partId));
+    else setSelectedPartForDetail(null);
+  }, [route]);
+
+  React.useEffect(() => {
+    if (!pendingPartId) return;
+    const part = partsList.find((p) => p.id === pendingPartId);
+    if (part) { setSelectedPartForDetail(part); setPendingPartId(undefined); }
+  }, [partsList, pendingPartId]);
+
+  // Address bar follows the open part, the category or the brand
+  React.useEffect(() => {
+    if (selectedPartForDetail) {
+      setPath(partPath(selectedPartForDetail));
+      setTitle(`${selectedPartForDetail.title} — ${selectedPartForDetail.priceKgs.toLocaleString('ru-RU')} сом`);
+      return;
+    }
+    if (pendingPartId) return;
+    const onlyBrand = selectedBrand && !selectedModel && selectedCategory === 'Все';
+    const path = onlyBrand ? brandPath(selectedBrand) : selectedCategory !== 'Все' && !selectedBrand ? categoryPath(selectedCategory) : '/zapchasti';
+    setPath(path, true);
+    setTitle(
+      onlyBrand ? `Запчасти ${selectedBrand} в Кыргызстане`
+      : selectedCategory !== 'Все' && !selectedBrand ? `${categoriesData.find((c) => c.id === selectedCategory)?.labelRu || selectedCategory} — запчасти в Кыргызстане`
+      : 'Автозапчасти в Кыргызстане — новые, б/у и контрактные'
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPartForDetail, selectedCategory, selectedBrand, selectedModel, pendingPartId]);
 
   // Selling requires an account (listings belong to their seller)
   const openSellerPortal = () => {
@@ -171,7 +214,6 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   };
 
   // Modals state
-  const [selectedPartForDetail, setSelectedPartForDetail] = useState<AutoPartItem | null>(null);
   const [orderedPart, setOrderedPart] = useState<AutoPartItem | null>(null);
   const [isSellerPortalOpen, setIsSellerPortalOpen] = useState<boolean>(false);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState<boolean>(false);

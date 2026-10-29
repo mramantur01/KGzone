@@ -42,6 +42,21 @@ import { ShieldCheck, Calculator, Sparkles, SlidersHorizontal, ArrowUpDown } fro
 import { WorkshopBooking } from './types/car';
 import { setSiteLanguage } from './i18n/domTranslator';
 import { useParts, isDbPart } from './api/parts';
+import { parseRoute, setPath, setTitle, carPath, TAB_PATHS, type Route } from './seo/routes';
+
+// Address the visitor opened (e.g. /zapchast/... from Google)
+const INITIAL_ROUTE: Route = typeof window !== 'undefined' ? parseRoute(window.location.pathname) : { tab: 'cars' };
+
+const TAB_TITLES: Record<string, string> = {
+  cars: 'KGzone — Автомобильный портал Кыргызстана | Автобазар КР',
+  parts: 'Автозапчасти в Кыргызстане — новые, б/у и контрактные',
+  workshop: 'Автосервис и СТО в Бишкеке',
+  promotions: 'Акции и скидки',
+  faq: 'Частые вопросы',
+  reviews: 'Отзывы автовладельцев',
+  news: 'Автоновости Кыргызстана',
+  cabinet: 'Личный кабинет',
+};
 import { useCars, isDbCar } from './api/cars';
 
 // Sections and dialogs that are not needed for the first screen load on demand (smaller first download)
@@ -115,7 +130,9 @@ export default function App() {
   const [language, setLanguage] = useState<Language>('ru');
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [selectedCity, setSelectedCity] = useState<string>('Все регионы');
-  const [activeTab, setActiveTab] = useState<string>('cars');
+  const [activeTab, setActiveTab] = useState<string>(INITIAL_ROUTE.tab);
+  const [partsRoute, setPartsRoute] = useState<Route | null>(INITIAL_ROUTE.tab === 'parts' ? INITIAL_ROUTE : null);
+  const [pendingCarId, setPendingCarId] = useState<string | undefined>(INITIAL_ROUTE.carId);
   const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
 
   // Synchronize dark class on document element
@@ -155,6 +172,42 @@ export default function App() {
 
   // Модальные окна
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
+
+  React.useEffect(() => {
+    if (!pendingCarId) return;
+    const car = cars.find((c) => c.id === pendingCarId);
+    if (car) { setSelectedCar(car); setPendingCarId(undefined); }
+  }, [cars, pendingCarId]);
+
+  // Keep the address bar in sync with the open section / car, so pages can be shared and indexed
+  React.useEffect(() => {
+    if (parseRoute(window.location.pathname).tab !== activeTab) setPath(TAB_PATHS[activeTab] || '/');
+    if (!selectedCar) setTitle(TAB_TITLES[activeTab] || TAB_TITLES.cars);
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    if (selectedCar) {
+      setPath(carPath(selectedCar));
+      setTitle(`${selectedCar.title} — $${selectedCar.priceUsd.toLocaleString('ru-RU')}`);
+    } else if (window.location.pathname.startsWith('/avto/')) {
+      setPath(TAB_PATHS[activeTab] || '/', true);
+      setTitle(TAB_TITLES[activeTab] || TAB_TITLES.cars);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCar]);
+
+  // Back / forward buttons
+  React.useEffect(() => {
+    const onPop = () => {
+      const r = parseRoute(window.location.pathname);
+      setActiveTab(r.tab);
+      if (r.tab === 'parts') setPartsRoute({ ...r });
+      if (r.carId) setPendingCarId(r.carId);
+      else setSelectedCar(null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const [isCarCheckOpen, setIsCarCheckOpen] = useState(false);
   const [carCheckPlate, setCarCheckPlate] = useState('');
   const [isCustomsCalcOpen, setIsCustomsCalcOpen] = useState(false);
@@ -621,6 +674,7 @@ export default function App() {
             onOrderCreated={handleOrderCreated}
             onNavigateToCabinet={() => setActiveTab('cabinet')}
             preset={partsPreset}
+            route={partsRoute}
             openSellerSignal={partsSellSignal}
             isSignedIn={isAuthenticated}
             onRequireAuth={(notice) => openAuth('register', notice)}

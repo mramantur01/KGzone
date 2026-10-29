@@ -2282,6 +2282,322 @@ app.get('/api/company/audit', requireCompany('audit'), asyncRoute(async (req: Re
   res.json({ success: true, entries: (await listRecords('audit')).filter((a: any) => a.companyId === ctx.companyId).slice(0, 300) });
 }));
 
+// ---------------------------------------------------------------------------
+// Search engine pages: every important address returns real HTML (title, description,
+// content, structured data) before the React app takes over in the browser.
+// Only real, approved listings from the database are indexed — never demo listings.
+// Keep SEO_CATEGORIES slugs and seoSlugify() in sync with src/seo/routes.ts.
+// ---------------------------------------------------------------------------
+
+const SEO_CATEGORIES: { slug: string; name: string; keywords: string[]; text: string }[] = [
+  { slug: 'dvigatel', name: 'Двигатель', keywords: ['двигатель', 'гбц', 'поршн', 'турбин', 'грм', 'помпа'], text: 'Контрактные и новые двигатели, ГБЦ, поршни, коленвалы, турбины, ремни и цепи ГРМ.' },
+  { slug: 'transmissiya', name: 'Трансмиссия', keywords: ['трансмисс', 'акпп', 'мкпп', 'вариатор', 'сцеплен', 'привод', 'шрус', 'раздат'], text: 'АКПП, МКПП, вариаторы, сцепление, приводы, ШРУСы и раздаточные коробки.' },
+  { slug: 'podveska', name: 'Подвеска и ходовая', keywords: ['ходов', 'подвеск', 'амортизатор', 'стойк', 'рычаг', 'ступиц', 'пневмобаллон', 'сайлентблок'], text: 'Амортизаторы, стойки, рычаги, ступицы, подшипники, пружины и пневмобаллоны.' },
+  { slug: 'tormoza', name: 'Тормозная система', keywords: ['тормоз', 'колодк', 'суппорт', 'abs'], text: 'Тормозные колодки, диски, суппорты, шланги и блоки ABS.' },
+  { slug: 'kuzov', name: 'Кузовные детали', keywords: ['кузов', 'бампер', 'капот', 'крыло', 'двер', 'зеркал'], text: 'Бамперы, капоты, крылья, двери, крышки багажника и зеркала.' },
+  { slug: 'optika', name: 'Оптика и фары', keywords: ['оптика', 'фара', 'фонар', 'поворотник', 'противотуман'], text: 'Фары LED и ксенон, задние фонари, противотуманные фары и поворотники.' },
+  { slug: 'elektrika', name: 'Электрика', keywords: ['электрик', 'генератор', 'стартер', 'датчик', 'эбу', 'блок управления', 'катушк'], text: 'Генераторы, стартеры, датчики, блоки управления (ЭБУ) и катушки зажигания.' },
+  { slug: 'ohlazhdenie', name: 'Система охлаждения', keywords: ['охлажден', 'радиатор', 'вентилятор', 'термостат'], text: 'Радиаторы, вентиляторы, помпы, термостаты и патрубки.' },
+  { slug: 'otoplenie-kondicioner', name: 'Отопление и кондиционер', keywords: ['отоплен', 'кондиционер', 'печк', 'компрессор кондиционера'], text: 'Радиаторы печки, компрессоры кондиционера, конденсеры и моторы печки.' },
+  { slug: 'toplivnaya-sistema', name: 'Топливная система', keywords: ['топлив', 'форсунк', 'бензонасос', 'дроссел'], text: 'Форсунки, топливные насосы, рампы, баки и топливные фильтры.' },
+  { slug: 'rashodniki-to', name: 'Расходники и ТО', keywords: ['масл', 'фильтр', 'свеч', 'ремн', 'расходник'], text: 'Масла, фильтры, свечи зажигания, ремни и всё для технического обслуживания.' },
+  { slug: 'kolesa-diski', name: 'Колёса, шины и диски', keywords: ['шин', 'диск', 'колес', 'резин'], text: 'Шины, литые и штампованные диски, датчики давления.' },
+  { slug: 'salon', name: 'Салон и интерьер', keywords: ['салон', 'сиден', 'руль', 'торпедо', 'airbag', 'обшивк'], text: 'Сиденья, рули, торпедо, подушки безопасности и обшивки.' },
+  { slug: 'vyhlop', name: 'Выхлопная система', keywords: ['выхлоп', 'глушител', 'катализатор', 'резонатор'], text: 'Глушители, катализаторы, резонаторы и лямбда-зонды.' },
+  { slug: 'tyuning', name: 'Тюнинг и доп. оборудование', keywords: ['тюнинг', 'обвес', 'спойлер', 'фаркоп', 'магнитол', 'регистратор'], text: 'Обвесы, спойлеры, фаркопы, магнитолы, видеорегистраторы и сигнализации.' },
+];
+
+const SEO_BRANDS = [
+  'Toyota', 'Lexus', 'Honda', 'Nissan', 'Mazda', 'Subaru', 'Mitsubishi', 'Suzuki', 'Hyundai', 'Kia', 'Genesis', 'Daewoo', 'Chevrolet',
+  'Mercedes-Benz', 'BMW', 'Audi', 'Volkswagen', 'Porsche', 'Land Rover', 'Volvo', 'Ford', 'Opel', 'Renault', 'Lada',
+  'BYD', 'Geely', 'Chery', 'Haval', 'Changan', 'Zeekr', 'Li Auto', 'Tank', 'Tesla',
+];
+
+const SEO_TRANSLIT: Record<string, string> = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o',
+  п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
+  ң: 'n', ө: 'o', ү: 'u',
+};
+const seoSlugify = (text: string) =>
+  text.toLowerCase().split('').map((ch) => SEO_TRANSLIT[ch] ?? ch).join('').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+
+const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+const jsonLd = (data: unknown) => `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
+const absUrl = (p: string) => (p.startsWith('http') ? p : `${SITE_URL}${p}`);
+const partUrl = (p: any) => `/zapchast/${encodeURIComponent(p.id)}/${seoSlugify(p.title)}`;
+const carUrl = (c: any) => `/avto/${encodeURIComponent(c.id)}/${seoSlugify(c.title)}`;
+const fmtKgs = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} сом`;
+
+const partInSeoCategory = (p: any, cat: (typeof SEO_CATEGORIES)[number]) => {
+  const text = `${p.category} ${p.subcategory || ''} ${p.title}`.toLowerCase();
+  return cat.keywords.some((k) => text.includes(k));
+};
+const partFitsSeoBrand = (p: any, brand: string) =>
+  p.brand === brand || (p.compatibility || []).some((c: any) => c.brand === brand);
+
+let indexTemplate: string | null = null;
+function loadIndexTemplate() {
+  if (indexTemplate === null) {
+    const file = path.resolve(__dirname, 'public', 'index.html');
+    indexTemplate = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  }
+  return indexTemplate;
+}
+
+interface SeoPage {
+  title: string;
+  description: string;
+  path: string;
+  image?: string;
+  body: string;
+  structured: unknown[];
+  status?: number;
+  noindex?: boolean;
+}
+
+function renderSeo(page: SeoPage): string | null {
+  let html = loadIndexTemplate();
+  if (!html) return null;
+  const url = absUrl(page.path);
+  const image = page.image ? absUrl(page.image) : `${SITE_URL}/cars/zeekr-001.jpg`;
+  const head = [
+    `<link rel="canonical" href="${esc(url)}">`,
+    `<meta property="og:url" content="${esc(url)}">`,
+    `<meta property="og:image" content="${esc(image)}">`,
+    page.noindex ? '<meta name="robots" content="noindex">' : '',
+    ...page.structured.map(jsonLd),
+  ].join('\n    ');
+  html = html
+    .replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(page.title)}</title>`)
+    .replace(/<meta name="description" content="[^"]*"\s*\/?>/, `<meta name="description" content="${esc(page.description)}" />`)
+    .replace(/<meta property="og:title" content="[^"]*"\s*\/?>/, `<meta property="og:title" content="${esc(page.title)}" />`)
+    .replace(/<meta property="og:description" content="[^"]*"\s*\/?>/, `<meta property="og:description" content="${esc(page.description)}" />`)
+    .replace('</head>', `    ${head}\n  </head>`)
+    // Visible content for crawlers and for the first moment before the app starts
+    .replace('<div id="root"></div>', `<div id="root"><div style="max-width:1100px;margin:0 auto;padding:24px 16px;font-family:system-ui,sans-serif;color:#e5e5e5;background:#0a0a0a">${page.body}</div></div>`);
+  return html;
+}
+
+const breadcrumbs = (items: [string, string][]) => ({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: items.map(([name, p], i) => ({ '@type': 'ListItem', position: i + 1, name, item: absUrl(p) })),
+});
+const crumbsHtml = (items: [string, string][]) =>
+  `<nav style="font-size:13px;margin-bottom:12px">${items.map(([n, p]) => `<a href="${esc(p)}" style="color:#f87171">${esc(n)}</a>`).join(' › ')}</nav>`;
+const linkList = (links: [string, string][]) =>
+  `<ul style="display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0">${links.map(([n, p]) => `<li><a href="${esc(p)}" style="color:#fbbf24">${esc(n)}</a></li>`).join('')}</ul>`;
+
+const partsListHtml = (parts: any[]) =>
+  parts.length
+    ? `<ul style="list-style:none;padding:0">${parts.map((p) => `<li style="margin:8px 0"><a href="${esc(partUrl(p))}" style="color:#fff;font-weight:700">${esc(p.title)}</a> — ${esc(fmtKgs(p.priceKgs))}, OEM ${esc(p.partNumber)}${p.storeCity ? `, ${esc(p.storeCity)}` : ''}</li>`).join('')}</ul>`
+    : '<p>Сейчас объявлений нет. Загляните позже или подайте своё объявление — это бесплатно.</p>';
+
+const itemList = (parts: any[]) => ({
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  itemListElement: parts.slice(0, 50).map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: absUrl(partUrl(p)), name: p.title })),
+});
+
+const conditionSchema = (c: string) =>
+  /восстановл/i.test(c) ? 'https://schema.org/RefurbishedCondition' : /б\/у|контракт|разбор/i.test(c) ? 'https://schema.org/UsedCondition' : 'https://schema.org/NewCondition';
+
+// Page requests do not pass the /api middleware, so make sure the store is ready here
+const seoStoreReady = () =>
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [] });
+
+const liveParts = async () => (await listRecords('parts')).filter(isLive);
+const liveCars = async () => (await listRecords('cars')).filter(isLive);
+
+const CATEGORY_LINKS = (): [string, string][] => SEO_CATEGORIES.map((c) => [c.name, `/zapchasti/${c.slug}`]);
+const BRAND_LINKS = (): [string, string][] => SEO_BRANDS.map((b) => [`Запчасти ${b}`, `/zapchasti/marka/${seoSlugify(b)}`]);
+
+async function seoPageFor(pathname: string): Promise<SeoPage | null> {
+  await seoStoreReady();
+  const p = decodeURIComponent(pathname).replace(/\/+$/, '') || '/';
+  let m: RegExpMatchArray | null;
+
+  if (p === '/zapchasti') {
+    const parts = (await liveParts()).slice(0, 60);
+    return {
+      title: 'Автозапчасти в Кыргызстане — новые, б/у и контрактные | KGzone',
+      description: 'Каталог автозапчастей в Бишкеке, Оше и по всему Кыргызстану: поиск по марке, модели, OEM-номеру и VIN. Частные продавцы, магазины и разборки.',
+      path: '/zapchasti',
+      body: `${crumbsHtml([['KGzone', '/'], ['Автозапчасти', '/zapchasti']])}<h1>Автозапчасти в Кыргызстане</h1><p>Новые, б/у, контрактные и восстановленные запчасти от частных продавцов, магазинов и авторазборок Бишкека, Оша и всех областей.</p><h2>Категории</h2>${linkList(CATEGORY_LINKS())}<h2>Запчасти по маркам</h2>${linkList(BRAND_LINKS())}<h2>Свежие объявления</h2>${partsListHtml(parts)}`,
+      structured: [breadcrumbs([['KGzone', '/'], ['Автозапчасти', '/zapchasti']]), itemList(parts)],
+    };
+  }
+
+  if ((m = p.match(/^\/zapchasti\/marka\/([^/]+)$/))) {
+    const brand = SEO_BRANDS.find((b) => seoSlugify(b) === m![1]);
+    if (!brand) return null;
+    const parts = (await liveParts()).filter((x: any) => partFitsSeoBrand(x, brand));
+    const path_ = `/zapchasti/marka/${seoSlugify(brand)}`;
+    const crumbs: [string, string][] = [['KGzone', '/'], ['Автозапчасти', '/zapchasti'], [`Запчасти ${brand}`, path_]];
+    return {
+      title: `Запчасти ${brand} в Бишкеке и Кыргызстане — купить новые и б/у | KGzone`,
+      description: `Автозапчасти для ${brand}: двигатели, ходовая, кузов, оптика, расходники. Объявления продавцов и магазинов Кыргызстана с ценами в сомах.`,
+      path: path_,
+      body: `${crumbsHtml(crumbs)}<h1>Запчасти ${esc(brand)}</h1><p>Объявлений: ${parts.length}. Подберите деталь по модели, поколению или OEM-номеру.</p><h2>Категории</h2>${linkList(CATEGORY_LINKS())}<h2>Объявления</h2>${partsListHtml(parts.slice(0, 100))}`,
+      structured: [breadcrumbs(crumbs), itemList(parts)],
+    };
+  }
+
+  if ((m = p.match(/^\/zapchasti\/([^/]+)$/))) {
+    const cat = SEO_CATEGORIES.find((c) => c.slug === m![1]);
+    if (!cat) return null;
+    const parts = (await liveParts()).filter((x: any) => partInSeoCategory(x, cat));
+    const crumbs: [string, string][] = [['KGzone', '/'], ['Автозапчасти', '/zapchasti'], [cat.name, `/zapchasti/${cat.slug}`]];
+    return {
+      title: `${cat.name} — запчасти в Бишкеке и Кыргызстане | KGzone`,
+      description: `${cat.text} Новые, б/у и контрактные запчасти от продавцов Кыргызстана.`,
+      path: `/zapchasti/${cat.slug}`,
+      body: `${crumbsHtml(crumbs)}<h1>${esc(cat.name)}</h1><p>${esc(cat.text)}</p><h2>Объявления</h2>${partsListHtml(parts.slice(0, 100))}<h2>Другие категории</h2>${linkList(CATEGORY_LINKS().filter(([, href]) => href !== `/zapchasti/${cat.slug}`))}`,
+      structured: [breadcrumbs(crumbs), itemList(parts)],
+    };
+  }
+
+  if ((m = p.match(/^\/zapchast\/([^/]+)(?:\/[^/]*)?$/))) {
+    const part: any = await getRecord('parts', m[1]);
+    if (!part || !isLive(part)) {
+      return { title: 'Объявление не найдено | KGzone', description: 'Объявление снято с публикации или удалено.', path: p, body: '<h1>Объявление не найдено</h1><p><a href="/zapchasti" style="color:#fbbf24">Все автозапчасти</a></p>', structured: [], status: 404, noindex: true };
+    }
+    const crumbs: [string, string][] = [['KGzone', '/'], ['Автозапчасти', '/zapchasti'], [part.title, partUrl(part)]];
+    const fits = [part.brand, part.model, part.generation].filter(Boolean).join(' ');
+    const seller = part.storeName || part.companyName || 'Частный продавец';
+    return {
+      title: `${part.title} — ${fmtKgs(part.priceKgs)} | KGzone`,
+      description: `${part.title}. OEM ${part.partNumber}. ${part.condition}. Для ${fits}. Цена ${fmtKgs(part.priceKgs)}${part.storeCity ? `, ${part.storeCity}` : ''}.`.slice(0, 300),
+      path: partUrl(part),
+      image: part.image,
+      body: `${crumbsHtml(crumbs)}<h1>${esc(part.title)}</h1>${part.image ? `<img src="${esc(part.image)}" alt="${esc(part.title)}" style="max-width:100%;width:480px;border-radius:12px">` : ''}<p><b>Цена:</b> ${esc(fmtKgs(part.priceKgs))}</p><p><b>OEM:</b> ${esc(part.partNumber)}${part.crossNumbers?.length ? ` · <b>Кросс-номера:</b> ${esc(part.crossNumbers.join(', '))}` : ''}</p><p><b>Состояние:</b> ${esc(part.condition)} · <b>Подходит:</b> ${esc(fits || 'Не указано')}</p><p><b>Продавец:</b> ${esc(seller)}${part.storeCity ? `, ${esc(part.storeCity)}` : ''}</p>${part.description ? `<p>${esc(part.description)}</p>` : ''}`,
+      structured: [
+        breadcrumbs(crumbs),
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Product',
+          name: part.title,
+          image: part.images?.length ? part.images.map(absUrl) : part.image ? [absUrl(part.image)] : undefined,
+          description: part.description || `${part.title}, OEM ${part.partNumber}`,
+          sku: part.sku || part.partNumber,
+          mpn: part.partNumber,
+          ...(part.manufacturer ? { brand: { '@type': 'Brand', name: part.manufacturer } } : {}),
+          offers: {
+            '@type': 'Offer',
+            url: absUrl(partUrl(part)),
+            price: part.priceKgs,
+            priceCurrency: 'KGS',
+            availability: part.stockCount > 0 ? 'https://schema.org/InStock' : 'https://schema.org/BackOrder',
+            itemCondition: conditionSchema(part.condition),
+            seller: { '@type': part.sellerType === 'legal' ? 'Organization' : 'Person', name: seller },
+          },
+        },
+      ],
+    };
+  }
+
+  if (p === '/avto') {
+    const cars = (await liveCars()).slice(0, 60);
+    return {
+      title: 'Продажа автомобилей в Кыргызстане | KGzone',
+      description: 'Объявления о продаже автомобилей в Бишкеке, Оше и по всему Кыргызстану. Цены, пробег, растаможка.',
+      path: '/avto',
+      body: `${crumbsHtml([['KGzone', '/'], ['Автомобили', '/avto']])}<h1>Продажа автомобилей в Кыргызстане</h1>${cars.length ? `<ul style="list-style:none;padding:0">${cars.map((c: any) => `<li style="margin:8px 0"><a href="${esc(carUrl(c))}" style="color:#fff;font-weight:700">${esc(c.title)}</a> — $${esc(Number(c.priceUsd).toLocaleString('ru-RU'))}, ${esc(c.city)}, ${esc(Number(c.mileageKm).toLocaleString('ru-RU'))} км</li>`).join('')}</ul>` : '<p>Сейчас объявлений нет.</p>'}`,
+      structured: [breadcrumbs([['KGzone', '/'], ['Автомобили', '/avto']])],
+    };
+  }
+
+  if ((m = p.match(/^\/avto\/([^/]+)(?:\/[^/]*)?$/))) {
+    const car: any = await getRecord('cars', m[1]);
+    if (!car || !isLive(car)) {
+      return { title: 'Объявление не найдено | KGzone', description: 'Объявление снято с публикации или удалено.', path: p, body: '<h1>Объявление не найдено</h1><p><a href="/avto" style="color:#fbbf24">Все автомобили</a></p>', structured: [], status: 404, noindex: true };
+    }
+    const crumbs: [string, string][] = [['KGzone', '/'], ['Автомобили', '/avto'], [car.title, carUrl(car)]];
+    return {
+      title: `${car.title} — $${Number(car.priceUsd).toLocaleString('ru-RU')}, ${car.city} | KGzone`,
+      description: `${car.title}: ${car.year} г., пробег ${Number(car.mileageKm).toLocaleString('ru-RU')} км, ${car.transmission}, ${car.fuelType}, ${car.customs}. Цена $${car.priceUsd}, ${car.city}.`,
+      path: carUrl(car),
+      image: car.image,
+      body: `${crumbsHtml(crumbs)}<h1>${esc(car.title)}</h1>${car.image ? `<img src="${esc(car.image)}" alt="${esc(car.title)}" style="max-width:100%;width:560px;border-radius:12px">` : ''}<p><b>Цена:</b> $${esc(Number(car.priceUsd).toLocaleString('ru-RU'))}</p><p>${esc(car.year)} г. · ${esc(Number(car.mileageKm).toLocaleString('ru-RU'))} км · ${esc(car.transmission)} · ${esc(car.fuelType)} · ${esc(car.drive)} · ${esc(car.customs)}</p><p><b>Город:</b> ${esc(car.city)}</p>${car.description && car.description !== '—' ? `<p>${esc(car.description)}</p>` : ''}`,
+      structured: [
+        breadcrumbs(crumbs),
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Car',
+          name: car.title,
+          brand: { '@type': 'Brand', name: car.brand },
+          model: car.model,
+          vehicleModelDate: String(car.year),
+          mileageFromOdometer: { '@type': 'QuantitativeValue', value: car.mileageKm, unitCode: 'KMT' },
+          fuelType: car.fuelType,
+          vehicleTransmission: car.transmission,
+          color: car.color || undefined,
+          image: car.photos?.length ? car.photos.map(absUrl) : car.image ? [absUrl(car.image)] : undefined,
+          offers: { '@type': 'Offer', price: car.priceUsd, priceCurrency: 'USD', url: absUrl(carUrl(car)), availability: 'https://schema.org/InStock' },
+        },
+      ],
+    };
+  }
+
+  const STATIC: Record<string, [string, string, string]> = {
+    '/sto': ['Автосервис и СТО в Бишкеке — онлайн-запись | KGzone', 'Диагностика, ремонт и обслуживание авто в Бишкеке. Онлайн-запись на СТО, прайс-лист и отзывы.', 'Автосервис и СТО'],
+    '/faq': ['Частые вопросы — покупка авто и запчастей в Кыргызстане | KGzone', 'Ответы на вопросы о покупке и продаже авто и запчастей, растаможке и проверке автомобилей в КР.', 'Частые вопросы'],
+    '/akcii': ['Акции и скидки на автозапчасти и сервис | KGzone', 'Актуальные акции и скидки на автозапчасти и обслуживание автомобилей в Кыргызстане.', 'Акции и скидки'],
+    '/otzyvy': ['Отзывы автовладельцев Кыргызстана | KGzone', 'Отзывы владельцев автомобилей о машинах, запчастях и сервисе в Кыргызстане.', 'Отзывы автовладельцев'],
+    '/novosti': ['Автоновости Кыргызстана | KGzone', 'Новости авторынка Кыргызстана: законы, растаможка, цены и тенденции.', 'Автоновости'],
+  };
+  if (STATIC[p]) {
+    const [title, description, h1] = STATIC[p];
+    return { title, description, path: p, body: `${crumbsHtml([['KGzone', '/'], [h1, p]])}<h1>${esc(h1)}</h1><p>${esc(description)}</p>`, structured: [breadcrumbs([['KGzone', '/'], [h1, p]])] };
+  }
+  if (p === '/kabinet') {
+    return { title: 'Личный кабинет | KGzone', description: 'Вход и регистрация на KGzone.', path: p, body: '<h1>Личный кабинет</h1>', structured: [], noindex: true };
+  }
+  return null;
+}
+
+app.get('/robots.txt', (_req: Request, res: Response) => {
+  res.type('text/plain').send(
+    ['User-agent: *', 'Allow: /', 'Disallow: /api/', 'Disallow: /kabinet', `Sitemap: ${SITE_URL}/sitemap.xml`, ''].join('\n')
+  );
+});
+
+app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
+  await seoStoreReady();
+  const [parts, cars] = await Promise.all([liveParts(), liveCars()]);
+  const day = (iso?: string) => (iso ? iso.slice(0, 10) : undefined);
+  const urls: { loc: string; lastmod?: string; priority: string }[] = [
+    { loc: '/', priority: '1.0' },
+    { loc: '/zapchasti', priority: '0.9' },
+    { loc: '/avto', priority: '0.8' },
+    ...SEO_CATEGORIES.map((c) => ({ loc: `/zapchasti/${c.slug}`, priority: '0.7' })),
+    ...SEO_BRANDS.map((b) => ({ loc: `/zapchasti/marka/${seoSlugify(b)}`, priority: '0.7' })),
+    ...['/sto', '/akcii', '/faq', '/otzyvy', '/novosti'].map((loc) => ({ loc, priority: '0.5' })),
+    ...parts.map((p: any) => ({ loc: partUrl(p), lastmod: day(p.updatedAt || p.raisedAt || p.createdAt), priority: '0.6' })),
+    ...cars.map((c: any) => ({ loc: carUrl(c), lastmod: day(c.updatedAt || c.raisedAt || c.createdAt), priority: '0.6' })),
+  ];
+  const xml =
+    '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    urls.map((u) => `  <url><loc>${esc(absUrl(u.loc))}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}<priority>${u.priority}</priority></url>`).join('\n') +
+    '\n</urlset>\n';
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=3600');
+  res.type('application/xml').send(xml);
+}));
+
+// Page requests (not files, not API): send prepared HTML when we have it
+app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
+  if (!isProd) return next();
+  seoPageFor(req.path)
+    .then((page) => {
+      const html = page && renderSeo(page);
+      if (!html) return next();
+      res.status(page!.status || 200);
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=600');
+      res.type('html').send(html);
+    })
+    .catch((err) => { console.error('[SEO] render failed:', err); next(); });
+});
+
 // Complaints about listings (parts or cars) -> admin queue
 const REPORT_REASONS = ['Неверная цена', 'Товар уже продан', 'Мошенничество', 'Неверное описание или фото', 'Спам или дубликат', 'Другое'];
 const reportHits = new Map<string, number[]>();
