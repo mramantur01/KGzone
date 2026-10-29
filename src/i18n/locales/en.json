@@ -3166,5 +3166,6 @@
  "Файл пустой": "The file is empty",
  "Не больше 500 строк за раз. Разделите файл на части.": "No more than 500 rows at a time. Split the file.",
  "Слишком много загрузок. Попробуйте через час.": "Too many uploads. Try again in an hour.",
- "Выполнен": "Completed"
+ "Выполнен": "Completed",
+ "Загрузка": "Loading"
 }

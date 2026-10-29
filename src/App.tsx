@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
 import {
   Car,
   Currency,
@@ -32,24 +32,10 @@ import {
 import { Header } from './components/layout/Header';
 import { HeroFilter } from './components/cars/HeroFilter';
 import { CarCard } from './components/cars/CarCard';
-import { CarDetailModal } from './components/modals/CarDetailModal';
-import { CarCheckModal } from './components/modals/CarCheckModal';
-import { CustomsCalculatorModal } from './components/modals/CustomsCalculatorModal';
-import { AddListingModal } from './components/modals/AddListingModal';
-import { FavoritesModal } from './components/modals/FavoritesModal';
-import { PartsSection } from './components/sections/PartsSection';
-import { ReviewsSection } from './components/sections/ReviewsSection';
-import { NewsSection } from './components/sections/NewsSection';
-import { AccountCabinet, type PartsSearchPreset } from './components/account/AccountCabinet';
-import { AuthModal } from './components/auth/AuthModal';
+import type { PartsSearchPreset } from './components/account/AccountCabinet';
 import { useAuth, isStaff, type Account } from './api/auth';
 import { useUnreadMessages } from './api/chat';
 import { LandingHero } from './components/sections/LandingHero';
-import { WorkshopSection } from './components/sections/WorkshopSection';
-import { FaqSection } from './components/sections/FaqSection';
-import { PromotionsSection } from './components/sections/PromotionsSection';
-import { SiteControlPanelModal } from './components/cabinet/SiteControlPanelModal';
-import { AIConsultantChatbot } from './components/chatbot/AIConsultantChatbot';
 import { Footer } from './components/layout/Footer';
 import { KyrgyzSectionDivider, KochkorMuyuzIcon, TundukIcon } from './components/ornaments/KyrgyzOrnaments';
 import { ShieldCheck, Calculator, Sparkles, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
@@ -57,6 +43,30 @@ import { WorkshopBooking } from './types/car';
 import { setSiteLanguage } from './i18n/domTranslator';
 import { useParts, isDbPart } from './api/parts';
 import { useCars, isDbCar } from './api/cars';
+
+// Sections and dialogs that are not needed for the first screen load on demand (smaller first download)
+const CarCheckModal = lazy(() => import('./components/modals/CarCheckModal').then((m) => ({ default: m.CarCheckModal })));
+const CustomsCalculatorModal = lazy(() => import('./components/modals/CustomsCalculatorModal').then((m) => ({ default: m.CustomsCalculatorModal })));
+const AddListingModal = lazy(() => import('./components/modals/AddListingModal').then((m) => ({ default: m.AddListingModal })));
+const FavoritesModal = lazy(() => import('./components/modals/FavoritesModal').then((m) => ({ default: m.FavoritesModal })));
+const PartsSection = lazy(() => import('./components/sections/PartsSection').then((m) => ({ default: m.PartsSection })));
+const ReviewsSection = lazy(() => import('./components/sections/ReviewsSection').then((m) => ({ default: m.ReviewsSection })));
+const NewsSection = lazy(() => import('./components/sections/NewsSection').then((m) => ({ default: m.NewsSection })));
+const WorkshopSection = lazy(() => import('./components/sections/WorkshopSection').then((m) => ({ default: m.WorkshopSection })));
+const FaqSection = lazy(() => import('./components/sections/FaqSection').then((m) => ({ default: m.FaqSection })));
+const PromotionsSection = lazy(() => import('./components/sections/PromotionsSection').then((m) => ({ default: m.PromotionsSection })));
+const SiteControlPanelModal = lazy(() => import('./components/cabinet/SiteControlPanelModal').then((m) => ({ default: m.SiteControlPanelModal })));
+const AIConsultantChatbot = lazy(() => import('./components/chatbot/AIConsultantChatbot').then((m) => ({ default: m.AIConsultantChatbot })));
+const AuthModal = lazy(() => import('./components/auth/AuthModal').then((m) => ({ default: m.AuthModal })));
+const AccountCabinet = lazy(() => import('./components/account/AccountCabinet').then((m) => ({ default: m.AccountCabinet })));
+
+const CarDetailModal = lazy(() => import('./components/modals/CarDetailModal').then((m) => ({ default: m.CarDetailModal })));
+
+const SectionFallback = () => (
+  <div className="py-24 flex justify-center" aria-label="Загрузка">
+    <div className="w-8 h-8 rounded-full border-4 border-slate-300 border-t-[#C8102E] animate-spin" />
+  </div>
+);
 
 // Older components still expect the UserProfile shape; build it from the signed-in account
 function accountToProfile(a: Account | null): UserProfile {
@@ -154,6 +164,13 @@ export default function App() {
   const [authModalNotice, setAuthModalNotice] = useState<string | null>(null);
   const [authModalInitialTab, setAuthModalInitialTab] = useState<'login' | 'register'>('login');
   const [pendingPostAfterAuth, setPendingPostAfterAuth] = useState(false);
+  const [chatReady, setChatReady] = useState(false);
+  React.useEffect(() => {
+    const start = () => setChatReady(true);
+    const w = window as any;
+    const id = w.requestIdleCallback ? w.requestIdleCallback(start, { timeout: 4000 }) : setTimeout(start, 2500);
+    return () => (w.cancelIdleCallback ? w.cancelIdleCallback(id) : clearTimeout(id));
+  }, []);
   const [partsPreset, setPartsPreset] = useState<PartsSearchPreset | null>(null);
   const [partsSellSignal, setPartsSellSignal] = useState(0);
 
@@ -595,6 +612,7 @@ export default function App() {
           </div>
         )}
 
+        <Suspense fallback={<SectionFallback />}>
         {/* Раздел автозапчастей */}
         {activeTab === 'parts' && (
           <PartsSection
@@ -663,6 +681,7 @@ export default function App() {
             }}
           />
         )}
+        </Suspense>
       </main>
 
       {/* Футер */}
@@ -682,6 +701,8 @@ export default function App() {
       />
 
       {/* Модальная Панель Управления Сайтом */}
+      {isControlPanelOpen && staff && (
+        <Suspense fallback={null}>
       <SiteControlPanelModal
         isOpen={isControlPanelOpen && staff}
         onClose={() => setIsControlPanelOpen(false)}
@@ -698,8 +719,12 @@ export default function App() {
         language={language}
         currency={currency}
       />
+        </Suspense>
+      )}
 
       {/* Модальное окно входа и регистрации в Личный кабинет (в точности как на образце) */}
+      {isCabinetAuthModalOpen && (
+        <Suspense fallback={null}>
       <AuthModal
         isOpen={isCabinetAuthModalOpen}
         onClose={() => {
@@ -719,7 +744,11 @@ export default function App() {
           }
         }}
       />
+        </Suspense>
+      )}
 
+      {selectedCar && (
+        <Suspense fallback={null}>
       <CarDetailModal
         car={selectedCar}
         onClose={() => setSelectedCar(null)}
@@ -729,20 +758,32 @@ export default function App() {
         onToggleFavorite={toggleFavorite}
         onOpenCarCheckWithPlate={handleOpenCarCheckWithPlate}
       />
+        </Suspense>
+      )}
 
+      {isCarCheckOpen && (
+        <Suspense fallback={null}>
       <CarCheckModal
         isOpen={isCarCheckOpen}
         onClose={() => setIsCarCheckOpen(false)}
         language={language}
         initialPlate={carCheckPlate}
       />
+        </Suspense>
+      )}
 
+      {isCustomsCalcOpen && (
+        <Suspense fallback={null}>
       <CustomsCalculatorModal
         isOpen={isCustomsCalcOpen}
         onClose={() => setIsCustomsCalcOpen(false)}
         language={language}
       />
+        </Suspense>
+      )}
 
+      {isAddListingOpen && (
+        <Suspense fallback={null}>
       <AddListingModal
         isOpen={isAddListingOpen}
         onClose={() => setIsAddListingOpen(false)}
@@ -750,7 +791,11 @@ export default function App() {
         language={language}
         currentUser={userProfile}
       />
+        </Suspense>
+      )}
 
+      {isFavoritesOpen && (
+        <Suspense fallback={null}>
       <FavoritesModal
         isOpen={isFavoritesOpen}
         onClose={() => setIsFavoritesOpen(false)}
@@ -760,14 +805,20 @@ export default function App() {
         onRemoveFavorite={toggleFavorite}
         onSelectCar={(car) => setSelectedCar(car)}
       />
+        </Suspense>
+      )}
 
       {/* Интеллектуальный AI Автоэксперт / Чат-бот портала */}
+      {chatReady && (
+        <Suspense fallback={null}>
       <AIConsultantChatbot
         language={language}
         onOpenCarCheck={handleOpenCarCheckWithPlate}
         onOpenCustomsCalc={() => setIsCustomsCalcOpen(true)}
         onOpenParts={() => setActiveTab('parts')}
       />
+        </Suspense>
+      )}
     </div>
   );
 }

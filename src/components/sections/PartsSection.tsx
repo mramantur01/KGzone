@@ -4,6 +4,7 @@ import {
   ALL_CAR_BRANDS,
   getModelsForBrand,
   getGenerationsForModel,
+  useCarCatalog,
   USD_TO_KGS_RATE,
 } from '../../data/mockData';
 import { partFitsBrand, partFitsModel, partFitsGeneration, partInCategory, partMatchesSubPart } from '../../utils/partMatching';
@@ -203,10 +204,12 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     }));
   };
 
+  const catalogVersion = useCarCatalog();
   const availableModels = getModelsForBrand(selectedBrand);
   const availableGenerations = useMemo(
     () => (selectedBrand && selectedModel ? getGenerationsForModel(selectedBrand, selectedModel) : []),
-    [selectedBrand, selectedModel]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedBrand, selectedModel, catalogVersion]
   );
   const currentGeneration = availableGenerations.find((g) => g.name === selectedGeneration) || null;
   // Popular brands first, then every other brand from the catalog
@@ -1182,6 +1185,8 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           onClick={() => setSelectedPartForDetail(part)}
                         >
                           <img
+                            loading="lazy"
+                            decoding="async"
                             src={part.image}
                             alt={part.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -1362,7 +1367,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           onClick={() => setSelectedPartForDetail(part)}
                           className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-neutral-950 shrink-0 cursor-pointer relative"
                         >
-                          <img src={part.image} alt={part.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          <img src={part.image} alt={part.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                           {part.hasCompressionVideo && (
                             <span className="absolute bottom-1 right-1 bg-red-600 text-white p-0.5 rounded text-[9px]">
                               <Video size={10} />

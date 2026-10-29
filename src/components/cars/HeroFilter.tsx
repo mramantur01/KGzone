@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ALL_CAR_BRANDS, getModelsForBrand, KYRGYZ_REGIONS_AND_CITIES } from '../../data/mockData';
+import { ALL_CAR_BRANDS, getModelsForBrand, KYRGYZ_REGIONS_AND_CITIES, useCarCatalog } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { Currency, Language } from '../../types/car';
 import {
@@ -66,6 +66,7 @@ export const HeroFilter: React.FC<HeroFilterProps> = ({
   const isKg = language === 'kg';
   const isUsd = currency === 'USD';
 
+  useCarCatalog();
   const availableModels = getModelsForBrand(filters.brand);
 
   const handleBrandChange = (brand: string) => {

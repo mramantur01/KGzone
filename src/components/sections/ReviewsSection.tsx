@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AUTO_REVIEWS } from '../../data/mockData';
+import { AUTO_REVIEWS } from '../../data/reviewsData';
 import { INITIAL_USER_REVIEWS } from '../../data/workshopData';
 import { Language, UserReview } from '../../types/car';
 import { KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';

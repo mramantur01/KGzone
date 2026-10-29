@@ -17,7 +17,7 @@ import { listMyOrders } from '../../api/myListings';
 import { usePartFavorites, togglePartFavorite } from '../../utils/partFavorites';
 import { useViewHistory, clearViewHistory } from '../../utils/viewHistory';
 import { partFitsModel } from '../../utils/partMatching';
-import { ALL_CAR_BRANDS, getModelsForBrand } from '../../data/mockData';
+import { ALL_CAR_BRANDS, getModelsForBrand, useCarCatalog } from '../../data/mockData';
 import { KG_CITIES } from '../auth/AuthModal';
 import { MyListingsPanel } from './MyListingsPanel';
 import { AdminUsersPanel } from './AdminUsersPanel';
@@ -60,6 +60,7 @@ const writeSeen = (v: Record<string, string[]>) => {
 export const AccountCabinet: React.FC<Props> = (props) => {
   const { cars, favoriteCarIds, onToggleCarFavorite, onSelectCar, onOpenAuth, onSellPart, onSellCar, onFindParts } = props;
   const { user, loading } = useAuth();
+  useCarCatalog();
   const parts = useParts();
   const partFavIds = usePartFavorites();
   const history = useViewHistory();

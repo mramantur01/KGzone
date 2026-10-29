@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MOCK_CARCHECK_REPORTS } from '../../data/mockData';
+import { MOCK_CARCHECK_REPORTS } from '../../data/carcheckData';
 import { CarCheckReport, Language } from '../../types/car';
 import { KochkorMuyuzIcon, KyrgyzPlateBadge, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import {

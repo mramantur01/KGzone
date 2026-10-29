@@ -1,5 +1,5 @@
 import React from 'react';
-import { AUTO_NEWS } from '../../data/mockData';
+import { AUTO_NEWS } from '../../data/newsData';
 import { Language } from '../../types/car';
 import { KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { Eye, Clock, ArrowRight } from 'lucide-react';

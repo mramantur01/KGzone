@@ -81,6 +81,8 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
   const isUsd = currency === 'USD';
 
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
+  // Only the visible slide and the next one are downloaded
+  const [loadedSlides, setLoadedSlides] = useState<Set<number>>(() => new Set([0, 1]));
   const [cardPosition, setCardPosition] = useState<'left' | 'right'>('left');
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -256,7 +258,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
       priceKgs: Math.round(car.priceUsd * USD_TO_KGS_RATE),
       city: car.city,
       plate: car.plateNumber,
-      image: car.image,
+      image: car.photos?.[0] || car.image,
       year: car.year,
       mileage: `${km} км`,
       specsRu: [`${car.year} г.`, engine, `${car.powerHp} л.с.`, drive, `${km} км`, car.transmission].filter(Boolean).join(' • '),
@@ -288,6 +290,13 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
   };
 
   const currentSlide = slides[currentSlideIndex];
+  React.useEffect(() => {
+    setLoadedSlides((prev) => {
+      const next = (currentSlideIndex + 1) % slides.length;
+      if (prev.has(currentSlideIndex) && prev.has(next)) return prev;
+      return new Set([...prev, currentSlideIndex, next]);
+    });
+  }, [currentSlideIndex, slides.length]);
 
   const getBadgeText = (slide: ShowcaseSlide) => {
     if (isKg) return slide.badgeKg;
@@ -336,11 +345,13 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
               idx === currentSlideIndex ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
             }`}
           >
-            <img
+            {loadedSlides.has(idx) && <img
               src={slide.image}
               alt={slide.title}
+              decoding="async"
+              fetchPriority={idx === 0 ? 'high' : 'low'}
               className="w-full h-full object-cover object-center transform scale-100 transition-transform duration-7000 ease-out"
-            />
+            />}
             {/* Soft vignette on edges that keeps 90% of the photo crisp and vibrant */}
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none" />
             <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent pointer-events-none" />

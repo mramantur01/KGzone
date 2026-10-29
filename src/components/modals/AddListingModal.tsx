@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Car, Language, UserProfile } from '../../types/car';
-import { ALL_CAR_BRANDS, getModelsForBrand, KYRGYZ_REGIONS_AND_CITIES } from '../../data/mockData';
+import { ALL_CAR_BRANDS, getModelsForBrand, KYRGYZ_REGIONS_AND_CITIES, useCarCatalog } from '../../data/mockData';
 import { KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { X, Check, Image as ImageIcon, ShieldCheck, Loader2, Clock } from 'lucide-react';
 import { submitCar } from '../../api/cars';
@@ -28,6 +28,7 @@ export const AddListingModal: React.FC<AddListingModalProps> = ({
   currentUser,
 }) => {
   const isKg = language === 'kg';
+  useCarCatalog();
 
   const [brand, setBrand] = useState('Toyota');
   const [model, setModel] = useState('Camry');

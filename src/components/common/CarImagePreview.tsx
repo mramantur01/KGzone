@@ -41,6 +41,8 @@ export const CarImagePreview: React.FC<CarImagePreviewProps> = ({
           src={src}
           alt={alt}
           referrerPolicy="no-referrer"
+          loading="lazy"
+          decoding="async"
           onError={() => setHasError(true)}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
