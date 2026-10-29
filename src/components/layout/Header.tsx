@@ -4,7 +4,7 @@ import { Currency, Language } from '../../types/car';
 import { 
   Heart, Plus, Search, ShieldCheck, User, Menu, X, Wrench, 
   Calculator, MessageSquare, Newspaper, Tag, HelpCircle, Sun, Moon,
-  Phone, MessageCircle, Shield
+  Phone, MessageCircle, Shield, Cog
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -229,15 +229,15 @@ export const Header: React.FC<HeaderProps> = ({
             <span>CarCheck KG</span>
           </button>
 
+          {/* Main section of the marketplace: highlighted in brand red */}
           <button
             onClick={() => setActiveTab('parts')}
-            className={`whitespace-nowrap transition-colors pb-1 border-b-2 cursor-pointer ${
-              activeTab === 'parts'
-                ? 'text-white border-white'
-                : 'text-neutral-300 border-transparent hover:text-white hover:border-white/50'
+            className={`group flex items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 -my-1.5 rounded-full font-black text-white cursor-pointer transition-all bg-gradient-to-r from-[#C8102E] to-[#E8323F] shadow-[0_0_14px_rgba(200,16,46,0.55)] hover:shadow-[0_0_22px_rgba(232,50,63,0.85)] hover:scale-[1.04] ${
+              activeTab === 'parts' ? 'ring-2 ring-white/90 ring-offset-2 ring-offset-black' : ''
             }`}
           >
-            {isKg ? 'Тетиктер (Запчасти)' : isEn ? 'Parts' : 'Автозапчасти'}
+            <Cog size={15} className="text-white transition-transform duration-700 group-hover:rotate-180" />
+            <span>{isKg ? 'Тетиктер (Запчасти)' : isEn ? 'Parts' : 'Автозапчасти'}</span>
           </button>
 
           <button
@@ -389,12 +389,12 @@ export const Header: React.FC<HeaderProps> = ({
                 setActiveTab('parts');
                 setMobileMenuOpen(false);
               }}
-              className={`p-2.5 rounded-xl text-left text-xs font-bold flex items-center gap-2 transition-colors ${
-                activeTab === 'parts' ? 'bg-[#C8102E] text-white' : 'bg-neutral-900 hover:bg-neutral-850 text-white border border-neutral-800'
+              className={`p-2.5 rounded-xl text-left text-xs font-black flex items-center gap-2 transition-all text-white bg-gradient-to-r from-[#C8102E] to-[#E8323F] shadow-[0_0_12px_rgba(200,16,46,0.5)] ${
+                activeTab === 'parts' ? 'ring-2 ring-white/80' : ''
               }`}
             >
-              <Wrench size={15} />
-              <span>Запчасти</span>
+              <Cog size={15} />
+              <span>Автозапчасти</span>
             </button>
 
             <button
