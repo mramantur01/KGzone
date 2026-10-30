@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { AUTO_REVIEWS } from '../../data/reviewsData';
-import { INITIAL_USER_REVIEWS } from '../../data/workshopData';
 import { Language, UserReview } from '../../types/car';
 import { KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { Star, ThumbsUp, Mountain, Check, X, Plus, MessageSquare, CheckCircle2, User } from 'lucide-react';
@@ -11,7 +9,9 @@ interface ReviewsSectionProps {
 
 export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [reviewsList, setReviewsList] = useState<UserReview[]>(INITIAL_USER_REVIEWS);
+  // Only real reviews from the database (moderated); no invented ones
+  const [reviewsList, setReviewsList] = useState<UserReview[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [likedReviews, setLikedReviews] = useState<string[]>([]);
   const [isAddReviewOpen, setIsAddReviewOpen] = useState(false);
 
@@ -19,7 +19,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
   const [authorName, setAuthorName] = useState('');
   const [city, setCity] = useState('Бишкек');
   const [category, setCategory] = useState<'service' | 'car_purchase' | 'parts' | 'carcheck'>('service');
-  const [targetTitle, setTargetTitle] = useState('СТО KGzone (Льва Толстого)');
+  const [targetTitle, setTargetTitle] = useState('');
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
   const [pros, setPros] = useState('');
@@ -30,20 +30,16 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
   const isKg = language === 'kg';
   const isEn = language === 'en';
 
-  // Load saved reviews from the database; keep built-in demo reviews the DB doesn't have
   useEffect(() => {
     let cancelled = false;
     fetch('/api/reviews')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled || !data?.success || !Array.isArray(data.reviews)) return;
-        const saved: UserReview[] = data.reviews;
-        const savedIds = new Set(saved.map((r) => r.id));
-        setReviewsList([...saved, ...INITIAL_USER_REVIEWS.filter((r) => !savedIds.has(r.id))]);
+        setReviewsList(data.reviews);
       })
-      .catch(() => {
-        // Offline: keep the built-in reviews
-      });
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setLoaded(true); });
     return () => {
       cancelled = true;
     };
@@ -82,32 +78,39 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
       text: reviewText,
       pros,
       cons,
-      verifiedPurchase: true,
-      likes: 1,
+      verifiedPurchase: false,
+      likes: 0,
     };
 
-    let savedRev = newRev;
+    // Reviews appear after moderation; nothing is shown as published before that
+    let ok = false;
+    let errorText = '';
     try {
       const res = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRev),
       });
-      const data = await res.json();
-      if (data?.success && data.review) savedRev = { ...newRev, ...data.review };
+      const data = await res.json().catch(() => ({}));
+      ok = Boolean(res.ok && data?.success);
+      errorText = data?.error || '';
     } catch {
-      // Local fallback
+      errorText = 'Нет связи с сервером';
     }
 
-    setReviewsList((prev) => [savedRev, ...prev]);
     setIsSubmitting(false);
+    if (!ok) {
+      setNotification(errorText || 'Не удалось отправить отзыв');
+      setTimeout(() => setNotification(null), 3500);
+      return;
+    }
     setIsAddReviewOpen(false);
     setAuthorName('');
     setReviewText('');
     setPros('');
     setCons('');
-    setNotification(isKg ? 'Пикириңиз ийгиликтүү кошулду!' : 'Ваш отзыв успешно опубликован!');
-    setTimeout(() => setNotification(null), 3500);
+    setNotification(isKg ? 'Пикириңиз модерацияга жөнөтүлдү' : 'Отзыв отправлен на модерацию и появится после проверки');
+    setTimeout(() => setNotification(null), 4000);
   };
 
   const filteredReviews = reviewsList.filter((r) => {
@@ -133,12 +136,12 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
             <span>KGzone Отзывы · Кыргызстан</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            {isKg ? 'Чыныгы кардарлардын жана айдоочулардын пикирлери' : 'Отзывы реальных пользователей и автовладельцев'}
+            {isKg ? 'Колдонуучулардын пикирлери' : 'Отзывы пользователей'}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {isKg
-              ? 'Автосервис, сатып алынган унаалар, Кудайбергендеги тетиктер жана CarCheck KG текшерүүлөрү боюнча пикирлер'
-              : 'Честные оценки СТО, покупки авто на авторынках КР, оригинальности запчастей и отчетов CarCheck KG'}
+              ? 'Пикирлер модерациядан кийин жарыяланат. Сатуучулар жөнүндө пикирлер — алардын жарыяларында.'
+              : 'Отзывы публикуются после проверки модератором. Отзывы о конкретных продавцах — в их объявлениях.'}
           </p>
         </div>
 
@@ -156,8 +159,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
         {[
           { id: 'all', label: isKg ? 'Бардык пикирлер' : 'Все отзывы' },
           { id: 'service', label: isKg ? 'СТО жана Автосервис' : 'Автосервис & Ремонт' },
-          { id: 'parts', label: isKg ? 'Тетиктер (Запчасти)' : 'Запчасти Кудайберген' },
-          { id: 'carcheck', label: 'CarCheck KG' },
+          { id: 'parts', label: isKg ? 'Тетиктер (Запчасти)' : 'Запчасти' },
           { id: 'car_purchase', label: isKg ? 'Унаа сатып алуу' : 'Покупка авто' },
         ].map((c) => (
           <button
@@ -175,6 +177,11 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
       </div>
 
       {/* Сетка пользовательских отзывов */}
+      {loaded && filteredReviews.length === 0 && (
+        <p className="mb-10 p-8 text-center text-sm text-slate-500 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+          {isKg ? 'Азырынча пикир жок. Биринчи болуп калтырыңыз!' : 'Отзывов пока нет. Оставьте первый!'}
+        </p>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
         {filteredReviews.map((rev) => (
           <div
@@ -203,9 +210,11 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
                 </div>
               </div>
 
-              <div className="text-xs font-semibold text-[#C8102E] mb-2">
-                Объект: {rev.targetTitle}
-              </div>
+              {rev.targetTitle && (
+                <div className="text-xs font-semibold text-[#C8102E] mb-2" data-no-i18n>
+                  {rev.targetTitle}
+                </div>
+              )}
 
               <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed mb-4">
                 {rev.text}
@@ -230,10 +239,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
             </div>
 
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs text-slate-500">
-              <span className="text-[11px] text-emerald-600 flex items-center gap-1">
-                <CheckCircle2 size={12} />
-                Проверенный клиент KGzone
-              </span>
+              <span />
 
               <button
                 type="button"
@@ -250,37 +256,6 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* Раздел подробных тест-драйвов и перевалов Төө-Ашуу */}
-      <div className="pt-8 border-t border-slate-200 dark:border-slate-800">
-        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-          <Mountain size={20} className="text-[#C8102E]" />
-          <span>Испытания перевалами Кыргызстана (Төө-Ашуу, Боом, Сон-Көл)</span>
-        </h3>
-
-        <div className="space-y-4">
-          {AUTO_REVIEWS.map((rev) => (
-            <div
-              key={rev.id}
-              className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                <h4 className="font-bold text-base text-slate-900 dark:text-white">
-                  {rev.carTitle} ({rev.year}) — {rev.author}
-                </h4>
-                <div className="flex items-center gap-2 bg-slate-900 text-white px-2.5 py-1 rounded-lg text-xs font-semibold">
-                  <Mountain size={14} className="text-amber-400" />
-                  <span>Төө-Ашуу:</span>
-                  <span className="text-amber-400 font-bold">{rev.mountainPassScore} / 10</span>
-                </div>
-              </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                {rev.text}
-              </p>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Модальное окно добавления отзыва */}
@@ -347,7 +322,6 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
                   >
                     <option value="service">Автосервис & СТО</option>
                     <option value="parts">Запчасти Кудайберген</option>
-                    <option value="carcheck">Проверка CarCheck</option>
                     <option value="car_purchase">Покупка автомобиля</option>
                   </select>
                 </div>
@@ -380,7 +354,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
                 </label>
                 <input
                   type="text"
-                  placeholder="СТО KGzone / Toyota Camry 70"
+                  placeholder="Например: магазин, сервис или Toyota Camry 70"
                   value={targetTitle}
                   onChange={(e) => setTargetTitle(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs font-semibold"

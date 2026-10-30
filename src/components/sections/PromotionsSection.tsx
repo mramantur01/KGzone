@@ -3,6 +3,10 @@ import { Tag, Sparkles, Copy, Check, Clock, ArrowRight, ShieldCheck, Gift } from
 import { PROMOTIONS_DATA } from '../../data/workshopData';
 import { Language } from '../../types/car';
 
+// PROMOTIONS_DATA describes offers of the example service centre, which does not exist yet.
+// Put real partner offers here (with the partner's consent) to show them.
+const ACTIVE_PROMOTIONS: typeof PROMOTIONS_DATA = [];
+
 interface PromotionsSectionProps {
   language: Language;
   onApplyPromo?: (promoCode: string) => void;
@@ -43,13 +47,18 @@ export const PromotionsSection: React.FC<PromotionsSectionProps> = ({
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
             {isKg 
               ? 'Промокоддорду көчүрүп алыңыз жана СТОго жазылууда же тетиктерди алууда кошумча арзандатууларга ээ болуңуз.'
-              : 'Активируйте эксклюзивные промокоды для бесплатной диагностики, скидок на оригинальные масла Shell и обслуживание батарей гибридов.'}
+              : 'Здесь будут акции продавцов и сервисов-партнёров KGzone.'}
           </p>
         </div>
 
         {/* Сетка акций */}
+        {ACTIVE_PROMOTIONS.length === 0 && (
+          <p className="p-10 text-center text-sm text-slate-500 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+            {isKg ? 'Азырынча акциялар жок.' : 'Сейчас действующих акций нет. Мы не публикуем выдуманные скидки.'}
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {PROMOTIONS_DATA.map((promo) => (
+          {ACTIVE_PROMOTIONS.map((promo) => (
             <div
               key={promo.id}
               className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-md hover:shadow-lg transition-all flex flex-col justify-between"

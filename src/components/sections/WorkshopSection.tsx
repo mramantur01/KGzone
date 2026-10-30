@@ -8,6 +8,12 @@ import { Currency, Language, WorkshopService, WorkshopMaster, WorkshopWorkGaller
 import { WORKSHOP_LOCATIONS, WORKSHOP_SERVICES, WORKSHOP_MASTERS, WORKSHOP_GALLERY } from '../../data/workshopData';
 import { KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 
+// The service centres, masters, prices and addresses in workshopData are EXAMPLES. While this is
+// true, booking and contacts are switched off and a notice is shown. Set to false only after
+// replacing workshopData with real workshops and phone numbers.
+const WORKSHOP_DEMO = true;
+const WORKSHOP_DEMO_NOTICE = 'Раздел СТО в разработке: адреса, мастера, цены и телефоны ниже — примеры. Запись и звонки пока недоступны.';
+
 interface WorkshopSectionProps {
   currency: Currency;
   language: Language;
@@ -76,6 +82,11 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
       return;
     }
 
+    if (WORKSHOP_DEMO) {
+      alert(WORKSHOP_DEMO_NOTICE);
+      return;
+    }
+
     setIsSubmittingBooking(true);
     const newBookingData = {
       serviceTitle: selectedService?.title || 'Комплексный осмотр',
@@ -114,27 +125,8 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
         totalPriceKgs: selectedService?.priceKgs || 800,
         createdAt: 'Сегодня, сейчас',
         workshopLocation: selectedLocation.name,
-        telegramNotified: true,
+        telegramNotified: false,
       };
-
-      // Also trigger telegram notification dispatch
-      fetch('/api/telegram/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `🚗 Новая запись на СТО KGzone!\nНомер: #${bookingRecord.bookingNumber}\nУслуга: ${bookingRecord.serviceTitle}\nКлиент: ${bookingRecord.clientName} (${bookingRecord.clientPhone})\nАвто: ${bookingRecord.carBrandModel}\nМастер: ${bookingRecord.masterName}\nВремя: ${bookingRecord.date} в ${bookingRecord.timeSlot}\nОплата: ${bookingRecord.paymentMethod.toUpperCase()}`,
-        }),
-      }).catch(() => {});
-
-      // Simulate SMS confirmation
-      fetch('/api/sms/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: clientPhone,
-          text: `KGzone СТО: Вы записаны на ${bookingRecord.serviceTitle}. Время: ${bookingRecord.date} ${bookingRecord.timeSlot}. Адрес: ${selectedLocation.address}. Тел: +996 555 777 999`,
-        }),
-      }).catch(() => {});
 
       if (onBookingSuccess) {
         onBookingSuccess(bookingRecord);
@@ -172,6 +164,12 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
     <div className="bg-slate-50 dark:bg-slate-900 py-6 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
+        {WORKSHOP_DEMO && (
+          <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-sm font-semibold flex items-start gap-2">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <span>{WORKSHOP_DEMO_NOTICE}</span>
+          </div>
+        )}
         {/* Шапка раздела мастерской */}
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-red-950 rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden mb-8 border border-slate-700">
           <div className="absolute right-0 top-0 bottom-0 opacity-10 flex items-center pointer-events-none pr-8">
@@ -181,7 +179,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
           <div className="relative z-10 max-w-3xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-600/30 text-red-300 border border-red-500/40 rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
               <Wrench size={14} />
-              {isKg ? 'Автосервис жана СТО Түйүнү' : isEn ? 'Official Auto Workshop & Service' : 'Официальный Автосервис & СТО KGzone'}
+              {isKg ? 'Автосервис жана СТО Түйүнү' : isEn ? 'Auto workshop (example section)' : 'Автосервис & СТО (пример раздела)'}
             </div>
             <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white mb-3">
               {isKg 
@@ -208,6 +206,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
                 {isKg ? 'Онлайн жазылуу' : isEn ? 'Book Service Now' : 'Записаться к мастеру онлайн'}
               </button>
 
+              {!WORKSHOP_DEMO && (<>
               <a
                 href={`https://wa.me/${selectedLocation.whatsapp}?text=${encodeURIComponent('Здравствуйте! Хочу проконсультироваться по ремонту автомобиля в KGzone СТО.')}`}
                 target="_blank"
@@ -225,6 +224,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
                 <Phone size={16} />
                 <span>{selectedLocation.phone}</span>
               </a>
+              </>)}
             </div>
           </div>
         </div>
@@ -851,7 +851,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
                       🕒 {loc.hours}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    {!WORKSHOP_DEMO && <div className="flex items-center gap-2">
                       <a
                         href={`https://wa.me/${loc.whatsapp}?text=${encodeURIComponent(`Здравствуйте! Я хочу приехать в ${loc.name}.`)}`}
                         target="_blank"
@@ -868,7 +868,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
                         <Phone size={12} />
                         Позвонить
                       </a>
-                    </div>
+                    </div>}
                   </div>
                 ))}
               </div>

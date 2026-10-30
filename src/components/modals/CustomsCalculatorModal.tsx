@@ -212,6 +212,9 @@ export const CustomsCalculatorModal: React.FC<CustomsCalculatorModalProps> = ({
             <div className="text-xs font-bold text-amber-400 uppercase tracking-wider">
               Итоговый расчет таможенных платежей
             </div>
+            <p className="text-[11px] text-slate-400">
+              Расчёт примерный. Точную сумму определяет таможня при оформлении — ставки и курс могут меняться.
+            </p>
 
             <div className="space-y-1.5 text-xs text-slate-300">
               <div className="flex justify-between py-1 border-b border-slate-800">

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { recordView, recordContact } from '../../utils/viewHistory';
 import { ReportListingButton } from '../common/ReportListingButton';
+import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import { SellerContactBlock } from '../chat/SellerContactBlock';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
@@ -81,7 +82,9 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
     setTimeout(() => setCopiedOEM(false), 2000);
   };
 
+  const isDemo = isDemoListing(part.id);
   const handleRevealPhone = () => {
+    if (isDemo) return;
     setIsPhoneRevealed(true);
     recordContact('part', part.id);
   };
@@ -350,6 +353,9 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                 <h2 className="text-lg sm:text-xl font-black text-white leading-snug">
                   {part.title}
                 </h2>
+                {isDemo && (
+                  <p className="mt-2 px-3 py-2 rounded-xl bg-slate-200 text-slate-800 text-xs font-semibold">{DEMO_NOTICE}</p>
+                )}
 
                 {/* OEM Copy button */}
                 <div className="mt-2.5 flex items-center justify-between p-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
@@ -399,7 +405,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                   <button
                     onClick={() => {
                       onClose();
-                      onOpenOrder(part);
+                      if (!isDemo) onOpenOrder(part);
                     }}
                     className="py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-950/50 transition-all cursor-pointer"
                   >
@@ -408,7 +414,8 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                   </button>
 
                   <a
-                    href={whatsappUrl}
+                    href={isDemo ? undefined : whatsappUrl}
+                    aria-disabled={isDemo || undefined}
                     onClick={() => recordContact('part', part.id)}
                     target="_blank"
                     rel="noreferrer"

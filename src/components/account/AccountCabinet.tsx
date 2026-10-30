@@ -25,6 +25,7 @@ import { PartsModerationPanel, CarsModerationPanel } from '../cabinet/PartsModer
 import { ReportsPanel } from '../cabinet/ReportsPanel';
 import { CatalogStatusCard } from '../catalog/CatalogStatusCard';
 import { PartRequestsPanel } from '../catalog/PartRequestsPanel';
+import { ReviewsModerationPanel } from '../cabinet/ReviewsModerationPanel';
 
 export interface PartsSearchPreset {
   brand?: string;
@@ -34,6 +35,7 @@ export interface PartsSearchPreset {
 }
 
 interface Props {
+  openSection?: { section: 'moderation'; at: number };
   cars: Car[];
   favoriteCarIds: string[];
   onToggleCarFavorite: (id: string) => void;
@@ -66,7 +68,8 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const parts = useParts();
   const partFavIds = usePartFavorites();
   const history = useViewHistory();
-  const [section, setSection] = useState<Section>('overview');
+  const [section, setSection] = useState<Section>(props.openSection?.section || 'overview');
+  useEffect(() => { if (props.openSection) setSection(props.openSection.section); }, [props.openSection]);
   const unreadMessages = useUnreadMessages(Boolean(user));
   const biz = useCompany(user?.id);
   const [seen, setSeen] = useState<Record<string, string[]>>(readSeen);
@@ -581,6 +584,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
             <div className="space-y-4">
               <h2 className="text-lg font-black text-slate-900">Модерация</h2>
               <PartRequestsPanel />
+              <ReviewsModerationPanel />
               <CatalogStatusCard />
               <CarsModerationPanel />
               <PartsModerationPanel />

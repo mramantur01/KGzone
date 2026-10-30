@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ALL_CAR_BRANDS, getModelsForBrand, KYRGYZ_REGIONS_AND_CITIES, useCarCatalog } from '../../data/mockData';
+import { ALL_CAR_BRANDS, getModelsForBrand, KYRGYZ_REGIONS_AND_CITIES, useCarCatalog, USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { Currency, Language } from '../../types/car';
 import {
@@ -78,7 +78,7 @@ export const HeroFilter: React.FC<HeroFilterProps> = ({
   };
 
   const setPricePreset = (maxUsd: number) => {
-    const maxVal = isUsd ? maxUsd.toString() : (maxUsd * 87.5).toString();
+    const maxVal = isUsd ? maxUsd.toString() : Math.round(maxUsd * USD_TO_KGS_RATE).toString();
     setFilters((prev) => ({
       ...prev,
       priceTo: prev.priceTo === maxVal ? '' : maxVal,

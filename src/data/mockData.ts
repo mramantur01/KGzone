@@ -12,7 +12,11 @@ import {
 } from '../types/car';
 import { useEffect, useState } from 'react';
 
-export const USD_TO_KGS_RATE = 87.50; // Официальный курс НБ КР
+// Last known NBKR rate; replaced by the official daily rate from /api/rates (see src/api/rates.ts)
+export let USD_TO_KGS_RATE = 87.45;
+export function setUsdRate(v: number) {
+  if (v > 0) USD_TO_KGS_RATE = v;
+}
 
 export const KYRGYZ_REGIONS_AND_CITIES = [
   { code: '01', name: 'Бишкек', region: 'г. Бишкек' },

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { isDemoListing } from '../../utils/demo';
 import { 
   Calculator, ChevronRight, ChevronLeft, MapPin, MessageCircle,
   Flame, ArrowLeftRight, Check, ArrowRight
@@ -319,10 +320,8 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
   };
 
   const handleWhatsApp = () => {
-    const text = encodeURIComponent(
-      `Здравствуйте! Интересует автомобиль ${currentSlide.title} (${currentSlide.plate}) по цене $${currentSlide.priceUsd.toLocaleString()} на Автобазаре Кыргызстана.`
-    );
-    window.open(`https://wa.me/996555123456?text=${text}`, '_blank');
+    // Demo listing: no real seller to message — show the car page instead
+    onSelectCarId?.(currentSlide.carId);
   };
 
   return (
@@ -480,6 +479,9 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
 
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug">
                 {currentSlide.title}
+                {isDemoListing(currentSlide.carId) && (
+                  <span className="ml-2 align-middle px-2 py-0.5 rounded-md bg-amber-400 text-neutral-900 text-[11px] font-bold">Пример</span>
+                )}
               </h2>
 
               <p className="text-xs text-slate-300 leading-relaxed line-clamp-2">

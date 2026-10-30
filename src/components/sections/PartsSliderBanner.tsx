@@ -24,6 +24,8 @@ interface PartsSliderBannerProps {
   onFilterOptics?: () => void;
   onOpenSellerRegistration?: () => void;
   onSelectMarket?: (market: string) => void;
+  onFocusVin?: () => void;
+  onFocusSearch?: () => void;
 }
 
 export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
@@ -32,152 +34,90 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
   onFilterOptics,
   onOpenSellerRegistration,
   onSelectMarket,
+  onFocusVin,
+  onFocusSearch,
 }) => {
   const isKg = language === 'kg';
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<any>(null);
 
+  // Only real features of the site — no invented warranties, delivery promises or audience numbers
   const slides = [
     {
       id: 1,
-      badge: isKg ? 'Кудайберген • Япониядан контракттык' : 'Кудайберген • Акции контейнеров',
+      badge: isKg ? 'VIN жана кузов номери боюнча тандоо' : 'Подбор по VIN и номеру кузова',
       badgeColor: 'bg-red-950/80 border-red-600 text-red-300',
       title: isKg ? (
-        <>
-          Япониядан келген <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-amber-300 to-emerald-400">
-            контракттык моторлор жана АКПП
-          </span>
-        </>
+        <>Унааңыздын тетиктерин <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-amber-300 to-emerald-400">VIN же кузов номери боюнча табыңыз</span></>
       ) : (
-        <>
-          Контрактные двигатели и АКПП <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-amber-300 to-emerald-400">
-            из Японии с гарантией 14-30 дней
-          </span>
-        </>
+        <>Найдите запчасти для своей машины <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-amber-300 to-emerald-400">по VIN или номеру кузова</span></>
       ),
       description: isKg
-        ? '«Кудайберген» автобазарындагы контейнерлердин акциясы: распилден түшүрүлгөн 1MZ, 2AR-FE, 2GR, K24A, M54 моторлору. Цилиндрлердин компрессиясын текшерүү видеосу жана стендде сыналышы менен!'
-        : 'Специальные условия контейнеров авторынка «Кудайберген»: двигатели и коробки без пробега по СНГ. Видео замера компрессии цилиндров (12.8 bar) и полный пакет ГТД.',
+        ? 'VIN же япон унааларынын кузов номерин киргизиңиз (мисалы NZE141-1234567) — сайт марканы, моделди жана муунду өзү тандайт.'
+        : 'Введите VIN или номер кузова японской машины (например NZE141-1234567) — сайт сам выберет марку, модель и поколение.',
       stats: [
-        { label: isKg ? 'Кепилдик' : 'Гарантия', val: isKg ? '14-30 күн' : '14-30 дней' },
-        { label: isKg ? 'Видео' : 'Видео замера', val: '12.8 bar' },
-        { label: isKg ? 'Контейнерлер' : 'Боксы', val: '450+' },
+        { label: isKg ? 'Кузов коддору' : 'Кодов кузова', val: '580+' },
+        { label: 'VIN', val: isKg ? 'акысыз' : 'бесплатно' },
+        { label: isKg ? 'Маркалар' : 'Марки', val: 'Toyota · Honda · Nissan…' },
       ],
-      buttonText: isKg ? 'Моторлорду видеосу менен көрүү' : 'Смотреть моторы с видео замера',
-      buttonAction: onFilterEngines,
-      secondaryText: isKg ? 'Кудайберген базары' : 'Рынок Кудайберген',
-      secondaryAction: () => onSelectMarket && onSelectMarket('Кудайберген'),
+      buttonText: isKg ? 'VIN киргизүү' : 'Ввести VIN',
+      buttonAction: onFocusVin,
+      secondaryText: isKg ? 'OEM боюнча издөө' : 'Поиск по OEM',
+      secondaryAction: onFocusSearch,
       accentColor: 'from-red-950 via-neutral-950 to-neutral-900',
       bgImage: '/parts/wm-03.jpg',
       icon: <Wrench className="text-red-400" size={20} />,
     },
     {
       id: 2,
-      badge: isKg ? 'Бүткүл Кыргызстан боюнча экспресс' : 'Экспресс-доставка по регионам КР',
+      badge: isKg ? 'OEM жана аналогдор' : 'OEM-номера и аналоги',
       badgeColor: 'bg-emerald-950/80 border-emerald-600 text-emerald-300',
       title: isKg ? (
-        <>
-          Аймактарга попутный бусиктер менен <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-amber-300 to-sky-400">
-            Ош, Нарын, Талас, Ысык-Көл, Баткен
-          </span>
-        </>
+        <>Номер боюнча издеңиз — <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-amber-300 to-sky-400">аналогдорун да көрсөтөбүз</span></>
       ) : (
-        <>
-          Экспресс-доставка по регионам КР <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-amber-300 to-sky-400">
-            Попутные бусики & Яндекс за 1 час
-          </span>
-        </>
+        <>Ищите по номеру детали — <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-amber-300 to-sky-400">покажем и аналоги</span></>
       ),
       description: isKg
-        ? 'Бишкек ичинде Яндекс Доставка менен 1 саатта жетебиз. Батыш автобекетинен күн сайын кечки бусиктер менен Ош, Жалал-Абад, Нарын, Талас, Каракол жана Баткенге жөнөтөбүз.'
-        : 'Быстрая логистика по всему Кыргызстану: отправка попутными бусиками с Западного автовокзала день в день + срочная Яндекс Доставка по Бишкеку за 1 час прямо из бокса.',
+        ? 'OEM же кросс-номерди жазыңыз: сайт оригиналды жана сатуучулар көрсөткөн аналогдорду табат. Дефис жана боштуктар маанилүү эмес.'
+        : 'Введите OEM или кросс-номер: сайт найдёт оригинал и аналоги, которые указали продавцы KGzone. Дефисы и пробелы не важны.',
       stats: [
-        { label: isKg ? 'Бишкек' : 'По Бишкеку', val: '1 час' },
-        { label: isKg ? 'Ош / Жалал-Абад' : 'Ош / Юг КР', val: '10-12 ч' },
-        { label: isKg ? 'Ысык-Көл / Нарын' : 'Иссык-Куль', val: '4-5 ч' },
+        { label: isKg ? 'Издөө' : 'Поиск', val: 'OEM / кросс' },
+        { label: isKg ? 'Аналогдор' : 'Аналоги', val: isKg ? 'сатуучулардан' : 'от продавцов' },
+        { label: isKg ? 'Жок болсо' : 'Нет детали?', val: isKg ? 'өтүнмө' : 'заявка' },
       ],
-      buttonText: isKg ? 'Жеткирип берүү тартиби' : 'Быстрый заказ с доставкой',
-      buttonAction: onFilterEngines,
-      secondaryText: isKg ? 'Бардык облустар' : 'Все регионы КР',
+      buttonText: isKg ? 'Номер боюнча издөө' : 'Искать по номеру',
+      buttonAction: onFocusSearch,
+      secondaryText: undefined,
       secondaryAction: undefined,
       accentColor: 'from-emerald-950 via-neutral-950 to-neutral-900',
-      bgImage: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80',
-      icon: <Truck className="text-emerald-400" size={20} />,
+      bgImage: '/parts/wm-10.jpg',
+      icon: <Layers className="text-emerald-400" size={20} />,
     },
     {
       id: 3,
-      badge: isKg ? 'Сатуучулар жана контейнер ээлерине' : 'Продавцам авторынков • 0% комиссия',
+      badge: isKg ? 'Сатуучуларга • акысыз' : 'Продавцам • бесплатно',
       badgeColor: 'bg-amber-950/80 border-amber-600 text-amber-300',
       title: isKg ? (
-        <>
-          Өз контейнериңизди же авторазборду <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-red-400">
-            KGzone платформасына 0% комиссия менен кош
-          </span>
-        </>
+        <>Тетиктериңизди KGzone’до <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-red-400">акысыз сатыңыз</span></>
       ) : (
-        <>
-          Подключи свой контейнер к KGzone <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-red-400">
-            под 0% комиссии для ОсОО, ИП и разборов
-          </span>
-        </>
+        <>Продавайте запчасти на KGzone <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-red-400">бесплатно</span></>
       ),
       description: isKg
-        ? 'Кудайберген, Дордой Моторс, РИОМ Авто же Жапалак базарындагы боксуңузду онлайн дүкөнгө айлантыңыз. Кардарлар түздөн-түз WhatsApp же чалуу аркылуу байланышып, катар жана контейнериңизге келишет.'
-        : 'Бесплатное размещение складов автозапчастей Кыргызстана. Загружайте видео замеров, ведите учет склада, принимайте заказы самовывозом из контейнера или через MBANK.',
+        ? 'Жеке адамдар, дүкөндөр жана разборлор үчүн. Компаниялар үчүн бизнес-кабинет: кызматкерлер, кампалар, Excel’ден импорт.'
+        : 'Для частных продавцов, магазинов и разборок. Для компаний — бизнес-кабинет: сотрудники, склады, загрузка товаров из Excel.',
       stats: [
-        { label: isKg ? 'Комиссия' : 'Комиссия сервиса', val: '0%' },
-        { label: isKg ? 'Каттоо' : 'Регистрация', val: isKg ? '2 мүнөт' : '2 минуты' },
-        { label: isKg ? 'Кардарлар' : 'Поток клиентов', val: '100 000+' },
+        { label: isKg ? 'Жайгаштыруу' : 'Размещение', val: isKg ? 'акысыз' : 'бесплатно' },
+        { label: isKg ? 'Текшерүү' : 'Проверка', val: isKg ? 'модерация' : 'модерация' },
+        { label: isKg ? 'Компаниялар' : 'Компаниям', val: isKg ? 'бизнес-кабинет' : 'бизнес-кабинет' },
       ],
-      buttonText: isKg ? '+ Контейнерди каттоо (0%)' : '+ Подключить контейнер под 0%',
+      buttonText: isKg ? '+ Тетик сатуу' : '+ Продать запчасть',
       buttonAction: onOpenSellerRegistration,
-      secondaryText: isKg ? 'Кабинетке кирүү' : 'Личный кабинет',
-      secondaryAction: onOpenSellerRegistration,
+      secondaryText: undefined,
+      secondaryAction: undefined,
       accentColor: 'from-amber-950 via-neutral-950 to-neutral-900',
-      bgImage: 'https://images.unsplash.com/=format&fit=crop&w=1200&q=80',
+      bgImage: '/parts/wm-01.jpg',
       icon: <Store className="text-amber-400" size={20} />,
-    },
-    {
-      id: 4,
-      badge: isKg ? 'Дордой-Авто • Оптика жана кузов' : 'Дордой-Авто • Склады кузовных деталей',
-      badgeColor: 'bg-sky-950/80 border-sky-600 text-sky-300',
-      title: isKg ? (
-        <>
-          Оптика жана кузовдук тетиктер <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-amber-300">
-            Camry, Fit, Lexus RX, W211, BMW E39
-          </span>
-        </>
-      ) : (
-        <>
-          Наличие оптики и кузовных деталей <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-200 to-amber-300">
-            на рынке «Дордой-Авто» (Camry, Fit, RX, W211, E39)
-          </span>
-        </>
-      ),
-      description: isKg
-        ? 'Фаралар (LED / Ксенон), капоттор, бамперлер жана каптал күзгүлөр эң популярдуу унааларга жеткиликтүү. Түздөн-түз Дордой-Авто складдарынан мыкты баада.'
-        : 'Широкий выбор оптики и кузовных элементов: оригинальные фары, крылья, радиаторы и бамперы с примеркой на месте или доставкой по Бишкеку за 1 час.',
-      stats: [
-        { label: isKg ? 'Маркалар' : 'Популярные авто', val: 'Camry / Fit / RX' },
-        { label: isKg ? 'Примерка' : 'Примерка', val: '100% зазор' },
-        { label: isKg ? 'Кампалар' : 'Склады', val: 'Дордой-Авто' },
-      ],
-      buttonText: isKg ? 'Оптика жана кузовду тандоо' : 'Подобрать оптику и кузовные детали',
-      buttonAction: onFilterOptics,
-      secondaryText: isKg ? 'Дордой-Авто базары' : 'Рынок Дордой-Авто',
-      secondaryAction: () => onSelectMarket && onSelectMarket('Дордой Моторс'),
-      accentColor: 'from-blue-950 via-neutral-950 to-neutral-900',
-      bgImage: 'https://images.unsplash.com/=format&fit=crop&w=1200&q=80',
-      icon: <Car className="text-sky-400" size={20} />,
     },
   ];
 

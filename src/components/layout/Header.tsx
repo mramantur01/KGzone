@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShyrdakRibbon, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { Currency, Language } from '../../types/car';
+import { siteWhatsApp, SITE_PHONE_DISPLAY } from '../../config/site';
 import { 
   Heart, Plus, Search, ShieldCheck, User, Menu, X, Wrench, 
   Calculator, MessageSquare, Newspaper, Tag, HelpCircle, Sun, Moon,
@@ -21,6 +22,9 @@ interface HeaderProps {
   favoritesCount: number;
   userName?: string;
   unreadCount?: number;
+  usdRate?: number;
+  /** Date of the official NBKR rate; empty while it is loading / unavailable */
+  rateDate?: string;
   userSiteRole?: 'owner' | 'admin' | 'user';
   isApprovedAdmin?: boolean;
   onOpenFavorites: () => void;
@@ -45,6 +49,8 @@ export const Header: React.FC<HeaderProps> = ({
   favoritesCount,
   userName = '',
   unreadCount = 0,
+  usdRate = 0,
+  rateDate = '',
   userSiteRole = 'owner',
   isApprovedAdmin = true,
   onOpenFavorites,
@@ -88,20 +94,22 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="hidden md:flex items-center gap-2 text-neutral-400 shrink-0">
             <span>·</span>
-            <span>{isKg ? 'НБ КР курсу:' : 'Курс НБ КР:'}</span>
-            <span className="text-amber-400 font-mono font-semibold">1 $ = 87.50 сом</span>
+            <span>{rateDate ? (isKg ? 'НБ КР курсу:' : 'Курс НБ КР:') : (isKg ? 'Курс:' : 'Курс:')}</span>
+            <span className="text-amber-400 font-mono font-semibold" title={rateDate ? `НБ КР, ${rateDate}` : 'Примерный курс'}>1 $ = {usdRate.toFixed(2)} сом</span>
           </div>
 
-          {/* Быстрая связь в WhatsApp */}
-          <a
-            href="https://wa.me/996555777999?text=Здравствуйте!%20Хочу%20проконсультироваться%20по%20порталу%20KGzone"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold shrink-0"
-          >
-            <MessageCircle size={13} />
-            <span>WhatsApp: +996 555 777 999</span>
-          </a>
+          {/* Быстрая связь в WhatsApp (номер задаётся в src/config/site.ts) */}
+          {siteWhatsApp('Здравствуйте! Хочу проконсультироваться по порталу KGzone') && (
+            <a
+              href={siteWhatsApp('Здравствуйте! Хочу проконсультироваться по порталу KGzone')!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold shrink-0"
+            >
+              <MessageCircle size={13} />
+              <span>WhatsApp: <span data-no-i18n>{SITE_PHONE_DISPLAY}</span></span>
+            </a>
+          )}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">

@@ -11,6 +11,7 @@ import { partFitsBrand, partFitsModel, partFitsGeneration, partInCategory, partM
 import { ModelPartsTree } from './ModelPartsTree';
 import { useParts } from '../../api/parts';
 import { decodeVin, type VinInfo } from '../../utils/vin';
+import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import { findCatalogVehicles, getCatalogStatus, looksLikeFrame, type CatalogVehicle } from '../../api/catalog';
 import { CatalogBrowser } from '../catalog/CatalogBrowser';
 import { decodeFrame } from '../../data/frameCodes';
@@ -758,7 +759,16 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     setVinError(null);
   };
 
+  // Demo listings have invented sellers: never send people to their phone numbers
+  const demoBlocked = (part: AutoPartItem) => {
+    if (!isDemoListing(part.id)) return false;
+    showToast(DEMO_NOTICE);
+    return true;
+  };
+  const orderPart = (part: AutoPartItem) => { if (!demoBlocked(part)) setOrderedPart(part); };
+
   const handleWhatsAppOrder = (part: AutoPartItem) => {
+    if (demoBlocked(part)) return;
     const cleanPhone = part.sellerPhone.replace(/[^0-9]/g, '');
     const sellerWhatsappNumber = part.sellerWhatsapp || cleanPhone;
     const text = encodeURIComponent(
@@ -834,6 +844,8 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
             showToast('Фильтр: Оптика и кузовные детали на Дордой-Авто');
           }}
           onOpenSellerRegistration={() => openSellerPortal()}
+          onFocusVin={() => { const el = document.getElementById('parts-vin-input'); el?.scrollIntoView({ block: 'center', behavior: 'smooth' }); el?.focus(); }}
+          onFocusSearch={() => { const el = document.getElementById('parts-search-input'); el?.scrollIntoView({ block: 'center', behavior: 'smooth' }); el?.focus(); }}
           onSelectMarket={(m) => {
             setSelectedCityOrMarket(m);
             showToast(`Фильтр по рынку: ${m}`);
@@ -850,6 +862,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
               <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
               <input
                 type="text"
+                id="parts-search-input"
                 placeholder={isKg ? 'Тетикти издөө: аталышы, OEM артикул (2AR-FE, 04465-33471), контейнер...' : 'Поиск: деталь, марка, модель, OEM артикул (например: 2AR-FE, 04465-33471), контейнер...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1069,6 +1082,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                   value={vinInput}
                   onChange={(e) => setVinInput(e.target.value.toUpperCase())}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleVinSearch(); }}
+                  id="parts-vin-input"
                   placeholder={isKg ? 'VIN же кузов номери' : 'VIN или номер кузова'}
                   maxLength={25}
                   className="flex-1 min-w-0 px-2.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white font-mono uppercase"
@@ -1354,6 +1368,12 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                             <Heart size={15} className={favoriteIds.includes(part.id) ? 'fill-red-500 text-red-500' : 'text-white'} />
                           </button>
 
+                          {isDemoListing(part.id) && (
+                            <span className="absolute bottom-2.5 right-12 z-10 px-2 py-0.5 rounded-lg bg-slate-200 text-slate-800 text-[10px] font-black" title={DEMO_NOTICE}>
+                              Пример
+                            </span>
+                          )}
+
                           {/* Condition badge */}
                           <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-lg bg-neutral-950/85 backdrop-blur-md text-[10px] font-bold text-amber-400 border border-neutral-700">
                             {part.condition}
@@ -1469,7 +1489,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           </button>
 
                           <button
-                            onClick={() => setOrderedPart(part)}
+                            onClick={() => orderPart(part)}
                             className="py-2.5 px-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer"
                           >
                             <ShoppingBag size={13} />
@@ -1486,6 +1506,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           </button>
                           <a
                             href={'tel:+' + part.sellerPhone.replace(/[^0-9]/g, '')}
+                            onClick={(e) => { if (demoBlocked(part)) e.preventDefault(); }}
                             className="py-2.5 px-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
                             title="Позвонить продавцу"
                           >
@@ -1580,7 +1601,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           {/* Click to reveal phone (Drom feature) */}
                           {!isPhoneRevealed ? (
                             <button
-                              onClick={() => toggleRevealPhone(part.id)}
+                              onClick={() => { if (!demoBlocked(part)) toggleRevealPhone(part.id); }}
                               className="px-2.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                               title="Показать номер продавца"
                             >
@@ -1606,7 +1627,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           </button>
 
                           <button
-                            onClick={() => setOrderedPart(part)}
+                            onClick={() => orderPart(part)}
                             className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-md"
                           >
                             <ShoppingBag size={13} />
@@ -1653,7 +1674,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
           }}
           onOpenOrder={(part) => {
             setSelectedPartForDetail(null);
-            setOrderedPart(part);
+            orderPart(part);
           }}
         />
       )}

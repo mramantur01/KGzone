@@ -1,3 +1,4 @@
+import { siteWhatsApp } from '../../config/site';
 import React from 'react';
 import { ShyrdakRibbon, KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { Language } from '../../types/car';
@@ -48,8 +49,8 @@ export const Footer: React.FC<FooterProps> = ({
             </div>
             <p className="text-slate-400 text-xs leading-relaxed mb-4">
               {isKg
-                ? 'Кыргызстандын башкы унаа порталы. Жаңы жана жүргөн автоунаалар, СТО автосервиси, бажы калькулятору жана Кудайбергендеги тетиктер.'
-                : 'KGzone — Автомобильный портал Кыргызстана: авторынок, проверка по базе CarCheck KG, сертифицированный автосервис СТО, калькулятор растаможки и контрактные запчасти.'}
+                ? 'Кыргызстандын унаа порталы: унаа жана тетик жарыялары, VIN боюнча тандоо, бажы калькулятору.'
+                : 'KGzone — автомобильный портал Кыргызстана: объявления об авто и запчастях, подбор по VIN и номеру кузова, калькулятор растаможки.'}
             </p>
 
             <div className="flex items-center gap-2 text-slate-300 mb-3">
@@ -58,15 +59,17 @@ export const Footer: React.FC<FooterProps> = ({
             </div>
 
             {/* Быстрая связь в WhatsApp */}
-            <a
-              href="https://wa.me/996555777999?text=Здравствуйте!%20Хочу%20обратиться%20в%20поддержку%20KGzone"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition-colors"
-            >
-              <MessageCircle size={14} />
-              <span>Написать в WhatsApp</span>
-            </a>
+            {siteWhatsApp('Здравствуйте! Хочу обратиться в поддержку KGzone') && (
+              <a
+                href={siteWhatsApp('Здравствуйте! Хочу обратиться в поддержку KGzone')!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition-colors"
+              >
+                <MessageCircle size={14} />
+                <span>Написать в WhatsApp</span>
+              </a>
+            )}
           </div>
 
           {/* Колонка 2: Сервисы и услуги */}
@@ -79,21 +82,21 @@ export const Footer: React.FC<FooterProps> = ({
                 <li>
                   <button onClick={onOpenWorkshop} className="hover:text-white transition-colors cursor-pointer text-left flex items-center gap-1.5">
                     <Wrench size={13} className="text-[#C8102E]" />
-                    <span>Автосервис & Онлайн-запись на СТО</span>
+                    <span>Автосервис (раздел в разработке)</span>
                   </button>
                 </li>
               )}
               {onOpenParts && (
                 <li>
                   <button onClick={onOpenParts} className="hover:text-white transition-colors cursor-pointer text-left">
-                    Автозапчасти (Кудайберген / Дордой)
+                    Автозапчасти
                   </button>
                 </li>
               )}
               <li>
                 <button onClick={onOpenCarCheck} className="hover:text-white transition-colors cursor-pointer text-left flex items-center gap-1.5">
                   <ShieldCheck size={13} className="text-emerald-500" />
-                  <span>Проверка CarCheck KG (Штрафы & Аресты)</span>
+                  <span>Как проверить авто перед покупкой</span>
                 </button>
               </li>
               <li>
@@ -105,7 +108,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <li>
                   <button onClick={onOpenPromotions} className="hover:text-white transition-colors cursor-pointer text-left flex items-center gap-1.5">
                     <Tag size={13} className="text-amber-500" />
-                    <span>Акции и скидки на обслуживание</span>
+                    <span>Акции</span>
                   </button>
                 </li>
               )}
@@ -120,17 +123,15 @@ export const Footer: React.FC<FooterProps> = ({
             </ul>
           </div>
 
-          {/* Колонка 3: Популярные города и филиалы СТО */}
+          {/* Колонка 3: Контакты */}
           <div>
             <h4 className="font-bold text-white uppercase tracking-wider text-xs mb-3">
-              Локации СТО и Авторынков
+              {isKg ? 'Байланыш' : 'Связь с KGzone'}
             </h4>
             <ul className="space-y-1.5 text-slate-400">
-              <li><span className="text-slate-300 font-semibold">Центральный СТО:</span> ул. Льва Толстого, 19/1</li>
-              <li><span className="text-slate-300 font-semibold">Кудайберген:</span> ул. Патриса Лумумбы, бокс 44</li>
-              <li><span className="text-slate-300 font-semibold">РИОМ-АВТО:</span> с. Военно-Антоновка (сб-вс)</li>
-              <li><span className="text-slate-300 font-semibold">Филиал Ош:</span> ул. Навои, 112 (Автобазар Ош)</li>
-              <li><span className="text-slate-300 font-semibold">Телефон СТО:</span> +996 555 777 999</li>
+              <li>{isKg ? 'Сатуучу менен байланыш — жарыянын ичинде.' : 'Связь с продавцом — прямо в объявлении (чат или телефон продавца).'}</li>
+              <li>{isKg ? 'Сайт боюнча суроолор — WhatsApp аркылуу.' : 'Вопросы по работе сайта — через кнопку WhatsApp слева.'}</li>
+              <li>{isKg ? 'Жалоба — жарыядагы «Пожаловаться» баскычы.' : 'Жалоба на объявление — кнопка «Пожаловаться» в объявлении.'}</li>
             </ul>
           </div>
 
@@ -178,7 +179,7 @@ export const Footer: React.FC<FooterProps> = ({
               onClick={onOpenCarCheck}
               className="hover:text-slate-300 transition-colors cursor-pointer"
             >
-              Проверка CarCheck
+              Проверка авто
             </button>
             <span>·</span>
             <button

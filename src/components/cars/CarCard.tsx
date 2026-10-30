@@ -1,3 +1,4 @@
+import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import React from 'react';
 import { Car, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
@@ -43,6 +44,12 @@ export const CarCard: React.FC<CarCardProps> = ({
           bodyType={car.bodyType}
           brand={car.brand}
         />
+
+        {isDemoListing(car.id) && (
+          <span className="absolute bottom-2.5 left-2.5 z-10 px-2 py-0.5 rounded bg-slate-200 text-slate-800 text-[10px] font-black" title={DEMO_NOTICE}>
+            Пример
+          </span>
+        )}
 
         {/* Кнопка "В избранное" */}
         <button

@@ -4,6 +4,7 @@ import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KyrgyzPlateBadge, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { CarImagePreview } from '../common/CarImagePreview';
 import { ReportListingButton } from '../common/ReportListingButton';
+import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import { SellerContactBlock } from '../chat/SellerContactBlock';
 import { recordView, recordContact } from '../../utils/viewHistory';
 import {
@@ -167,7 +168,7 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
                 {formattedPriceSom} сом
               </div>
               <div className="text-[11px] text-slate-500 mt-0.5">
-                по курсу НБ КР 87.50
+                по курсу НБ КР {USD_TO_KGS_RATE.toFixed(2)}
               </div>
             </div>
           </div>
@@ -242,13 +243,16 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
                     onClick={() => onOpenCarCheckWithPlate(car.plateNumber)}
                     className="mt-2 w-full py-1 text-center text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-300 transition-colors cursor-pointer"
                   >
-                    Посмотреть полный отчет →
+                    Как проверить авто перед покупкой →
                   </button>
                 </div>
                 <ReportListingButton kind="car" listingId={car.id} listingTitle={car.title} className="mt-3 !text-slate-500" />
               </div>
 
-              {/* Кнопки связи */}
+              {/* Кнопки связи (у демо-объявлений их нет: телефоны выдуманы) */}
+              {isDemoListing(car.id) ? (
+                <p className="mt-4 p-3 rounded-lg bg-slate-200 text-slate-800 text-xs font-semibold">{DEMO_NOTICE}</p>
+              ) : (
               <div className="mt-4 space-y-2">
                 {showPhone ? (
                   <a
@@ -279,6 +283,7 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
                   <span>Написать в WhatsApp</span>
                 </a>
               </div>
+              )}
             </div>
           </div>
 

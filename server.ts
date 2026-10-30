@@ -255,75 +255,6 @@ const seedOrders: OrderRecord[] = [
   },
 ];
 
-// CarCheck database mock for official KR vehicles
-const CARCHECK_DATABASE: Record<string, any> = {
-  '01KG777AAA': {
-    plateNumber: '01 KG 777 AAA',
-    brand: 'Toyota',
-    model: 'Camry',
-    year: 2021,
-    vin: 'JTNBF4HK3M3194***',
-    engineVolume: '2.5 л',
-    fuelType: 'Бензин',
-    color: 'Белый жемчуг',
-    steering: 'Слева',
-    bodyType: 'Седан',
-    registeredCity: 'г. Бишкек, Первомайский район',
-    initialRegDate: '15.03.2021',
-    ownersCount: 1,
-    restrictions: false,
-    arrests: 'Арестов и залогов нет',
-    fines: {
-      total: 0,
-      unpaid: 0,
-      records: [],
-    },
-    inspection: {
-      status: 'Пройден',
-      validUntil: '15.03.2027',
-    },
-    mileageHistory: [
-      { date: '15.03.2021', mileage: '15 км' },
-      { date: '20.04.2022', mileage: '18 400 км' },
-      { date: '12.05.2023', mileage: '34 200 км' },
-      { date: '01.06.2024', mileage: '48 000 км' },
-    ],
-    accidents: 'ДТП в базе данных ГУОБДД не зафиксировано',
-  },
-  '08KG555BOS': {
-    plateNumber: '08 KG 555 BOS',
-    brand: 'BMW',
-    model: 'X5',
-    year: 2022,
-    vin: 'WBAJU8C09M9B54***',
-    engineVolume: '3.0 л',
-    fuelType: 'Бензин',
-    color: 'Черный металлик',
-    steering: 'Слева',
-    bodyType: 'Кроссовер',
-    registeredCity: 'Чуйская обл., г. Токмок',
-    initialRegDate: '04.09.2022',
-    ownersCount: 2,
-    restrictions: false,
-    arrests: 'Арестов и залогов нет',
-    fines: {
-      total: 1,
-      unpaid: 0,
-      records: [{ date: '12.11.2023', violation: 'Превышение скорости на 15 км/ч', amount: '1000 сом', status: 'Оплачен' }],
-    },
-    inspection: {
-      status: 'Пройден',
-      validUntil: '04.09.2026',
-    },
-    mileageHistory: [
-      { date: '04.09.2022', mileage: '50 км' },
-      { date: '10.10.2023', mileage: '22 100 км' },
-      { date: '14.07.2024', mileage: '36 500 км' },
-    ],
-    accidents: 'ДТП не зарегистрировано',
-  },
-};
-
 // ==========================================
 // API ROUTES
 // ==========================================
@@ -340,10 +271,11 @@ app.get('/api/health', (_req: Request, res: Response) => {
 });
 
 // Orders API
+const SEED_ORDER_IDS = new Set(seedOrders.map((o) => o.id));
 app.get('/api/orders', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
   res.json({
     success: true,
-    orders: await listRecords<OrderRecord>('orders'),
+    orders: (await listRecords<OrderRecord>('orders')).filter((o) => !SEED_ORDER_IDS.has(o.id)),
   });
 }));
 
@@ -418,66 +350,10 @@ app.patch('/api/orders/:id/status', requireAdmin, asyncRoute(async (req: Request
   });
 }));
 
-// CarCheck verification API
-app.get('/api/carcheck/:plate', (req: Request, res: Response) => {
-  const rawPlate = (req.params.plate || '').toUpperCase().replace(/[^0-9A-ZА-Я]/g, '');
-  
-  if (CARCHECK_DATABASE[rawPlate]) {
-    return res.json({
-      success: true,
-      found: true,
-      data: CARCHECK_DATABASE[rawPlate],
-    });
-  }
-
-  // Generative fallback for any KR plate format
-  const regionCode = rawPlate.slice(0, 2);
-  const regionName =
-    regionCode === '01' ? 'г. Бишкек' :
-    regionCode === '02' ? 'г. Ош' :
-    regionCode === '03' ? 'Баткенская область' :
-    regionCode === '04' ? 'Джалал-Абадская область' :
-    regionCode === '05' ? 'Нарынская область' :
-    regionCode === '06' ? 'Ошская область' :
-    regionCode === '07' ? 'Таласская область' :
-    regionCode === '08' ? 'Чуйская область' :
-    regionCode === '09' ? 'Иссык-Кульская область' : 'Кыргызская Республика';
-
-  res.json({
-    success: true,
-    found: true,
-    data: {
-      plateNumber: req.params.plate.toUpperCase(),
-      brand: 'Проверено по базе Унаа КР',
-      model: 'Транспортное средство зарегистрировано',
-      year: 2019,
-      vin: `9KG***${Math.floor(100000 + Math.random() * 900000)}`,
-      engineVolume: '2.0 л',
-      fuelType: 'Бензин',
-      color: 'Серебристый',
-      steering: 'Слева',
-      bodyType: 'Универсал',
-      registeredCity: regionName,
-      initialRegDate: '12.08.2019',
-      ownersCount: 2,
-      restrictions: false,
-      arrests: 'Арестов, залогов и судебных ограничений нет',
-      fines: {
-        total: 0,
-        unpaid: 0,
-        records: [],
-      },
-      inspection: {
-        status: 'Пройден',
-        validUntil: '12.08.2025',
-      },
-      mileageHistory: [
-        { date: '12.08.2019', mileage: '20 км' },
-        { date: '05.09.2022', mileage: '62 400 км' },
-      ],
-      accidents: 'Сведений о тяжелых ДТП нет',
-    },
-  });
+// There is no access to government registries (arrests, liens, fines), so the site never
+// invents a check result. The CarCheck window explains how to check a car officially.
+app.get('/api/carcheck/:plate', (_req: Request, res: Response) => {
+  res.status(501).json({ success: false, error: 'Проверка по базам госорганов на сайте не подключена. Проверьте авто официально в ГУ «Унаа» / ЦОН.' });
 });
 
 // Customs calculator calculation endpoint
@@ -570,7 +446,8 @@ const seedBookings: any[] = [
 ];
 
 app.get('/api/workshop/bookings', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
-  res.json({ success: true, bookings: await listRecords('bookings') });
+  const seedIds = new Set(seedBookings.map((b: any) => b.id));
+  res.json({ success: true, bookings: (await listRecords('bookings')).filter((b: any) => !seedIds.has(b.id)) });
 }));
 
 app.post('/api/workshop/bookings', asyncRoute(async (req: Request, res: Response) => {
@@ -619,33 +496,7 @@ app.post('/api/workshop/bookings', asyncRoute(async (req: Request, res: Response
   res.status(201).json({ success: true, booking: newBooking });
 }));
 
-// Telegram notification API
-app.post('/api/telegram/notify', (req: Request, res: Response) => {
-  const { message, botToken, chatId } = req.body;
-  
-  // Log telegram dispatch
-  console.log(`[Telegram Bot Webhook] Dispatched notification: "${message}" to chat ${chatId || '@kgzone_channel'}`);
 
-  res.json({
-    success: true,
-    sentAt: new Date().toISOString(),
-    recipient: chatId || 'Telegram Bot Channel @kgzone_orders_bot',
-    status: 'DELIVERED',
-    message: 'Уведомление успешно доставлено в Telegram-бота!',
-  });
-});
-
-// SMS gateway notification API
-app.post('/api/sms/notify', (req: Request, res: Response) => {
-  const { phone, text } = req.body;
-  res.json({
-    success: true,
-    phone,
-    text,
-    status: 'SENT',
-    messageId: `sms-${Date.now()}`,
-  });
-});
 
 // User Reviews API
 const seedReviews: any[] = [
@@ -691,12 +542,34 @@ const seedReviews: any[] = [
   },
 ];
 
+const SEED_REVIEW_IDS = new Set(seedReviews.map((r) => r.id));
+const isRealReview = (r: any) => !SEED_REVIEW_IDS.has(r.id);
+
 app.get('/api/reviews', asyncRoute(async (_req: Request, res: Response) => {
-  res.json({ success: true, reviews: await listRecords('reviews') });
+  const reviews = (await listRecords('reviews')).filter((r: any) => isRealReview(r) && r.status === 'approved');
+  res.json({ success: true, reviews });
+}));
+
+app.get('/api/admin/reviews', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
+  res.json({ success: true, reviews: (await listRecords('reviews')).filter(isRealReview) });
+}));
+
+app.patch('/api/admin/reviews/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const status = ['approved', 'rejected'].includes(req.body?.status) ? req.body.status : null;
+  if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
+  const updated = await updateRecord('reviews', req.params.id, { status });
+  if (!updated) return res.status(404).json({ success: false, error: 'Отзыв не найден' });
+  res.json({ success: true });
 }));
 
 app.post('/api/reviews', asyncRoute(async (req: Request, res: Response) => {
-  const { authorName, city, category, targetTitle, rating, text, pros, cons } = req.body;
+  if (tooMany(`review:${clientIp(req)}`, 5, 60 * 60_000)) {
+    return res.status(429).json({ success: false, error: 'Слишком много отзывов. Попробуйте позже.' });
+  }
+  const b = req.body || {};
+  const authorName = str(b.authorName, 80), text = str(b.text, 3000);
+  const city = str(b.city, 60), category = str(b.category, 40), targetTitle = str(b.targetTitle, 160);
+  const rating = b.rating, pros = str(b.pros, 1000), cons = str(b.cons, 1000);
   if (!authorName || !text) {
     return res.status(400).json({ success: false, error: 'Заполните имя и отзыв' });
   }
@@ -706,18 +579,22 @@ app.post('/api/reviews', asyncRoute(async (req: Request, res: Response) => {
     authorName,
     city: city || 'Бишкек',
     category: category || 'service',
-    targetTitle: targetTitle || 'Автосервис KGzone',
+    targetTitle: targetTitle || '',
     rating: Math.min(5, Math.max(1, Number(rating) || 5)),
     date: 'Сегодня, ' + new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
     text,
     pros: pros || '',
     cons: cons || '',
-    verifiedPurchase: true,
-    likes: 1,
+    // A purchase can't be verified, so reviews are never marked as such
+    verifiedPurchase: false,
+    likes: 0,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
   };
 
   await insertRecord('reviews', newReview);
-  res.status(201).json({ success: true, review: newReview });
+  await notifyAdmin(`💬 Новый отзыв на модерации\n${authorName}: ${text.slice(0, 300)}`);
+  res.status(201).json({ success: true, review: newReview, pending: true });
 }));
 
 // ==========================================
@@ -2933,6 +2810,28 @@ app.patch('/api/admin/part-requests/:id', requireAdmin, asyncRoute(async (req: R
   const updated = await updateRecord('partRequests', req.params.id, { status, updatedAt: new Date().toISOString() });
   if (!updated) return res.status(404).json({ success: false, error: 'Заявка не найдена' });
   res.json({ success: true });
+}));
+
+// --- Official exchange rates of the National Bank of the Kyrgyz Republic -----------
+let ratesCache: { at: number; date: string; rates: Record<string, number> } | null = null;
+app.get('/api/rates', asyncRoute(async (_req: Request, res: Response) => {
+  if (!ratesCache || Date.now() - ratesCache.at > 3 * 3600_000) {
+    try {
+      const r = await fetch('https://www.nbkr.kg/XML/daily.xml', { signal: AbortSignal.timeout(8000) });
+      const xml = new TextDecoder('windows-1251').decode(await r.arrayBuffer());
+      const rates: Record<string, number> = {};
+      for (const m of xml.matchAll(/ISOCode="([A-Z]{3})">\s*<Nominal>(\d+)<\/Nominal>\s*<Value>([\d,\.]+)<\/Value>/g)) {
+        rates[m[1]] = Number(m[3].replace(',', '.')) / Number(m[2]);
+      }
+      const date = xml.match(/Date="([\d.]+)"/)?.[1] || '';
+      if (rates.USD) ratesCache = { at: Date.now(), date, rates };
+    } catch (err) {
+      console.warn('[rates] NBKR unavailable:', err);
+    }
+  }
+  if (!ratesCache) return res.status(503).json({ success: false, error: 'Курс НБ КР временно недоступен' });
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=1800');
+  res.json({ success: true, source: 'НБ КР', date: ratesCache.date, rates: ratesCache.rates });
 }));
 
 // Complaints about listings (parts or cars) -> admin queue

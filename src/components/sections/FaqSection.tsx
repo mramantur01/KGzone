@@ -1,3 +1,4 @@
+import { siteWhatsApp } from '../../config/site';
 import React, { useState } from 'react';
 import { HelpCircle, Search, ChevronDown, ChevronUp, MessageCircle, Bot, Sparkles } from 'lucide-react';
 import { FAQ_DATA } from '../../data/workshopData';
@@ -167,7 +168,7 @@ export const FaqSection: React.FC<FaqSectionProps> = ({ language, onOpenConsulta
             )}
 
             <a
-              href={`https://wa.me/996555777999?text=${encodeURIComponent('Здравствуйте! У меня есть вопрос по порталу KGzone.')}`}
+              href={siteWhatsApp('Здравствуйте! У меня есть вопрос по порталу KGzone.') || undefined}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"

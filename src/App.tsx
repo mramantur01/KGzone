@@ -35,6 +35,7 @@ import { CarCard } from './components/cars/CarCard';
 import type { PartsSearchPreset } from './components/account/AccountCabinet';
 import { useAuth, isStaff, type Account } from './api/auth';
 import { useUnreadMessages } from './api/chat';
+import { useRates } from './api/rates';
 import { LandingHero } from './components/sections/LandingHero';
 import { Footer } from './components/layout/Footer';
 import { KyrgyzSectionDivider, KochkorMuyuzIcon, TundukIcon } from './components/ornaments/KyrgyzOrnaments';
@@ -70,7 +71,6 @@ const NewsSection = lazy(() => import('./components/sections/NewsSection').then(
 const WorkshopSection = lazy(() => import('./components/sections/WorkshopSection').then((m) => ({ default: m.WorkshopSection })));
 const FaqSection = lazy(() => import('./components/sections/FaqSection').then((m) => ({ default: m.FaqSection })));
 const PromotionsSection = lazy(() => import('./components/sections/PromotionsSection').then((m) => ({ default: m.PromotionsSection })));
-const SiteControlPanelModal = lazy(() => import('./components/cabinet/SiteControlPanelModal').then((m) => ({ default: m.SiteControlPanelModal })));
 const AIConsultantChatbot = lazy(() => import('./components/chatbot/AIConsultantChatbot').then((m) => ({ default: m.AIConsultantChatbot })));
 const AuthModal = lazy(() => import('./components/auth/AuthModal').then((m) => ({ default: m.AuthModal })));
 const AccountCabinet = lazy(() => import('./components/account/AccountCabinet').then((m) => ({ default: m.AccountCabinet })));
@@ -133,7 +133,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>(INITIAL_ROUTE.tab);
   const [partsRoute, setPartsRoute] = useState<Route | null>(INITIAL_ROUTE.tab === 'parts' ? INITIAL_ROUTE : null);
   const [pendingCarId, setPendingCarId] = useState<string | undefined>(INITIAL_ROUTE.carId);
-  const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
+  // "Панель управления" opens the moderation section of the real cabinet
+  const [cabinetOpenSection, setCabinetOpenSection] = useState<{ section: 'moderation'; at: number } | undefined>();
+  const openControlPanel = () => {
+    setCabinetOpenSection({ section: 'moderation', at: Date.now() });
+    setActiveTab('cabinet');
+    window.scrollTo({ top: 0 });
+  };
 
   // Synchronize dark class on document element
   React.useEffect(() => {
@@ -157,6 +163,8 @@ export default function App() {
   const userProfile: UserProfile = useMemo(() => accountToProfile(account), [account]);
   const isAuthenticated = Boolean(account);
   const unreadMessages = useUnreadMessages(isAuthenticated);
+  // Official NBKR rate; the whole page re-renders with it once loaded
+  const rates = useRates();
   const [buyerOrders, setBuyerOrders] = useState<BuyerOrder[]>(INITIAL_BUYER_ORDERS);
   const [sellerOrders, setSellerOrders] = useState<SellerIncomingOrder[]>(INITIAL_SELLER_INCOMING_ORDERS);
   const [savedChecks, setSavedChecks] = useState<SavedCarCheck[]>(INITIAL_SAVED_CARCHECKS);
@@ -471,6 +479,8 @@ export default function App() {
         favoritesCount={favorites.length}
         userName={account?.name || ''}
         unreadCount={unreadMessages}
+        usdRate={rates.usd}
+        rateDate={rates.official ? rates.date : ''}
         userSiteRole={userProfile.siteRole}
         isApprovedAdmin={staff}
         onOpenFavorites={() => setIsFavoritesOpen(true)}
@@ -480,7 +490,7 @@ export default function App() {
           setIsCarCheckOpen(true);
         }}
         onOpenCustomsCalc={() => setIsCustomsCalcOpen(true)}
-        onOpenControlPanel={staff ? () => setIsControlPanelOpen(true) : undefined}
+        onOpenControlPanel={staff ? openControlPanel : undefined}
         onOpenCabinetAuth={openCabinet}
       />
 
@@ -697,7 +707,7 @@ export default function App() {
           <PromotionsSection
             language={language}
             onNavigateToWorkshop={() => setActiveTab('workshop')}
-            onApplyPromo={(code) => showToast(`Промокод ${code} активирован!`)}
+            onApplyPromo={(code) => showToast(`Промокод ${code} скопирован`)}
           />
         )}
 
@@ -721,6 +731,7 @@ export default function App() {
         {/* Единый Личный кабинет (вход, регистрация, управление сайтом и личный профиль) */}
         {activeTab === 'cabinet' && (
           <AccountCabinet
+            openSection={cabinetOpenSection}
             cars={cars}
             favoriteCarIds={favorites}
             onToggleCarFavorite={toggleFavorite}
@@ -751,30 +762,8 @@ export default function App() {
         onOpenWorkshop={() => setActiveTab('workshop')}
         onOpenFaq={() => setActiveTab('faq')}
         onOpenPromotions={() => setActiveTab('promotions')}
-        onOpenControlPanel={staff ? () => setIsControlPanelOpen(true) : undefined}
+        onOpenControlPanel={staff ? openControlPanel : undefined}
       />
-
-      {/* Модальная Панель Управления Сайтом */}
-      {isControlPanelOpen && staff && (
-        <Suspense fallback={null}>
-      <SiteControlPanelModal
-        isOpen={isControlPanelOpen && staff}
-        onClose={() => setIsControlPanelOpen(false)}
-        currentUser={userProfile}
-        onSwitchUser={() => undefined}
-        cars={cars}
-        onUpdateCars={(updated) => setCars(updated)}
-        parts={parts}
-        onUpdateParts={(updated) => setParts(updated)}
-        registeredUsers={registeredUsers}
-        onUpdateUsers={(updated) => setRegisteredUsers(updated)}
-        siteSettings={siteSettings}
-        onUpdateSiteSettings={(s) => setSiteSettings(s)}
-        language={language}
-        currency={currency}
-      />
-        </Suspense>
-      )}
 
       {/* Модальное окно входа и регистрации в Личный кабинет (в точности как на образце) */}
       {isCabinetAuthModalOpen && (
