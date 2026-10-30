@@ -128,7 +128,7 @@ const ImportExport: React.FC<{ info: CompanyInfo }> = ({ info }) => {
   const [preview, setPreview] = useState<ReturnType<typeof rowsToParts> | null>(null);
   const [fileName, setFileName] = useState('');
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ created: number; updated: number; errors: { row: number; error: string }[]; moderation: string } | null>(null);
+  const [result, setResult] = useState<{ created: number; updated: number; errors: { row: number; error: string }[]; moderation: string; noPhoto: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const readFile = async (file: File | undefined) => {
@@ -145,11 +145,11 @@ const ImportExport: React.FC<{ info: CompanyInfo }> = ({ info }) => {
   const doImport = async () => {
     if (!preview) return;
     setBusy(true); setError(null);
-    const total = { created: 0, updated: 0, errors: [] as { row: number; error: string }[], moderation: 'pending' };
+    const total = { created: 0, updated: 0, errors: [] as { row: number; error: string }[], moderation: 'pending', noPhoto: 0 };
     try {
       for (let i = 0; i < preview.rows.length; i += 500) {
         const r = await importCompanyRows(preview.rows.slice(i, i + 500) as Record<string, string>[]);
-        total.created += r.created; total.updated += r.updated; total.moderation = r.moderation;
+        total.created += r.created; total.updated += r.updated; total.moderation = r.moderation; total.noPhoto = r.noPhoto || 0;
         total.errors.push(...r.errors.map((e) => ({ ...e, row: e.row + i })));
       }
       setResult(total);
@@ -206,6 +206,9 @@ const ImportExport: React.FC<{ info: CompanyInfo }> = ({ info }) => {
             <div className="text-xs p-3 rounded-lg bg-emerald-50 border border-emerald-200 space-y-1">
               <div>Добавлено: <b>{result.created}</b>, обновлено: <b>{result.updated}</b>, с ошибками: <b>{result.errors.length}</b>.</div>
               <div>{result.moderation === 'approved' ? 'Товары опубликованы.' : 'Товары отправлены на модерацию.'}</div>
+              {result.noPhoto > 0 && (
+                <div className="text-amber-700 font-semibold">Без фото: {result.noPhoto}. Покупатели их не видят — добавьте фото в разделе «Каталог» (кнопка «Добавить фото»).</div>
+              )}
               {result.errors.slice(0, 30).map((e) => <div key={e.row} className="text-red-600">Строка {e.row}: {e.error}</div>)}
             </div>
           )}

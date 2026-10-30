@@ -118,9 +118,10 @@ const ImportForSellerCard: React.FC = () => {
     setBusy(true);
     setResult(null);
     try {
-      const r = await call<{ created: number; updated: number; errors: { row: number; error: string }[] }>(
+      const r = await call<{ created: number; updated: number; noPhoto: number; errors: { row: number; error: string }[] }>(
         '/api/admin/import', { method: 'POST', body: JSON.stringify({ ownerId: owner.id, rows: preview.rows }) }, true);
-      setResult(`Готово: новых ${r.created}, обновлено ${r.updated}${r.errors.length ? `, ошибок ${r.errors.length} (строки ${r.errors.slice(0, 10).map((e) => e.row).join(', ')}: ${r.errors[0].error})` : ''}.`);
+      setResult(`Готово: новых ${r.created}, обновлено ${r.updated}${r.errors.length ? `, ошибок ${r.errors.length} (строки ${r.errors.slice(0, 10).map((e) => e.row).join(', ')}: ${r.errors[0].error})` : ''}.` +
+        (r.noPhoto ? ` Без фото: ${r.noPhoto} — они скрыты, пока продавец не добавит фото в кабинете.` : ''));
       setPreview(null);
     } catch (e: any) { setResult(e.message); } finally { setBusy(false); }
   };
@@ -138,7 +139,7 @@ const ImportForSellerCard: React.FC = () => {
     <div className={card}>
       <div className="flex items-center gap-2 font-bold text-slate-900"><Upload size={15} className="text-[#C8102E]" />Загрузить прайс за продавца</div>
       <p className="text-xs text-slate-600">
-        Продавец регистрируется сам (или вместе с вами), присылает прайс — вы загружаете его здесь. Запчасти публикуются сразу, продавцу придёт уведомление.
+        Продавец регистрируется сам (или вместе с вами), присылает прайс — вы загружаете его здесь. Фото в прайсе не обязательны: товары без фото скрыты, пока продавец не сфотографирует их в кабинете.
       </p>
       <div>
         <input value={query} onChange={(e) => { setQuery(e.target.value); setOwnerId(''); }} placeholder="Найти продавца: имя, магазин или телефон" className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm" />

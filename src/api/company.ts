@@ -80,7 +80,7 @@ export const updateCompanyPart = (id: string, patch: Record<string, unknown>) =>
 export const bulkCompanyParts = (ids: string[], action: string, extra: Record<string, unknown> = {}) =>
   after(call<{ updated: number }>('/api/company/parts/bulk', { method: 'POST', body: JSON.stringify({ ids, action, ...extra }) }));
 export const importCompanyRows = (rows: Record<string, string>[]) =>
-  after(call<{ created: number; updated: number; errors: { row: number; error: string }[]; moderation: string }>('/api/company/import', { method: 'POST', body: JSON.stringify({ rows }) }));
+  after(call<{ created: number; updated: number; errors: { row: number; error: string }[]; moderation: string; noPhoto?: number }>('/api/company/import', { method: 'POST', body: JSON.stringify({ rows }) }));
 
 export async function downloadCompanyExport() {
   const res = await fetch('/api/company/export');

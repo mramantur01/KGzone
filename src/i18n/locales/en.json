@@ -3456,5 +3456,13 @@
  "Загрузите хотя бы одно своё фото этой детали": "Upload at least one photo of this exact part",
  "Укажите количество в наличии: товары под заказ на сайте не публикуются": "Enter the quantity in stock: items on order are not published on the site",
  "Обязательно: сфотографируйте именно эту деталь (до 8 фото). Чужие фото и картинки из интернета не принимаются.": "Required: photograph this exact part (up to 8 photos). Other people’s photos and pictures from the internet are not accepted.",
- "Добавьте хотя бы одно своё фото этой детали": "Add at least one photo of this exact part"
+ "Добавьте хотя бы одно своё фото этой детали": "Add at least one photo of this exact part",
+ "Фото добавлены. Модератор проверит их, и товар появится на сайте.": "Photos added. A moderator will check them and the item will appear on the site.",
+ "Без фото: {} — они скрыты, пока продавец не добавит фото в кабинете.": "Without photos: {}. They stay hidden until the seller adds photos in the account.",
+ "Продавец регистрируется сам (или вместе с вами), присылает прайс — вы загружаете его здесь. Фото в прайсе не обязательны: товары без фото скрыты, пока продавец не сфотографирует их в кабинете.": "The seller registers (alone or with you) and sends a price list, which you upload here. Photos are not required in the price list: items without photos stay hidden until the seller photographs them in the account.",
+ "Ещё фото ({}/{})": "More photos ({}/{})",
+ "Без фото:": "Without photos:",
+ ". Покупатели их не видят — добавьте фото в разделе «Каталог» (кнопка «Добавить фото»).": ". Buyers cannot see them: add photos in the “Catalog” section (“Add photo” button).",
+ "Без фото — не виден покупателям": "No photo, not visible to buyers",
+ "Фото добавлены": "Photos added"
 }

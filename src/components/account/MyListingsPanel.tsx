@@ -4,6 +4,7 @@ import {
   deleteMyListing, editMyListing, listMyListings, raiseMyListing, setMyListingStatus,
   type ListingKind, type MyCar, type MyPart,
 } from '../../api/myListings';
+import { AddPhotosButton } from '../common/AddPhotosButton';
 
 type Row = { kind: ListingKind; item: MyPart | MyCar };
 type Bucket = 'pending' | 'active' | 'rejected' | 'inactive' | 'sold';
@@ -197,6 +198,12 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar }) => {
                 </div>
 
                 <div className="flex flex-wrap sm:flex-col gap-2 shrink-0 text-xs">
+                  {kind === 'parts' && b !== 'sold' && (
+                    <AddPhotosButton
+                      images={(item as MyPart).images}
+                      onSave={(images) => act(item.id, () => editMyListing('parts', item.id, { images }), 'Фото добавлены. Модератор проверит их, и товар появится на сайте.')}
+                    />
+                  )}
                   {editing !== item.id && b !== 'sold' && (
                     <button type="button" onClick={() => startEdit(row)} className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center gap-1 cursor-pointer">
                       <Pencil size={12} /><span>Редактировать</span>

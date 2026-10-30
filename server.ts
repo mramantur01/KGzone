@@ -714,7 +714,6 @@ const partProblem = (p: ReturnType<typeof sanitizePart>) => {
   if (!p.partNumber) return 'Укажите OEM артикул';
   if (!p.brand) return 'Укажите марку авто';
   if (!p.priceKgs) return 'Укажите цену';
-  if (!p.images?.length) return 'Добавьте хотя бы одно своё фото этой детали';
   if (!/\d{6,}/.test(p.sellerPhone.replace(/\D/g, ''))) return 'Укажите телефон продавца';
   return null;
 };
@@ -747,7 +746,9 @@ app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
 app.post('/api/parts', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const owner: UserRecord = (req as any).user;
   const part = sanitizePart({ ...(req.body || {}), sellerType: owner.accountType });
-  const problem = partProblem(part) || (part.stockCount < 1 ? 'Укажите количество в наличии: товары под заказ на сайте не публикуются' : null);
+  const problem = partProblem(part)
+    || (!part.images?.length ? 'Добавьте хотя бы одно своё фото этой детали' : null)
+    || (part.stockCount < 1 ? 'Укажите количество в наличии: товары под заказ на сайте не публикуются' : null);
   if (problem) return res.status(400).json({ success: false, error: problem });
 
   // Basic flood protection: at most 20 parts waiting for review per phone number
@@ -2158,11 +2159,12 @@ app.post('/api/company/import', requireCompany('import'), asyncRoute(async (req:
       created++;
     }
   }
+  const noPhoto = (await companyParts(ctx.companyId)).filter((p: any) => !p.images?.length).length;
   await companyAudit(ctx, actor, 'import', ctx.companyId, { created, updated, errors: errors.length });
   if (created + updated > 0 && moderation.status === 'pending') {
     await notifyAdmin(`📥 Импорт товаров: ${ctx.owner.company!.name}\nНовых: ${created}, обновлено: ${updated}\nПроверить: ${SITE_URL} → Личный кабинет → Модерация`);
   }
-  res.json({ success: true, created, updated, errors, moderation: moderation.status });
+  res.json({ success: true, created, updated, errors, moderation: moderation.status, noPhoto });
 }));
 
 const csvCell = (v: unknown) => {
@@ -3045,9 +3047,14 @@ app.post('/api/admin/import', requireAdminOnly, asyncRoute(async (req: Request, 
     if (prev) { await updateRecord('parts', prev.id, { ...part, views: prev.views, updatedAt: now }); updated++; }
     else { await insertRecord('parts', { id: `part-${randomUUID()}`, ...part, ownerId: owner.id, createdAt: now, moderation }); created++; }
   }
+  const noPhoto = (await listRecords<any>('parts')).filter((p) => p.ownerId === owner.id && !p.images?.length).length;
   await audit((req as any).actor, 'admin.import', owner.id, { created, updated, errors: errors.length });
-  if (created + updated) await notifyUser(owner.id, `📥 KGzone загрузил ваш прайс: новых ${created}, обновлено ${updated}. Проверьте в Личном кабинете: ${SITE_URL}/kabinet`);
-  res.json({ success: true, created, updated, errors });
+  if (created + updated) {
+    await notifyUser(owner.id, `📥 KGzone загрузил ваш прайс: новых ${created}, обновлено ${updated}.` +
+      (noPhoto ? `\n📷 Без фото: ${noPhoto}. Такие товары не видны покупателям — добавьте фото с телефона: Личный кабинет → Мои объявления → «Добавить фото».` : '') +
+      `\n${SITE_URL}/kabinet`);
+  }
+  res.json({ success: true, created, updated, errors, noPhoto });
 }));
 
 // VIP placement (paid offline, set by an admin): shown first with a badge until vipUntil

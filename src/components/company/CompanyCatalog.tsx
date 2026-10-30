@@ -6,6 +6,7 @@ import {
 } from '../../api/company';
 import { uploadPhoto } from '../../api/upload';
 import { OemHint } from '../catalog/OemHint';
+import { AddPhotosButton } from '../common/AddPhotosButton';
 
 const PAGE = 50;
 const CATEGORIES = [
@@ -214,10 +215,14 @@ export const CompanyCatalog: React.FC<{ info: CompanyInfo }> = ({ info }) => {
                   <td className="p-2"><input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} aria-label="Выбрать" /></td>
                   <td className="p-2">
                     <div className="flex gap-2">
-                      <img src={p.image} alt="" className="w-10 h-10 rounded object-cover bg-slate-100 shrink-0" />
+                      {p.image ? <img src={p.image} alt="" className="w-10 h-10 rounded object-cover bg-slate-100 shrink-0" /> : <div className="w-10 h-10 rounded bg-amber-50 border border-amber-200 shrink-0" />}
                       <div className="min-w-0">
                         <div className="font-bold text-slate-900 line-clamp-2" data-no-i18n>{p.title}</div>
                         <div className="text-slate-400" data-no-i18n>{[p.sku, p.brand, p.model, p.manufacturer].filter(Boolean).join(' · ')}</div>
+                        {!p.images?.length && <div className="text-amber-700 font-semibold">Без фото — не виден покупателям</div>}
+                        {can('catalog.edit') && (
+                          <AddPhotosButton className="mt-1" images={p.images} onSave={(images) => run(() => updateCompanyPart(p.id, { images }), 'Фото добавлены')} />
+                        )}
                       </div>
                     </div>
                   </td>
