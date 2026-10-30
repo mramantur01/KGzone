@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 // Each collection is a hash (id -> JSON document) plus a sorted set that keeps
 // newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
-type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews' | 'memberships';
+type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews' | 'memberships' | 'partRequests';
 
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -27,7 +27,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 
 const isDatabaseConnected = Boolean(redis);
 
-const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [] };
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [] };
 let readyPromise: Promise<void> | null = null;
 
 const dataKey = (c: Collection) => `kgzone:${c}`;
@@ -139,7 +139,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make sure the DB table exists and is seeded before any API call touches it
 app.use('/api', (_req: Request, res: Response, next) => {
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [] })
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [] })
     .then(() => next())
     .catch((err) => {
       console.error('[DB] init failed:', err);
@@ -2405,7 +2405,7 @@ const conditionSchema = (c: string) =>
 
 // Page requests do not pass the /api middleware, so make sure the store is ready here
 const seoStoreReady = () =>
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [] });
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [] });
 
 const liveParts = async () => (await listRecords('parts')).filter(isLive);
 const liveCars = async () => (await listRecords('cars')).filter(isLive);
@@ -2882,6 +2882,57 @@ app.get('/api/catalog/crosses', asyncRoute(async (req: Request, res: Response) =
     : [];
   const knowledge = await oemKnowledge(oem);
   res.json({ success: true, oem, local, viaCrosses, external, knowledge, catalog: provider?.name || null, externalError });
+}));
+
+// ---------------------------------------------------------------------------
+// "Find me a part" requests from buyers when nothing is listed yet.
+// Stored on the site; staff see them in the cabinet (and in Telegram when configured).
+// ---------------------------------------------------------------------------
+
+app.post('/api/part-requests', asyncRoute(async (req: Request, res: Response) => {
+  if (tooMany(`preq:${clientIp(req)}`, 10, 60 * 60_000)) {
+    return res.status(429).json({ success: false, error: 'Слишком много заявок. Попробуйте позже.' });
+  }
+  const user = await getSessionUser(req);
+  const b = req.body || {};
+  const part = str(b.part, 160);
+  const brand = str(b.brand, 60);
+  const model = str(b.model, 80);
+  const phone = normalizePhone(b.phone) || (user ? user.phone : '');
+  if (!part) return res.status(400).json({ success: false, error: 'Укажите, какая деталь нужна' });
+  if (!phone) return res.status(400).json({ success: false, error: 'Укажите телефон, чтобы с вами связались' });
+  const record = {
+    id: `preq-${randomUUID()}`,
+    part,
+    brand,
+    model,
+    generation: str(b.generation, 80),
+    vin: str(b.vin, 25).toUpperCase(),
+    comment: str(b.comment, 1000),
+    name: str(b.name, 80) || user?.name || '',
+    phone,
+    userId: user?.id,
+    status: 'new',
+    createdAt: new Date().toISOString(),
+  };
+  await insertRecord('partRequests', record);
+  await notifyAdmin(
+    `🔎 Заявка на поиск запчасти\n${record.part}${[brand, model, record.generation].filter(Boolean).length ? ` для ${[brand, model, record.generation].filter(Boolean).join(' ')}` : ''}` +
+      `${record.vin ? `\nVIN/кузов: ${record.vin}` : ''}${record.comment ? `\n${record.comment}` : ''}\n${record.name ? record.name + ', ' : ''}+${phone}`
+  );
+  res.status(201).json({ success: true });
+}));
+
+app.get('/api/admin/part-requests', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
+  res.json({ success: true, requests: await listRecords('partRequests') });
+}));
+
+app.patch('/api/admin/part-requests/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+  const status = ['new', 'in_work', 'done', 'closed'].includes(req.body?.status) ? req.body.status : null;
+  if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
+  const updated = await updateRecord('partRequests', req.params.id, { status, updatedAt: new Date().toISOString() });
+  if (!updated) return res.status(404).json({ success: false, error: 'Заявка не найдена' });
+  res.json({ success: true });
 }));
 
 // Complaints about listings (parts or cars) -> admin queue

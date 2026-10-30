@@ -15,6 +15,7 @@ import { findCatalogVehicles, getCatalogStatus, looksLikeFrame, type CatalogVehi
 import { CatalogBrowser } from '../catalog/CatalogBrowser';
 import { decodeFrame } from '../../data/frameCodes';
 import { CrossesPanel } from '../catalog/CrossesPanel';
+import { PartRequestForm } from '../catalog/PartRequestForm';
 import { brandPath, categoryPath, partPath, setPath, setTitle, slugify, type Route } from '../../seo/routes';
 import { togglePartFavorite, usePartFavorites } from '../../utils/partFavorites';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
@@ -1299,15 +1300,23 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                 </h3>
                 <p className="text-xs text-neutral-400 mt-1 max-w-sm mx-auto">
                   {isKg
-                    ? 'Фильтрлерди бошотуп көрүңүз же Кудайберген базарындагы консультантка WhatsApp аркылуу кайрылыңыз.'
-                    : 'Попробуйте сбросить фильтры или напишите на авторынок Кудайберген для индивидуального поиска.'}
+                    ? 'Фильтрлерди бошотуп көрүңүз же издөөгө өтүнмө калтырыңыз — тетикти таап, сиз менен байланышабыз.'
+                    : 'Попробуйте сбросить фильтры или оставьте заявку — мы поищем деталь и свяжемся с вами.'}
                 </p>
-                <button
-                  onClick={handleResetFilters}
-                  className="mt-4 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl cursor-pointer"
-                >
-                  {isKg ? 'Фильтрлерди тазалоо' : 'Сбросить все фильтры'}
-                </button>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <button
+                    onClick={handleResetFilters}
+                    className="mt-4 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl cursor-pointer"
+                  >
+                    {isKg ? 'Фильтрлерди тазалоо' : 'Сбросить все фильтры'}
+                  </button>
+                </div>
+                <PartRequestForm
+                  part={selectedSubPart !== 'Все' ? selectedSubPart : searchQuery.trim() || (selectedCategory !== 'Все' ? categoriesData.find((c) => c.id === selectedCategory)?.labelRu || '' : '')}
+                  brand={selectedBrand}
+                  model={selectedModel}
+                  generation={selectedGeneration}
+                />
               </div>
             ) : viewMode === 'grid' ? (
               

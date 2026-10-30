@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { MessageCircle, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { AutoPartItem } from '../../types/car';
 import type { CarGeneration } from '../../data/mockData';
 import { partInCategory, partMatchesSubPart, type PartCategoryDef } from '../../utils/partMatching';
@@ -25,10 +25,8 @@ interface ModelPartsTreeProps {
   isKg: boolean;
 }
 
-const SITE_WHATSAPP = '996555777999';
-
-// "All parts for Toyota Camry XV70": every category and sub-part with how many listings fit,
-// and a one-click request to the site's dispatcher for parts nobody has listed yet.
+// "All parts for Toyota Camry XV70": every category and sub-part with how many listings fit.
+// Sub-parts nobody has listed yet are shown dimmed; choosing one shows the "find me a part" request form.
 export const ModelPartsTree: React.FC<ModelPartsTreeProps> = ({
   brand, model, generation, fittingParts, categories, selectedCategory, selectedSubPart, onSelect, onClose, isKg,
 }) => {
@@ -46,10 +44,6 @@ export const ModelPartsTree: React.FC<ModelPartsTreeProps> = ({
     return out;
   }, [fittingParts, categories]);
 
-  const requestLink = (sub: string) =>
-    `https://wa.me/${SITE_WHATSAPP}?text=` +
-    encodeURIComponent(`Здравствуйте! Ищу «${sub}» для ${carName}. Есть в наличии на рынках?`);
-
   return (
     <div className="mb-5 p-4 sm:p-5 rounded-3xl bg-neutral-900 border border-neutral-800">
       <div className="flex items-start justify-between gap-3 mb-4">
@@ -65,8 +59,8 @@ export const ModelPartsTree: React.FC<ModelPartsTreeProps> = ({
           )}
           <p className="text-xs text-neutral-400 mt-1">
             {isKg
-              ? 'Бөлүмдү тандаңыз. Тетик жок болсо — диспетчерге өтүнмө калтырыңыз, базарлардан таап беребиз.'
-              : 'Выберите раздел. Если детали нет в каталоге — оставьте заявку, диспетчер найдёт её на рынках.'}
+              ? 'Бөлүмдү тандаңыз. Тетик азырынча жок болсо — издөөгө өтүнмө калтырсаңыз болот.'
+              : 'Выберите раздел. Если детали пока нет — можно оставить заявку на поиск.'}
           </p>
         </div>
         <button
@@ -105,29 +99,22 @@ export const ModelPartsTree: React.FC<ModelPartsTreeProps> = ({
                 {cat.subParts.map((sub) => {
                   const n = c.subs[sub];
                   const active = catActive && selectedSubPart === sub;
-                  return n > 0 ? (
+                  return (
                     <button
                       key={sub}
                       type="button"
                       onClick={() => onSelect(cat.id, sub)}
-                      className={`px-2 py-1 rounded-lg text-[11px] font-semibold cursor-pointer transition-colors ${
-                        active ? 'bg-red-600 text-white' : 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700'
+                      title={n > 0 ? undefined : isKg ? 'Азырынча жарыя жок' : 'Пока нет объявлений'}
+                      className={`px-2 py-1 rounded-lg text-[11px] cursor-pointer transition-colors ${
+                        active
+                          ? 'bg-red-600 text-white font-semibold'
+                          : n > 0
+                            ? 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700 font-semibold'
+                            : 'text-neutral-500 border border-dashed border-neutral-700 hover:text-neutral-200 hover:border-neutral-500'
                       }`}
                     >
                       {sub} <span className="opacity-70">{n}</span>
                     </button>
-                  ) : (
-                    <a
-                      key={sub}
-                      href={requestLink(sub)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={isKg ? 'Өтүнмө калтыруу' : 'Оставить заявку'}
-                      className="px-2 py-1 rounded-lg text-[11px] text-neutral-500 border border-dashed border-neutral-700 hover:text-emerald-300 hover:border-emerald-600 inline-flex items-center gap-1"
-                    >
-                      {sub}
-                      <MessageCircle size={10} />
-                    </a>
                   );
                 })}
               </div>
