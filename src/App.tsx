@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { isDemoCabinet, exitDemoCabinet } from './api/demo';
 import React, { useState, useMemo, lazy, Suspense } from 'react';
 import {
   Car,
@@ -457,6 +458,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans selection:bg-[#C8102E] selection:text-white">
+      {isDemoCabinet() && (
+        <div className="sticky top-0 z-[60] bg-amber-400 text-neutral-950 text-xs sm:text-sm font-bold px-4 py-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
+          <span>Демо-кабинет продавца: данные выдуманы, изменения не сохраняются.</span>
+          <button type="button" onClick={() => exitDemoCabinet()} className="underline cursor-pointer">Выйти из демо</button>
+        </div>
+      )}
       {/* Toast уведомление */}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-lg shadow-xl border border-slate-700 text-xs font-semibold flex items-center gap-2">
