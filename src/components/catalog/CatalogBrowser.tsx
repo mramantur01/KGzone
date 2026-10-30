@@ -7,12 +7,14 @@ import { listCatalogGroups, listCatalogParts, type CatalogGroup, type CatalogPar
 interface Props {
   vehicles: CatalogVehicle[];
   provider: string;
+  /** false for sources without assembly diagrams (free VIN base, frame-code table) */
+  groupsAvailable?: boolean;
   onPickVehicle: (v: CatalogVehicle) => void;
   onSearchOem: (oem: string) => void;
   onClose: () => void;
 }
 
-export const CatalogBrowser: React.FC<Props> = ({ vehicles, provider, onPickVehicle, onSearchOem, onClose }) => {
+export const CatalogBrowser: React.FC<Props> = ({ vehicles, provider, groupsAvailable = true, onPickVehicle, onSearchOem, onClose }) => {
   const [vehicle, setVehicle] = useState<CatalogVehicle | null>(vehicles.length === 1 ? vehicles[0] : null);
   const [groups, setGroups] = useState<CatalogGroup[] | null>(null);
   const [group, setGroup] = useState<CatalogGroup | null>(null);
@@ -23,6 +25,7 @@ export const CatalogBrowser: React.FC<Props> = ({ vehicles, provider, onPickVehi
     if (!vehicle) return;
     onPickVehicle(vehicle);
     setGroups(null); setGroup(null); setParts(null); setError(null);
+    if (!groupsAvailable) return;
     listCatalogGroups(vehicle.ref).then(setGroups).catch((e) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicle]);
@@ -38,7 +41,7 @@ export const CatalogBrowser: React.FC<Props> = ({ vehicles, provider, onPickVehi
   return (
     <div className="mt-3 p-3 rounded-2xl bg-neutral-950 border border-neutral-700 text-xs space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-bold text-white">Каталог {provider}</span>
+        <span className="font-bold text-white">{provider}</span>
         <button type="button" onClick={onClose} className="p-1 rounded hover:bg-neutral-800 cursor-pointer" aria-label="Закрыть"><X size={14} /></button>
       </div>
 
@@ -56,8 +59,13 @@ export const CatalogBrowser: React.FC<Props> = ({ vehicles, provider, onPickVehi
       {vehicle && (
         <>
           <div className="text-white font-semibold" data-no-i18n>{vehicleLine(vehicle)}</div>
+          {!groupsAvailable && (
+            <p className="text-neutral-400">
+              Фильтры каталога настроены на этот автомобиль. Схемы узлов с оригинальными номерами появятся после подключения Laximo.
+            </p>
+          )}
           {error && <p className="text-red-400">{error}</p>}
-          {!groups && !error && <Loader2 size={16} className="animate-spin text-neutral-400" />}
+          {groupsAvailable && !groups && !error && <Loader2 size={16} className="animate-spin text-neutral-400" />}
           {groups && !group && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-72 overflow-y-auto">
               {groups.map((g) => (

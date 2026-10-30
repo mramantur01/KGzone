@@ -2335,13 +2335,14 @@ const partInSeoCategory = (p: any, cat: (typeof SEO_CATEGORIES)[number]) => {
 const partFitsSeoBrand = (p: any, brand: string) =>
   p.brand === brand || (p.compatibility || []).some((c: any) => c.brand === brand);
 
-let indexTemplate: string | null = null;
+// Re-read after a rebuild (the file's modification time changes), otherwise served from memory
+let indexTemplate: { mtime: number; html: string } | null = null;
 function loadIndexTemplate() {
-  if (indexTemplate === null) {
-    const file = path.resolve(__dirname, 'public', 'index.html');
-    indexTemplate = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  }
-  return indexTemplate;
+  const file = path.resolve(__dirname, 'public', 'index.html');
+  if (!fs.existsSync(file)) return '';
+  const mtime = fs.statSync(file).mtimeMs;
+  if (!indexTemplate || indexTemplate.mtime !== mtime) indexTemplate = { mtime, html: fs.readFileSync(file, 'utf8') };
+  return indexTemplate.html;
 }
 
 interface SeoPage {
@@ -2728,12 +2729,114 @@ app.get('/api/catalog/status', (_req: Request, res: Response) => {
 });
 
 // VIN or frame number -> vehicles (several when the number is ambiguous)
-app.get('/api/catalog/vehicles', (req: Request, res: Response) => {
+// Free VIN decoding by the US NHTSA vPIC database (no key). Good for cars built for the US
+// market (many imports to Kyrgyzstan); weaker for Japanese/Chinese domestic models.
+const titleCase = (v: string) => v.toLowerCase().replace(/(^|[\s-])([a-z])/g, (_m, a, b) => a + b.toUpperCase());
+async function vpicDecode(vin: string): Promise<CatalogVehicle[]> {
+  const r = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${encodeURIComponent(vin)}?format=json`, { signal: AbortSignal.timeout(10_000) });
+  if (!r.ok) throw new Error(`vPIC ${r.status}`);
+  const row = ((await r.json()) as any)?.Results?.[0];
+  if (!row?.Make || !row?.Model) return [];
+  const make = String(row.Make).trim();
+  const brandName = make.length <= 3 ? make : make === 'MERCEDES-BENZ' ? 'Mercedes-Benz' : titleCase(make);
+  const engine = [row.DisplacementL ? `${Number(row.DisplacementL).toFixed(1)} л` : '', row.EngineModel, row.FuelTypePrimary].filter(Boolean).join(' · ');
+  return [{
+    ref: `vpic:${vin}`,
+    brand: brandName,
+    model: String(row.Model).trim(),
+    modification: [row.Trim, row.DriveType, row.TransmissionStyle].filter(Boolean).join(' · ') || undefined,
+    year: row.ModelYear || undefined,
+    engine: engine || undefined,
+    bodyCode: [row.Series, row.BodyClass].filter(Boolean).join(' · ') || undefined,
+    market: row.PlantCountry ? titleCase(String(row.PlantCountry)) : undefined,
+  }];
+}
+
+app.get('/api/catalog/vehicles', asyncRoute(async (req: Request, res: Response) => {
   if (catalogLimited(req, res)) return;
   const q = String(req.query.q || '').toUpperCase().replace(/\s+/g, '').slice(0, 30);
   if (q.length < 6) return res.status(400).json({ success: false, error: 'Введите VIN (17 символов) или номер кузова' });
-  catalogCall(res, (p) => cached(`${p.id}:veh:${q}`, () => p.findVehicles(q)));
-});
+  if (activeCatalog()) return catalogCall(res, (p) => cached(`${p.id}:veh:${q}`, () => p.findVehicles(q)));
+  // No paid catalog: free decoding for real VINs
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(q)) {
+    return res.status(503).json({ success: false, configured: false, error: 'Подбор по номеру кузова через внешний каталог не подключён' });
+  }
+  try {
+    const result = await cached(`vpic:${q}`, () => vpicDecode(q));
+    res.json({ success: true, provider: 'NHTSA vPIC', free: true, groups: false, result });
+  } catch (err) {
+    console.warn('[vPIC]', err);
+    res.status(502).json({ success: false, error: 'Бесплатная база VIN временно не отвечает' });
+  }
+}));
+
+// --- KGzone OEM knowledge base -------------------------------------------------
+// Built from sellers' listings: OEM number -> analogues (cross numbers), names and the cars
+// a part fits. The more independent sellers state the same link, the more reliable it is.
+interface OemKnowledge {
+  number: string;
+  names: { name: string; count: number }[];
+  crosses: { number: string; sellers: number }[];
+  fits: { brand: string; model: string; generation?: string; sellers: number }[];
+  listings: number;
+  sellers: number;
+}
+
+let oemIndexCache: { at: number; byNumber: Map<string, any[]> } | null = null;
+async function oemIndex() {
+  if (oemIndexCache && Date.now() - oemIndexCache.at < 5 * 60_000) return oemIndexCache.byNumber;
+  const byNumber = new Map<string, any[]>();
+  for (const p of (await listRecords('parts')).filter((x: any) => x.moderation?.status === 'approved')) {
+    const nums = new Set([normOem(p.partNumber), ...(p.crossNumbers || []).map(normOem)].filter((n) => n.length >= 4));
+    for (const n of nums) {
+      if (!byNumber.has(n)) byNumber.set(n, []);
+      byNumber.get(n)!.push(p);
+    }
+  }
+  oemIndexCache = { at: Date.now(), byNumber };
+  return byNumber;
+}
+
+async function oemKnowledge(raw: string): Promise<OemKnowledge | null> {
+  const number = normOem(raw);
+  if (number.length < 4) return null;
+  const list = (await oemIndex()).get(number) || [];
+  if (!list.length) return null;
+  const sellerOf = (p: any) => p.ownerId || normOem(p.sellerPhone) || p.id;
+  const names = new Map<string, number>();
+  const crosses = new Map<string, { display: string; sellers: Set<string> }>();
+  const fits = new Map<string, { brand: string; model: string; generation?: string; sellers: Set<string> }>();
+  for (const p of list) {
+    const seller = sellerOf(p);
+    names.set(p.title, (names.get(p.title) || 0) + 1);
+    for (const n of [p.partNumber, ...(p.crossNumbers || [])]) {
+      const k = normOem(n);
+      if (!k || k === number) continue;
+      if (!crosses.has(k)) crosses.set(k, { display: String(n).toUpperCase(), sellers: new Set() });
+      crosses.get(k)!.sellers.add(seller);
+    }
+    const cars = [{ brand: p.brand, model: p.model, generation: p.generation || p.bodyCode }, ...(p.compatibility || []).map((c: any) => ({ brand: c.brand, model: c.model, generation: c.bodyCode || c.years }))];
+    for (const c of cars) {
+      if (!c.brand || !c.model) continue;
+      const k = `${c.brand}|${c.model}|${c.generation || ''}`.toLowerCase();
+      if (!fits.has(k)) fits.set(k, { brand: c.brand, model: c.model, generation: c.generation || undefined, sellers: new Set() });
+      fits.get(k)!.sellers.add(seller);
+    }
+  }
+  return {
+    number,
+    names: [...names.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => ({ name, count })),
+    crosses: [...crosses.values()].map((c) => ({ number: c.display, sellers: c.sellers.size })).sort((a, b) => b.sellers - a.sellers).slice(0, 30),
+    fits: [...fits.values()].map((f) => ({ brand: f.brand, model: f.model, generation: f.generation, sellers: f.sellers.size })).sort((a, b) => b.sellers - a.sellers).slice(0, 30),
+    listings: list.length,
+    sellers: new Set(list.map(sellerOf)).size,
+  };
+}
+
+app.get('/api/oem/:number', asyncRoute(async (req: Request, res: Response) => {
+  const k = await oemKnowledge(req.params.number);
+  res.json({ success: true, found: Boolean(k), knowledge: k });
+}));
 
 app.get('/api/catalog/groups', (req: Request, res: Response) => {
   if (catalogLimited(req, res)) return;
@@ -2777,7 +2880,8 @@ app.get('/api/catalog/crosses', asyncRoute(async (req: Request, res: Response) =
     ? parts.filter((p: any) => crossSet.has(normOem(p.partNumber)) && !local.some((l) => l.id === p.id)).slice(0, 50)
         .map((p: any) => ({ id: p.id, title: p.title, partNumber: p.partNumber, priceKgs: p.priceKgs, city: p.storeCity, image: p.image }))
     : [];
-  res.json({ success: true, oem, local, viaCrosses, external, catalog: provider?.name || null, externalError });
+  const knowledge = await oemKnowledge(oem);
+  res.json({ success: true, oem, local, viaCrosses, external, knowledge, catalog: provider?.name || null, externalError });
 }));
 
 // Complaints about listings (parts or cars) -> admin queue

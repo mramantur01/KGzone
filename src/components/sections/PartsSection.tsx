@@ -13,6 +13,7 @@ import { useParts } from '../../api/parts';
 import { decodeVin, type VinInfo } from '../../utils/vin';
 import { findCatalogVehicles, getCatalogStatus, looksLikeFrame, type CatalogVehicle } from '../../api/catalog';
 import { CatalogBrowser } from '../catalog/CatalogBrowser';
+import { decodeFrame } from '../../data/frameCodes';
 import { CrossesPanel } from '../catalog/CrossesPanel';
 import { brandPath, categoryPath, partPath, setPath, setTitle, slugify, type Route } from '../../seo/routes';
 import { togglePartFavorite, usePartFavorites } from '../../utils/partFavorites';
@@ -64,6 +65,8 @@ import {
 } from 'lucide-react';
 
 const PAGE_SIZE = 24;
+
+const normNum = (v: string) => v.toUpperCase().replace(/[^A-Z0-9А-Я]/g, '');
 
 const partConditionGroup = (condition: string) => {
   const c = condition.toLowerCase();
@@ -144,6 +147,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   const [vinBusy, setVinBusy] = useState(false);
   const [catalogVehicles, setCatalogVehicles] = useState<CatalogVehicle[] | null>(null);
   const [catalogProvider, setCatalogProvider] = useState('');
+  const [catalogGroups, setCatalogGroups] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const favoriteIds = usePartFavorites();
   const [selectedPartForDetail, setSelectedPartForDetail] = useState<AutoPartItem | null>(null);
@@ -517,6 +521,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
+        const qNum = normNum(q);
         const matchesQuery =
           part.title.toLowerCase().includes(q) ||
           part.partNumber.toLowerCase().includes(q) ||
@@ -529,7 +534,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
           (part.containerInfo && part.containerInfo.toLowerCase().includes(q)) ||
           (part.bodyCode && part.bodyCode.toLowerCase().includes(q)) ||
           (part.manufacturer && part.manufacturer.toLowerCase().includes(q)) ||
-          !!part.crossNumbers?.some((c) => c.toLowerCase().includes(q));
+          !!part.crossNumbers?.some((c) => c.toLowerCase().includes(q)) ||
+          // Part numbers match regardless of dashes and spaces ("90915-YZZE1" = "90915YZZE1")
+          (qNum.length >= 4 && /\d/.test(qNum) &&[part.partNumber, ...(part.crossNumbers || [])].some((n) => normNum(n).includes(qNum)));
         if (!matchesQuery) return false;
       }
 
@@ -653,18 +660,21 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     const q = vinInput.trim().toUpperCase().replace(/\s/g, '');
     const info = decodeVin(q);
 
-    // Connected catalog (Laximo / TecDoc): exact vehicle by VIN or Japanese frame number
+    const show = (vehicles: CatalogVehicle[], provider: string, groups: boolean) => {
+      setCatalogVehicles(vehicles);
+      setCatalogProvider(provider);
+      setCatalogGroups(groups);
+      setVinInfo(null);
+    };
+
+    // 1. Connected paid catalog (Laximo / TecDoc): exact vehicle and assembly diagrams
     const status = await getCatalogStatus().catch(() => null);
-    if (status?.configured && (info || (status.features.frame && looksLikeFrame(q)))) {
+    const paid = Boolean(status?.configured && (info || (status!.features.frame && looksLikeFrame(q))));
+    if (paid) {
       setVinBusy(true);
       try {
-        const vehicles = await findCatalogVehicles(q);
-        if (vehicles.length) {
-          setCatalogVehicles(vehicles);
-          setCatalogProvider(status.provider || '');
-          setVinInfo(null);
-          return;
-        }
+        const r = await findCatalogVehicles(q);
+        if (r.vehicles.length) return show(r.vehicles, `Каталог ${r.provider}`, r.groups);
         setVinError(isKg ? 'Бул номер боюнча унаа каталогдон табылган жок' : 'По этому номеру автомобиль в каталоге не найден');
       } catch (e: any) {
         if (e?.status !== 503) setVinError(e?.message || 'Каталог временно не отвечает');
@@ -673,14 +683,36 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
       }
     }
 
+    // 2. Japanese frame number: KGzone table of model codes
     if (!info) {
+      const frames = decodeFrame(q);
+      if (frames.length) {
+        return show(
+          frames.map((m) => ({ ref: `frame:${m.code}:${m.title}`, brand: m.brand, model: m.model, modification: m.title, year: m.years, engine: m.engine, bodyCode: m.code, generation: m.generation })),
+          isKg ? 'Кузов коду боюнча (KGzone маалымдамасы)' : 'По коду кузова (справочник KGzone)',
+          false
+        );
+      }
       setVinInfo(null);
       setVinError(
         looksLikeFrame(q)
-          ? (isKg ? 'Кузов номери боюнча тандоо каталог туташтырылгандан кийин иштейт. Азырынча номерди издөөгө жазыңыз.' : 'Подбор по номеру кузова заработает после подключения каталога. Пока введите номер в поиск.')
-          : (isKg ? 'VIN 17 белгиден турат (I, O, Q тамгаларысыз). Япон унааларында көбүнчө кузов номери болот — аны издөөгө жазыңыз.' : 'VIN — 17 символов без букв I, O, Q. У японских авто часто номер кузова вместо VIN — введите его в поиск.')
+          ? (isKg ? 'Бул кузов коду маалымдамада жок. Унааны тизмеден тандаңыз же номерди издөөгө жазыңыз.' : 'Этого кода кузова пока нет в справочнике. Выберите машину из списка или введите номер в поиск.')
+          : (isKg ? 'VIN 17 белгиден турат (I, O, Q тамгаларысыз). Япон унааларында көбүнчө кузов номери болот — аны издөөгө жазыңыз.' : 'VIN — 17 символов без букв I, O, Q. У японских авто часто номер кузова вместо VIN.')
       );
       return;
+    }
+
+    // 3. Free VIN database (NHTSA): model, year, engine
+    if (!paid) {
+      setVinBusy(true);
+      try {
+        const r = await findCatalogVehicles(q);
+        if (r.vehicles.length) return show(r.vehicles, isKg ? 'VIN боюнча (NHTSA акысыз базасы)' : 'По VIN (бесплатная база NHTSA)', false);
+      } catch {
+        // fall back to the offline decoding below
+      } finally {
+        setVinBusy(false);
+      }
     }
     setVinInfo(info);
     if (info.brand && ALL_CAR_BRANDS.includes(info.brand)) {
@@ -1063,15 +1095,22 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                 <CatalogBrowser
                   vehicles={catalogVehicles}
                   provider={catalogProvider}
+                  groupsAvailable={catalogGroups}
                   onClose={() => setCatalogVehicles(null)}
                   onPickVehicle={(v) => {
                     const brand = ALL_CAR_BRANDS.find((b) => b.toLowerCase() === v.brand.toLowerCase());
-                    if (brand) {
-                      setSelectedBrand(brand);
-                      const model = getModelsForBrand(brand).find((m) => v.model.toLowerCase().startsWith(m.toLowerCase()));
-                      setSelectedModel(model || '');
-                      setSelectedGeneration('');
-                    }
+                    if (!brand) return;
+                    setSelectedBrand(brand);
+                    // Exact model name first, otherwise the longest site model the name starts with
+                    const models = getModelsForBrand(brand);
+                    const name = v.model.toLowerCase();
+                    const model = models.find((m) => m.toLowerCase() === name)
+                      || [...models].sort((a, b) => b.length - a.length).find((m) => name.startsWith(m.toLowerCase() + ' ') || name.startsWith(m.toLowerCase()));
+                    setSelectedModel(model || '');
+                    const gens = model ? getGenerationsForModel(brand, model) : [];
+                    const gen = v.generation && gens.find((g) => g.name.toUpperCase().includes(v.generation!.toUpperCase().split('/')[0]));
+                    setSelectedGeneration(gen ? gen.name : '');
+                    setSelectedYear('');
                   }}
                   onSearchOem={(oem) => {
                     setSearchQuery(oem);

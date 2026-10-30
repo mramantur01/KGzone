@@ -3,6 +3,7 @@ import { AutoPartItem, Currency, Language } from '../../types/car';
 import { submitPart } from '../../api/parts';
 import { uploadPhoto } from '../../api/upload';
 import { useAuth } from '../../api/auth';
+import { OemHint } from '../catalog/OemHint';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import {
@@ -72,8 +73,9 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   // --- TAB 1: UPLOAD PART STATE ---
   const [partTitle, setPartTitle] = useState('');
   const [partCategory, setPartCategory] = useState('Двигатель и элементы двигателя');
-  const [partBrand, setPartBrand] = useState('Toyota');
-  const [partModel, setPartModel] = useState('Camry');
+  const [partBrand, setPartBrand] = useState('');
+  const [partModel, setPartModel] = useState('');
+  const [partCross, setPartCross] = useState('');
   const [partGeneration, setPartGeneration] = useState('');
   const [partBodyCode, setPartBodyCode] = useState('');
   const [partOEM, setPartOEM] = useState('');
@@ -121,11 +123,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   };
 
   // Compatibility row state
-  const [compatList, setCompatList] = useState([
-    { brand: 'Toyota', model: 'Camry', bodyCode: 'XV50, XV70', years: '2011-2022', engine: '2.5L 2AR-FE' },
-    { brand: 'Toyota', model: 'Alphard', bodyCode: 'AGH30', years: '2015-2023', engine: '2.5L 2AR-FE' },
-    { brand: 'Toyota', model: 'RAV4', bodyCode: 'ASA44', years: '2013-2019', engine: '2.5L 2AR-FE' },
-  ]);
+  const [compatList, setCompatList] = useState<{ brand: string; model: string; bodyCode: string; years: string; engine: string }[]>([]);
 
   // --- TAB 2: SELLER & CONTAINER CABINET STATE ---
   const [sellerType, setSellerType] = useState<'legal' | 'individual'>('individual');
@@ -264,6 +262,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
       hasCompressionVideo: hasCompressionVideo,
       compressionBar: hasCompressionVideo ? compressionBar : undefined,
       compatibility: compatList,
+      crossNumbers: partCross.split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean),
       sellerType: sellerType,
       companyName: companyName,
       inn: inn,
@@ -293,6 +292,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
     setIsPreview(false);
     setPartTitle('');
     setPartOEM('');
+    setPartCross('');
     setDescription('');
     setPriceInput('');
     setPartPriceKgs(0);
@@ -523,6 +523,31 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                     placeholder="Например: 2AR-FE-JPN-48K или 81185-33D30"
                     value={partOEM}
                     onChange={(e) => setPartOEM(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-neutral-900 border border-neutral-700 rounded-xl text-white font-mono"
+                  />
+                  <OemHint
+                    oem={partOEM}
+                    dark
+                    onApply={(k) => {
+                      if (!partTitle.trim() && k.names[0]) setPartTitle(k.names[0].name);
+                      if (!partCross.trim() && k.crosses.length) setPartCross(k.crosses.slice(0, 15).map((c) => c.number).join(', '));
+                      if (!partBrand.trim() && k.fits[0]) { setPartBrand(k.fits[0].brand); setPartModel(k.fits[0].model); }
+                      if (compatList.length === 0 && k.fits.length) {
+                        setCompatList(k.fits.slice(0, 10).map((f) => ({ brand: f.brand, model: f.model, bodyCode: f.generation || '', years: '', engine: '' })));
+                      }
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-neutral-300 font-semibold mb-1">
+                    {isKg ? 'Кросс-номерлер (аналогдор, үтүр менен)' : 'Кросс-номера / аналоги (через запятую)'}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={isKg ? 'Мисалы: W68/3, OC 217' : 'Например: W68/3, OC 217'}
+                    value={partCross}
+                    onChange={(e) => setPartCross(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-neutral-900 border border-neutral-700 rounded-xl text-white font-mono"
                   />
                 </div>

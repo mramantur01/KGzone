@@ -5,6 +5,7 @@ import {
   type CompanyInfo, type CompanyPart,
 } from '../../api/company';
 import { uploadPhoto } from '../../api/upload';
+import { OemHint } from '../catalog/OemHint';
 
 const PAGE = 50;
 const CATEGORIES = [
@@ -317,7 +318,19 @@ const AddPartForm: React.FC<{ info: CompanyInfo; onDone: (msg: string) => void }
       <label className="space-y-1"><span className="font-bold text-slate-700">Марка авто *</span><input required value={f.brand} onChange={set('brand')} className={inputCls} /></label>
       <label className="space-y-1"><span className="font-bold text-slate-700">Модель</span><input value={f.model} onChange={set('model')} className={inputCls} /></label>
       <label className="space-y-1"><span className="font-bold text-slate-700">Поколение / кузов</span><input value={f.generation} onChange={set('generation')} className={inputCls} /></label>
-      <label className="space-y-1"><span className="font-bold text-slate-700">OEM-номер *</span><input required value={f.partNumber} onChange={set('partNumber')} className={`${inputCls} font-mono`} /></label>
+      <label className="space-y-1"><span className="font-bold text-slate-700">OEM-номер *</span><input required value={f.partNumber} onChange={set('partNumber')} className={`${inputCls} font-mono`} />
+        <OemHint
+          oem={f.partNumber}
+          onApply={(k) => setF((x) => ({
+            ...x,
+            title: x.title || k.names[0]?.name || '',
+            crossNumbers: x.crossNumbers || k.crosses.slice(0, 15).map((c) => c.number).join(', '),
+            brand: x.brand && x.model ? x.brand : k.fits[0]?.brand || x.brand,
+            model: x.model || k.fits[0]?.model || '',
+            generation: x.generation || k.fits[0]?.generation || '',
+          }))}
+        />
+      </label>
       <label className="space-y-1"><span className="font-bold text-slate-700">Кросс-номера (через запятую)</span><input value={f.crossNumbers} onChange={set('crossNumbers')} className={`${inputCls} font-mono`} /></label>
       <label className="space-y-1"><span className="font-bold text-slate-700">Производитель</span><input value={f.manufacturer} onChange={set('manufacturer')} placeholder="Toyota, Denso, NGK..." className={inputCls} /></label>
       <label className="space-y-1"><span className="font-bold text-slate-700">Состояние</span>

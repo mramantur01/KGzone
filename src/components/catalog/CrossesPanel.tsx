@@ -14,7 +14,8 @@ export const CrossesPanel: React.FC<{ query: string; onSearch: (number: string) 
     return () => clearTimeout(t);
   }, [query]);
 
-  if (!data || (!data.external.length && !data.viaCrosses.length && !data.externalError)) return null;
+  const kb = data?.knowledge;
+  if (!data || (!data.external.length && !data.viaCrosses.length && !data.externalError && !kb?.crosses.length && !kb?.fits.length)) return null;
 
   return (
     <div className="mb-4 p-3 rounded-2xl bg-neutral-900 border border-amber-500/30 text-xs space-y-2">
@@ -23,6 +24,29 @@ export const CrossesPanel: React.FC<{ query: string; onSearch: (number: string) 
         <span>Аналоги для <span className="font-mono" data-no-i18n>{data.oem}</span></span>
         {data.catalog && <span className="text-neutral-500 font-normal">по каталогу <span data-no-i18n>{data.catalog}</span></span>}
       </div>
+      {kb && (kb.crosses.length > 0 || kb.fits.length > 0) && (
+        <div className="space-y-1.5">
+          <div className="text-neutral-400">
+            По данным продавцов KGzone (продавцов: {kb.sellers}):
+          </div>
+          {kb.crosses.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {kb.crosses.map((c) => (
+                <button key={c.number} type="button" onClick={() => onSearch(c.number)} className="px-2 py-1 rounded-lg bg-neutral-950 border border-neutral-700 hover:border-amber-500 text-neutral-200 cursor-pointer" title="Найти этот номер">
+                  <span className="font-mono font-bold" data-no-i18n>{c.number}</span>
+                  {c.sellers > 1 && <span className="ml-1 text-emerald-400">✓{c.sellers}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          {kb.fits.length > 0 && (
+            <div className="text-neutral-300">
+              Подходит: <span data-no-i18n>{kb.fits.slice(0, 8).map((x) => [x.brand, x.model, x.generation].filter(Boolean).join(' ')).join(', ')}</span>
+            </div>
+          )}
+          <div className="text-neutral-500">✓ — подтвердили несколько продавцов. Перед покупкой сверяйте номер с продавцом.</div>
+        </div>
+      )}
       {data.externalError && <p className="text-neutral-500">{data.externalError}</p>}
       {data.external.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
