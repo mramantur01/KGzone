@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { AutoPartItem } from '../types/car';
 import { AUTO_PARTS } from '../data/mockData';
 import { call, type ModerationInfo, type ModerationStatus } from './admin';
+import { HIDE_DEMO_PARTS_AT, vipFirst } from '../utils/demo';
 
 export { getAdminKey, setAdminKey, checkAdminKey } from './admin';
 
@@ -20,7 +21,8 @@ let snapshot: AutoPartItem[] = AUTO_PARTS;
 const listeners = new Set<() => void>();
 const emit = () => {
   const ids = new Set(approved.map((p) => p.id));
-  snapshot = [...approved, ...AUTO_PARTS.filter((p) => !ids.has(p.id))];
+  const demo = approved.length >= HIDE_DEMO_PARTS_AT ? [] : AUTO_PARTS.filter((p) => !ids.has(p.id));
+  snapshot = [...vipFirst(approved), ...demo];
   listeners.forEach((l) => l());
 };
 

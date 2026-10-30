@@ -26,6 +26,11 @@ import { ReportsPanel } from '../cabinet/ReportsPanel';
 import { CatalogStatusCard } from '../catalog/CatalogStatusCard';
 import { PartRequestsPanel } from '../catalog/PartRequestsPanel';
 import { ReviewsModerationPanel } from '../cabinet/ReviewsModerationPanel';
+import { AdminToolsPanel } from '../cabinet/AdminToolsPanel';
+import { SellerRequestsPanel } from '../catalog/SellerRequestsPanel';
+import { TelegramCard } from './TelegramCard';
+import { DeleteAccountCard } from './DeleteAccountCard';
+import { GarageService, garageReminders } from './GarageService';
 
 export interface PartsSearchPreset {
   brand?: string;
@@ -265,6 +270,22 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                 </div>
               </div>
 
+              {user.garage.flatMap(garageReminders).length > 0 && (
+                <div className={`${card} border-amber-300 bg-amber-50`}>
+                  <div className="text-sm font-bold text-amber-900 mb-1">Напоминания по обслуживанию</div>
+                  {user.garage.map((g) => garageReminders(g).map((r) => (
+                    <div key={g.id + r.text} className={`text-xs font-semibold ${r.urgent ? 'text-red-700' : 'text-amber-800'}`}>
+                      <span data-no-i18n>{g.brand} {g.model}</span>: {r.text}
+                    </div>
+                  )))}
+                  <button type="button" onClick={() => setSection('garage')} className="mt-1 text-xs font-bold underline text-amber-900 cursor-pointer">Мои автомобили</button>
+                </div>
+              )}
+
+              {!user.telegramLinked && <TelegramCard user={user} />}
+
+              <SellerRequestsPanel />
+
               {isLegal && user.company && user.company.status !== 'verified' && (
                 <div className={`${card} border-amber-300 bg-amber-50`}>
                   <div className="text-sm font-bold text-amber-900">Компания: {COMPANY_STATUS_LABELS[user.company.status]}</div>
@@ -313,7 +334,12 @@ export const AccountCabinet: React.FC<Props> = (props) => {
             <CompanyCabinet info={biz.info} onChanged={biz.reload} onOpenMessages={() => setSection('messages')} />
           )}
 
-          {section === 'listings' && <MyListingsPanel onSellPart={onSellPart} onSellCar={onSellCar} />}
+          {section === 'listings' && (
+            <div className="space-y-4">
+              <SellerRequestsPanel />
+              <MyListingsPanel onSellPart={onSellPart} onSellCar={onSellCar} />
+            </div>
+          )}
 
           {section === 'favorites' && (
             <div className="space-y-4">
@@ -408,6 +434,11 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                     >
                       <Trash2 size={15} />
                     </button>
+                    <GarageService
+                      car={car}
+                      onSave={(updated) => saveGarage(user.garage.map((g) => (g.id === updated.id ? updated : g)))}
+                      onFindOil={(g) => onFindParts({ brand: g.brand, model: g.model, search: 'масляный фильтр' })}
+                    />
                   </div>
                 );
               })}
@@ -539,6 +570,8 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                 <button type="submit" className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer">Сохранить</button>
               </form>
 
+              <TelegramCard user={user} />
+
               <form onSubmit={savePassword} className={`${card} space-y-3`}>
                 <h2 className="text-lg font-black text-slate-900">Смена пароля</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -577,12 +610,15 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                   {adminMsg && <p className="text-xs text-slate-600 mt-2">{adminMsg}</p>}
                 </div>
               )}
+
+              <DeleteAccountCard />
             </div>
           )}
 
           {section === 'moderation' && staff && (
             <div className="space-y-4">
               <h2 className="text-lg font-black text-slate-900">Модерация</h2>
+              {user.role === 'admin' && <AdminToolsPanel />}
               <PartRequestsPanel />
               <ReviewsModerationPanel />
               <CatalogStatusCard />

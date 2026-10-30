@@ -91,3 +91,10 @@ export function rowsToParts(table: string[][], warehouses: { id: string; name: s
 export const IMPORT_TEMPLATE =
   '﻿Артикул продавца;Название;Категория;Марка;Модель;Поколение;OEM;Кросс-номера;Производитель;Состояние;Цена;Старая цена;Количество;Склад;Описание;Фото (ссылки)\r\n' +
   'A-001;Фильтр масляный;Масла и фильтры;Toyota;Camry;XV70;90915-YZZE1;W68/3, OC 217;Toyota;новая;650;;20;;Оригинал;\r\n';
+
+/** Reads a CSV file saved by Excel: UTF-8, or windows-1251 (Russian Excel's default "CSV") */
+export async function readCsvFile(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const utf8 = new TextDecoder('utf-8').decode(buf);
+  return utf8.includes('\uFFFD') ? new TextDecoder('windows-1251').decode(buf) : utf8;
+}

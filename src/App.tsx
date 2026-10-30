@@ -67,6 +67,7 @@ const AddListingModal = lazy(() => import('./components/modals/AddListingModal')
 const FavoritesModal = lazy(() => import('./components/modals/FavoritesModal').then((m) => ({ default: m.FavoritesModal })));
 const PartsSection = lazy(() => import('./components/sections/PartsSection').then((m) => ({ default: m.PartsSection })));
 const ReviewsSection = lazy(() => import('./components/sections/ReviewsSection').then((m) => ({ default: m.ReviewsSection })));
+const LegalSection = lazy(() => import('./components/sections/LegalSection').then((m) => ({ default: m.LegalSection })));
 const NewsSection = lazy(() => import('./components/sections/NewsSection').then((m) => ({ default: m.NewsSection })));
 const WorkshopSection = lazy(() => import('./components/sections/WorkshopSection').then((m) => ({ default: m.WorkshopSection })));
 const FaqSection = lazy(() => import('./components/sections/FaqSection').then((m) => ({ default: m.FaqSection })));
@@ -563,10 +564,10 @@ export default function App() {
                     </div>
                     <div>
                       <h4 className="font-bold text-sm">
-                        {isKg ? 'CarCheck KG: Арест жана айыптарды текшерүү' : 'CarCheck KG: Проверка штрафов и залогов'}
+                        {isKg ? 'Унааны сатып алардан мурун текшерүү' : 'Проверка авто перед покупкой'}
                       </h4>
                       <p className="text-xs text-emerald-200">
-                        {isKg ? '«Коопсуз шаар» айыптарын онлайн көрүү' : 'По базе Safe City / ГРС КР перед покупкой'}
+                        {isKg ? 'VIN жана кузов номерин чечмелөө, эмнени текшерүү керек' : 'Расшифровка VIN и номера кузова, что проверить официально'}
                       </p>
                     </div>
                   </div>
@@ -728,6 +729,10 @@ export default function App() {
           <NewsSection language={language} />
         )}
 
+        {(activeTab === 'terms' || activeTab === 'privacy') && (
+          <LegalSection doc={activeTab} language={language} onSwitch={(d) => { setActiveTab(d); window.scrollTo({ top: 0 }); }} />
+        )}
+
         {/* Единый Личный кабинет (вход, регистрация, управление сайтом и личный профиль) */}
         {activeTab === 'cabinet' && (
           <AccountCabinet
@@ -763,6 +768,7 @@ export default function App() {
         onOpenFaq={() => setActiveTab('faq')}
         onOpenPromotions={() => setActiveTab('promotions')}
         onOpenControlPanel={staff ? openControlPanel : undefined}
+        onOpenLegal={(d) => { setActiveTab(d); window.scrollTo({ top: 0 }); }}
       />
 
       {/* Модальное окно входа и регистрации в Личный кабинет (в точности как на образце) */}

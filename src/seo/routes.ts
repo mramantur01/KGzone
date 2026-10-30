@@ -50,6 +50,8 @@ export const TAB_PATHS: Record<string, string> = {
   reviews: '/otzyvy',
   news: '/novosti',
   cabinet: '/kabinet',
+  terms: '/pravila',
+  privacy: '/konfidencialnost',
 };
 
 export interface Route {

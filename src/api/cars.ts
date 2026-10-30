@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { Car } from '../types/car';
 import { INITIAL_CARS } from '../data/mockData';
 import { call, type ModerationInfo, type ModerationStatus } from './admin';
+import { HIDE_DEMO_CARS_AT, vipFirst } from '../utils/demo';
 
 // Car listings: approved listings from the database + built-in demo listings.
 // New listings from sellers go to moderation first.
@@ -16,7 +17,8 @@ let snapshot: Car[] = INITIAL_CARS;
 const listeners = new Set<() => void>();
 const emit = () => {
   const ids = new Set(approved.map((c) => c.id));
-  snapshot = [...approved, ...INITIAL_CARS.filter((c) => !ids.has(c.id))];
+  const demo = approved.length >= HIDE_DEMO_CARS_AT ? [] : INITIAL_CARS.filter((c) => !ids.has(c.id));
+  snapshot = [...vipFirst(approved), ...demo];
   listeners.forEach((l) => l());
 };
 

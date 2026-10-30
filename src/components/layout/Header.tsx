@@ -234,7 +234,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-1.5 text-neutral-300 hover:text-white whitespace-nowrap transition-colors pb-1 border-b-2 border-transparent hover:border-white/50 cursor-pointer"
           >
             <ShieldCheck size={16} className="text-emerald-300" />
-            <span>CarCheck KG</span>
+            <span>Проверка VIN</span>
           </button>
 
           {/* Main section of the marketplace: highlighted in brand red */}
@@ -426,7 +426,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="p-2.5 rounded-xl text-left text-xs font-bold flex items-center gap-2 bg-neutral-900 text-emerald-400 border border-neutral-800 hover:bg-neutral-800 transition-colors"
             >
               <ShieldCheck size={15} />
-              <span>CarCheck KG</span>
+              <span>Проверка VIN</span>
             </button>
 
             <button

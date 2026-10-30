@@ -1,10 +1,10 @@
-import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
+import { isDemoListing, DEMO_NOTICE, isVip } from '../../utils/demo';
 import React from 'react';
 import { Car, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KyrgyzPlateBadge, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { CarImagePreview } from '../common/CarImagePreview';
-import { Heart, ShieldCheck, MapPin, Eye, Check } from 'lucide-react';
+import { Heart, MapPin, Eye, Check } from 'lucide-react';
 
 interface CarCardProps {
   car: Car;
@@ -45,6 +45,9 @@ export const CarCard: React.FC<CarCardProps> = ({
           brand={car.brand}
         />
 
+        {isVip(car) && (
+          <span className="absolute bottom-2.5 left-2.5 z-10 px-2 py-0.5 rounded bg-amber-400 text-neutral-950 text-[10px] font-black">VIP</span>
+        )}
         {isDemoListing(car.id) && (
           <span className="absolute bottom-2.5 left-2.5 z-10 px-2 py-0.5 rounded bg-slate-200 text-slate-800 text-[10px] font-black" title={DEMO_NOTICE}>
             Пример
@@ -72,20 +75,6 @@ export const CarCard: React.FC<CarCardProps> = ({
           <KyrgyzPlateBadge plate={car.plateNumber} />
         </div>
 
-        {/* Бейдж растаможки / CarCheck */}
-        {car.hasCarCheckPass && (
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
-              onCheckCar(car.plateNumber);
-            }}
-            className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold tracking-tight backdrop-blur-xs hover:bg-emerald-900 transition-colors"
-            title="Проверено по базе CarCheck KG"
-          >
-            <ShieldCheck size={12} className="text-emerald-400" />
-            <span>CarCheck OK</span>
-          </div>
-        )}
       </div>
 
       {/* Основная информация карточки */}

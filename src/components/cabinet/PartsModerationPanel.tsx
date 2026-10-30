@@ -1,7 +1,23 @@
 import React from 'react';
 import { ModerationPanel } from './ModerationPanel';
 import { adminDeletePart, adminUpdatePart, listAdminParts, moderatePart, type ModeratedPart } from '../../api/parts';
-import { listAdminCars, moderateCar, adminDeleteCar, adminUpdateCar, type ModeratedCar } from '../../api/cars';
+import { listAdminCars, moderateCar, adminDeleteCar, type ModeratedCar } from '../../api/cars';
+import { call } from '../../api/admin';
+import { isVip } from '../../utils/demo';
+
+// VIP placement is sold offline; the admin sets it for N days (0 removes it)
+const vipAction = (kind: 'parts' | 'cars') => ({
+  label: (x: { vipUntil?: string }) => (isVip(x) ? `VIP до ${new Date(x.vipUntil!).toLocaleDateString('ru-RU')} · снять` : 'Сделать VIP'),
+  run: async (x: { id: string; vipUntil?: string }) => {
+    let days = 0;
+    if (!isVip(x)) {
+      const v = window.prompt('На сколько дней VIP-размещение?', '7');
+      days = Math.round(Number(v));
+      if (!v || !days || days < 1) return;
+    }
+    await call(`/api/admin/${kind}/${encodeURIComponent(x.id)}/vip`, { method: 'POST', body: JSON.stringify({ days }) }, true);
+  },
+});
 
 const listParts = () => listAdminParts('all');
 const listCars = () => listAdminCars('all');
@@ -12,10 +28,13 @@ export const PartsModerationPanel: React.FC = () => (
     list={listParts}
     moderate={moderatePart}
     remove={adminDeletePart}
-    publishedAction={{
-      label: (p) => (p.stockCount > 0 ? 'Нет в наличии' : 'В наличии'),
-      run: (p) => adminUpdatePart(p.id, { stockCount: p.stockCount > 0 ? 0 : 1 }),
-    }}
+    publishedActions={[
+      {
+        label: (p) => (p.stockCount > 0 ? 'Нет в наличии' : 'В наличии'),
+        run: (p) => adminUpdatePart(p.id, { stockCount: p.stockCount > 0 ? 0 : 1 }),
+      },
+      vipAction('parts'),
+    ]}
     image={(p) => p.image}
     heading={(p) => p.title}
     details={(p) => (
@@ -38,10 +57,7 @@ export const CarsModerationPanel: React.FC = () => (
     list={listCars}
     moderate={moderateCar}
     remove={adminDeleteCar}
-    publishedAction={{
-      label: (c) => (c.hasCarCheckPass ? 'Снять «Проверено CarCheck»' : 'Отметить «Проверено CarCheck»'),
-      run: (c) => adminUpdateCar(c.id, { hasCarCheckPass: !c.hasCarCheckPass }),
-    }}
+    publishedActions={[vipAction('cars')]}
     image={(c) => c.image || c.photos?.[0] || ''}
     heading={(c) => `${c.title} · $${c.priceUsd.toLocaleString('ru-RU')}`}
     details={(c) => (

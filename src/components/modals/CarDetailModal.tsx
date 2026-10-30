@@ -229,15 +229,13 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
                 <div className="text-xs text-slate-600 mt-0.5">{car.sellerLocation}</div>
 
                 {/* Блок CarCheck */}
-                <div className={`mt-4 p-3 bg-white rounded-lg border ${car.hasCarCheckPass ? 'border-emerald-200' : 'border-amber-200'}`}>
-                  <div className={`flex items-center gap-1.5 text-xs font-bold mb-1 ${car.hasCarCheckPass ? 'text-emerald-800' : 'text-amber-800'}`}>
-                    <ShieldCheck size={16} className={car.hasCarCheckPass ? 'text-emerald-600' : 'text-amber-500'} />
-                    <span>Проверка CarCheck KG</span>
+                <div className="mt-4 p-3 bg-white rounded-lg border border-amber-200">
+                  <div className="flex items-center gap-1.5 text-xs font-bold mb-1 text-amber-800">
+                    <ShieldCheck size={16} className="text-amber-500" />
+                    <span>Проверка перед покупкой</span>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    {car.hasCarCheckPass
-                      ? 'Автомобиль проверен администрацией KGzone.'
-                      : 'Автомобиль ещё не проверялся. Перед покупкой проверьте госномер и VIN на аресты и залоги.'}
+                    Перед покупкой проверьте госномер и VIN на аресты и залоги в ГУ «Унаа» (ЦОН) и сверьте номера с техпаспортом.
                   </p>
                   <button
                     onClick={() => onOpenCarCheckWithPlate(car.plateNumber)}

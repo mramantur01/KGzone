@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, AlertTriangle } from 'lucide-react';
 import { getConversation, sendMessage, type ChatMessage } from '../../api/chat';
+
+// Typical prepayment-scam wording (KG): prepayment, card numbers, money transfer apps
+const SCAM_RE = /предоплат|аванс|задаток|переве(ди|дите|сти)|скин(ь|ьте) (деньги|сумму|на карту)|номер карт|на карту|мбанк|mbank|элсом|о!? ?деньги|optima|оптима|kompanion|компаньон|d{4}[ -]?d{4}[ -]?d{4}[ -]?d{4}/i;
+export const looksLikeScam = (text: string) => SCAM_RE.test(text);
 
 // Messages of one conversation with a reply box; refreshes every 15 seconds while open.
 export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; className?: string }> = ({ conversationId, dark = false, className = '' }) => {
@@ -49,6 +53,8 @@ export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; clas
     }
   };
 
+  const scamWarning = messages.some((m) => looksLikeScam(m.text)) || looksLikeScam(text);
+
   const fmt = (iso: string) => new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
   return (
@@ -69,6 +75,12 @@ export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; clas
           ))
         )}
       </div>
+      {scamWarning && (
+        <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2">
+          <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+          <span><b>Осторожно с предоплатой.</b> Не переводите деньги незнакомым продавцам до осмотра товара — так чаще всего обманывают. Подозрительного продавца отметьте кнопкой «Пожаловаться» в объявлении.</span>
+        </div>
+      )}
       <form onSubmit={send} className="mt-2 flex gap-2">
         <textarea
           rows={2}

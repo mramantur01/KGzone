@@ -1,4 +1,5 @@
 import { siteWhatsApp } from '../../config/site';
+import { InstallAppButton } from '../common/InstallAppButton';
 import React from 'react';
 import { ShyrdakRibbon, KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import { Language } from '../../types/car';
@@ -12,6 +13,7 @@ interface FooterProps {
   onOpenParts?: () => void;
   onOpenWorkshop?: () => void;
   onOpenFaq?: () => void;
+  onOpenLegal?: (doc: 'terms' | 'privacy') => void;
   onOpenPromotions?: () => void;
   onOpenControlPanel?: () => void;
 }
@@ -24,6 +26,7 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenParts,
   onOpenWorkshop,
   onOpenFaq,
+  onOpenLegal,
   onOpenPromotions,
   onOpenControlPanel,
 }) => {
@@ -70,6 +73,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <span>Написать в WhatsApp</span>
               </a>
             )}
+            <InstallAppButton className="mt-2" />
           </div>
 
           {/* Колонка 2: Сервисы и услуги */}
@@ -179,6 +183,14 @@ export const Footer: React.FC<FooterProps> = ({
               className="hover:text-slate-300 transition-colors cursor-pointer"
             >
               Проверка авто
+            </button>
+            <span>·</span>
+            <button onClick={() => onOpenLegal?.('terms')} className="hover:text-slate-300 transition-colors cursor-pointer">
+              Пользовательское соглашение
+            </button>
+            <span>·</span>
+            <button onClick={() => onOpenLegal?.('privacy')} className="hover:text-slate-300 transition-colors cursor-pointer">
+              Конфиденциальность
             </button>
             <span>·</span>
             <button

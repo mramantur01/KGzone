@@ -1,0 +1,20 @@
+{
+  "name": "KGzone — авто и запчасти Кыргызстана",
+  "short_name": "KGzone",
+  "description": "Объявления об авто и автозапчастях в Кыргызстане, подбор по VIN и номеру кузова.",
+  "lang": "ru",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#C8102E",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Автозапчасти", "url": "/zapchasti", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Личный кабинет", "url": "/kabinet", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

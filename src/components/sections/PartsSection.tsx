@@ -11,7 +11,8 @@ import { partFitsBrand, partFitsModel, partFitsGeneration, partInCategory, partM
 import { ModelPartsTree } from './ModelPartsTree';
 import { useParts } from '../../api/parts';
 import { decodeVin, type VinInfo } from '../../utils/vin';
-import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
+import { isDemoListing, DEMO_NOTICE, isVip } from '../../utils/demo';
+import { PhotoPartButton } from '../catalog/PhotoPartButton';
 import { findCatalogVehicles, getCatalogStatus, looksLikeFrame, type CatalogVehicle } from '../../api/catalog';
 import { CatalogBrowser } from '../catalog/CatalogBrowser';
 import { decodeFrame } from '../../data/frameCodes';
@@ -878,6 +879,15 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
               )}
             </div>
 
+            <PhotoPartButton
+              onResult={(r) => {
+                setSearchQuery(r.search || r.name);
+                showToast(`На фото: ${r.name}${r.confidence === 'low' ? ' (не уверены)' : ''}${r.note ? '. ' + r.note : ''}`);
+                document.getElementById('parts-search-input')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              }}
+              onError={(m) => showToast(m)}
+            />
+
             {/* City or Market Selector */}
             <div className="w-full md:w-64">
               <div className="relative">
@@ -1368,6 +1378,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                             <Heart size={15} className={favoriteIds.includes(part.id) ? 'fill-red-500 text-red-500' : 'text-white'} />
                           </button>
 
+                          {isVip(part) && (
+                            <span className="absolute bottom-2.5 right-12 z-10 px-2 py-0.5 rounded-lg bg-amber-400 text-neutral-950 text-[10px] font-black">VIP</span>
+                          )}
                           {isDemoListing(part.id) && (
                             <span className="absolute bottom-2.5 right-12 z-10 px-2 py-0.5 rounded-lg bg-slate-200 text-slate-800 text-[10px] font-black" title={DEMO_NOTICE}>
                               Пример

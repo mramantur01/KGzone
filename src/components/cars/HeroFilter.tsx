@@ -136,7 +136,7 @@ export const HeroFilter: React.FC<HeroFilterProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 hover:bg-emerald-900 transition-all font-semibold cursor-pointer shadow-xs"
             >
               <ShieldCheck size={14} className="text-emerald-400" />
-              <span>{isKg ? 'CarCheck KG' : 'Проверить CarCheck'}</span>
+              <span>{isKg ? 'VIN текшерүү' : 'Проверить VIN'}</span>
             </button>
 
             <button

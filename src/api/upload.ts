@@ -5,14 +5,16 @@ import { call } from './admin';
 
 const MAX_SIDE = 1600;
 
-async function toJpegDataUrl(file: File): Promise<string> {
+// Exported for the "identify a part by photo" button (smaller images are enough there)
+
+export async function toJpegDataUrl(file: File, maxSide = MAX_SIDE): Promise<string> {
   if (!/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.type) && !/\.(jpe?g|png|webp|heic)$/i.test(file.name)) {
     throw new Error('Можно загружать только фото (JPEG, PNG, WebP)');
   }
   const bitmap = await createImageBitmap(file).catch(() => {
     throw new Error('Не удалось прочитать фото. Попробуйте другой файл.');
   });
-  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);

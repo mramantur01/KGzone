@@ -2,6 +2,7 @@ export type Currency = 'USD' | 'KGS';
 export type Language = 'ru' | 'kg' | 'en';
 
 export interface Car {
+  vipUntil?: string; // paid VIP placement (set by an admin)
   id: string;
   title: string;
   brand: string;
@@ -86,6 +87,7 @@ export interface PartCompatibility {
 }
 
 export interface AutoPartItem {
+  vipUntil?: string; // paid VIP placement (set by an admin)
   id: string;
   title: string;
   category: string;

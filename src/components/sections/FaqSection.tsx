@@ -20,7 +20,7 @@ export const FaqSection: React.FC<FaqSectionProps> = ({ language, onOpenConsulta
 
   const categories = [
     { id: 'all', label: isKg ? 'Бардыгы' : isEn ? 'All' : 'Все вопросы' },
-    { id: 'carcheck', label: 'CarCheck KG' },
+    { id: 'carcheck', label: 'Проверка авто' },
     { id: 'customs', label: isKg ? 'Бажы (Растаможка)' : 'Растаможка КР' },
     { id: 'workshop', label: isKg ? 'СТО жана Автосервис' : 'Автосервис & СТО' },
     { id: 'parts', label: isKg ? 'Тетиктер (Запчасти)' : 'Автозапчасти' },

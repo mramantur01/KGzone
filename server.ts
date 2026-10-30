@@ -181,20 +181,53 @@ const asyncRoute =
     });
   };
 
-// Sends a message to the site owner's Telegram (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID env vars).
-// Does nothing when they are not configured; never fails the request.
-async function notifyAdmin(text: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN, chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
+// Telegram bot (TELEGRAM_BOT_TOKEN env var). Users link their Telegram in the cabinet; staff
+// who linked it get admin notifications too (plus TELEGRAM_CHAT_ID when set).
+// Every call does nothing without the token and never fails the request.
+async function tgCall(method: string, body: Record<string, unknown>): Promise<any> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return null;
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 4000), disable_web_page_preview: true }),
-      signal: AbortSignal.timeout(5000),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8000),
     });
+    return await r.json();
+  } catch (err) {
+    console.warn(`[Telegram] ${method} failed:`, err);
+    return null;
+  }
+}
+const tgSend = (chatId: string, text: string) => tgCall('sendMessage', { chat_id: chatId, text: text.slice(0, 4000), disable_web_page_preview: true });
+
+async function staffChatIds(): Promise<string[]> {
+  const ids = new Set<string>();
+  if (process.env.TELEGRAM_CHAT_ID) ids.add(process.env.TELEGRAM_CHAT_ID);
+  for (const u of await listRecords<any>('users')) {
+    if (u.telegramChatId && !u.blocked && (u.role === 'admin' || u.role === 'moderator')) ids.add(u.telegramChatId);
+  }
+  return [...ids];
+}
+
+async function notifyAdmin(text: string) {
+  if (!process.env.TELEGRAM_BOT_TOKEN) return;
+  try {
+    await Promise.all((await staffChatIds()).map((id) => tgSend(id, text)));
   } catch (err) {
     console.warn('[Telegram] notify failed:', err);
+  }
+}
+
+// Personal notification to one user (seller, buyer) when they linked Telegram
+async function notifyUser(userId: string | undefined, text: string) {
+  if (!userId || !process.env.TELEGRAM_BOT_TOKEN) return;
+  try {
+    const u = await getRecord<any>('users', userId);
+    if (u?.telegramChatId && !u.blocked) await tgSend(u.telegramChatId, text);
+  } catch (err) {
+    console.warn('[Telegram] user notify failed:', err);
   }
 }
 const SITE_URL = process.env.SITE_URL || 'https://k-gzone.vercel.app';
@@ -779,6 +812,9 @@ app.patch('/api/admin/parts/:id/moderate', requireAdmin, asyncRoute(async (req: 
     reason: action === 'reject' ? str(reason, 300) || 'Не соответствует правилам' : undefined,
   };
   const updated = await updateRecord('parts', req.params.id, { moderation });
+  await notifyUser(current.ownerId, action === 'approve'
+    ? `✅ Запчасть «${current.title}» опубликована на KGzone`
+    : `❌ Запчасть «${current.title}» не прошла модерацию: ${moderation.reason}\nИсправьте в Личном кабинете: ${SITE_URL}/kabinet`);
   res.json({ success: true, part: updated });
 }));
 
@@ -946,6 +982,9 @@ app.patch('/api/admin/cars/:id/moderate', requireAdmin, asyncRoute(async (req: R
     },
     ...(action === 'approve' ? { publishedDate: new Date().toLocaleDateString('ru-RU') } : {}),
   });
+  await notifyUser(current.ownerId, action === 'approve'
+    ? `✅ Объявление «${current.title}» опубликовано на KGzone`
+    : `❌ Объявление «${current.title}» не прошло модерацию: ${str(reason, 300) || 'Не соответствует правилам'}\nИсправьте в Личном кабинете: ${SITE_URL}/kabinet`);
   res.json({ success: true, car: updated });
 }));
 
@@ -1002,6 +1041,11 @@ interface GarageCar {
   generation?: string;
   year?: number;
   vin?: string;
+  mileage?: number;
+  oilChangeMileage?: number;
+  oilInterval?: number;
+  insuranceUntil?: string;
+  inspectionUntil?: string;
 }
 
 interface UserRecord {
@@ -1020,6 +1064,10 @@ interface UserRecord {
   lastLoginAt?: string;
   company?: CompanyProfile;
   garage: GarageCar[];
+  termsAcceptedAt?: string;
+  telegramChatId?: string;
+  telegramLinkCode?: string;
+  telegramLinkExpires?: number;
 }
 
 const SESSION_COOKIE = 'kgz_session';
@@ -1089,8 +1137,8 @@ async function getSessionUser(req: Request): Promise<UserRecord | null> {
 }
 
 const publicUser = (u: UserRecord) => {
-  const { passwordHash, tokenVersion, ...rest } = u;
-  return rest;
+  const { passwordHash, tokenVersion, telegramChatId, telegramLinkCode, telegramLinkExpires, ...rest } = u;
+  return { ...rest, telegramLinked: Boolean(telegramChatId) };
 };
 
 const normalizePhone = (v: unknown) => {
@@ -1194,6 +1242,7 @@ app.post('/api/auth/register', asyncRoute(async (req: Request, res: Response) =>
   if (b.email && !email) return res.status(400).json({ success: false, error: 'Неверный адрес почты' });
   if (password.length < 8) return res.status(400).json({ success: false, error: 'Пароль должен быть не короче 8 символов' });
   if (password.length > 200) return res.status(400).json({ success: false, error: 'Слишком длинный пароль' });
+  if (b.acceptTerms !== true) return res.status(400).json({ success: false, error: 'Примите пользовательское соглашение и политику конфиденциальности' });
 
   let company: CompanyProfile | undefined;
   if (accountType === 'legal') {
@@ -1223,6 +1272,7 @@ app.post('/api/auth/register', asyncRoute(async (req: Request, res: Response) =>
     lastLoginAt: now,
     company,
     garage: [],
+    termsAcceptedAt: now,
   };
   await insertRecord('users', user);
   setSessionCookie(res, user);
@@ -1290,6 +1340,27 @@ app.patch('/api/auth/me', requireUser, asyncRoute(async (req: Request, res: Resp
   res.json({ success: true, user: publicUser(updated!) });
 }));
 
+// Delete own account (privacy policy): the account, its listings and memberships are removed;
+// in conversations the name becomes "Удалённый пользователь".
+app.delete('/api/auth/me', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (!(await verifyPassword(password, user.passwordHash))) return res.status(400).json({ success: false, error: 'Неверный пароль' });
+  if (user.role === 'admin') return res.status(400).json({ success: false, error: 'Администратор не может удалить аккаунт. Сначала передайте права другому администратору.' });
+  for (const kind of ['parts', 'cars'] as const) {
+    for (const l of await listRecords<any>(kind)) if (l.ownerId === user.id) await deleteRecord(kind, l.id);
+  }
+  for (const m of await listRecords<Membership>('memberships')) if (m.userId === user.id || m.companyId === user.id) await deleteRecord('memberships', m.id);
+  for (const c of await listRecords<Conversation>('conversations')) {
+    if (c.buyerId === user.id) await updateRecord('conversations', c.id, { buyerName: 'Удалённый пользователь' });
+    else if (c.sellerId === user.id) await updateRecord('conversations', c.id, { sellerName: 'Удалённый пользователь' });
+  }
+  await deleteRecord('users', user.id);
+  await audit('admin-token', 'account.deleted', user.id, { by: 'self' });
+  clearSessionCookie(res);
+  res.json({ success: true });
+}));
+
 app.post('/api/auth/password', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
   const { current, next } = req.body || {};
@@ -1338,6 +1409,11 @@ app.put('/api/auth/garage', requireUser, asyncRoute(async (req: Request, res: Re
     generation: str(c?.generation, 80) || undefined,
     year: c?.year ? Math.round(num(c.year, 1950, new Date().getFullYear() + 1)) : undefined,
     vin: str(c?.vin, 17).toUpperCase() || undefined,
+    mileage: c?.mileage ? Math.round(num(c.mileage, 0, 3_000_000)) : undefined,
+    oilChangeMileage: c?.oilChangeMileage ? Math.round(num(c.oilChangeMileage, 0, 3_000_000)) : undefined,
+    oilInterval: c?.oilInterval ? Math.round(num(c.oilInterval, 1000, 30_000)) : undefined,
+    insuranceUntil: /^\d{4}-\d{2}-\d{2}$/.test(String(c?.insuranceUntil || '')) ? c.insuranceUntil : undefined,
+    inspectionUntil: /^\d{4}-\d{2}-\d{2}$/.test(String(c?.inspectionUntil || '')) ? c.inspectionUntil : undefined,
   })).filter((c: GarageCar) => c.brand && c.model);
   const updated = await updateRecord<UserRecord>('users', user.id, { garage });
   res.json({ success: true, user: publicUser(updated!) });
@@ -1571,6 +1647,12 @@ async function canAccessConversation(user: UserRecord, c: Conversation) {
 
 const cleanText = (v: unknown) => str(v, 2000).replace(/\s+\n/g, '\n');
 
+async function notifyChat(c: Conversation, from: UserRecord, text: string) {
+  const to = from.id === c.buyerId ? c.sellerId : c.buyerId;
+  if (tooMany(`tgchat:${c.id}:${to}`, 3, 10 * 60_000)) return;
+  await notifyUser(to, `💬 Новое сообщение по «${c.listingTitle}»\n${from.company?.name || from.name}: ${text.slice(0, 300)}\n\nОтветить: ${SITE_URL}/kabinet`);
+}
+
 // Start (or continue) a conversation about a listing
 app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
@@ -1594,6 +1676,7 @@ app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res:
       lastAt: now,
       readAt: { ...existing.readAt, [user.id]: now },
     });
+    await notifyChat(updated!, user, text);
     return res.json({ success: true, conversation: conversationView(updated!, user.id) });
   }
   const conv: Conversation = {
@@ -1611,6 +1694,7 @@ app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res:
     readAt: { [user.id]: now },
   };
   await insertRecord('conversations', conv);
+  await notifyChat(conv, user, text);
   res.status(201).json({ success: true, conversation: conversationView(conv, user.id) });
 }));
 
@@ -1647,6 +1731,7 @@ app.post('/api/conversations/:id/messages', requireUser, asyncRoute(async (req: 
     lastAt: now,
     readAt: { ...c.readAt, [user.id]: now },
   });
+  await notifyChat(c, user, text);
   res.json({ success: true, messages: updated!.messages.map((m) => ({ ...m, mine: m.from === user.id })) });
 }));
 
@@ -2418,7 +2503,9 @@ async function seoPageFor(pathname: string): Promise<SeoPage | null> {
   }
 
   const STATIC: Record<string, [string, string, string]> = {
-    '/sto': ['Автосервис и СТО в Бишкеке — онлайн-запись | KGzone', 'Диагностика, ремонт и обслуживание авто в Бишкеке. Онлайн-запись на СТО, прайс-лист и отзывы.', 'Автосервис и СТО'],
+    '/sto': ['Автосервис — раздел в разработке | KGzone', 'Раздел автосервисов KGzone готовится к запуску. Когда к сайту подключатся сервисы-партнёры, здесь появится запись.', 'Автосервис'],
+    '/pravila': ['Пользовательское соглашение | KGzone', 'Правила использования сайта KGzone: размещение объявлений, модерация, безопасность сделок и ответственность сторон.', 'Пользовательское соглашение'],
+    '/konfidencialnost': ['Политика конфиденциальности | KGzone', 'Какие персональные данные собирает KGzone, как они используются, хранятся и удаляются.', 'Политика конфиденциальности'],
     '/faq': ['Частые вопросы — покупка авто и запчастей в Кыргызстане | KGzone', 'Ответы на вопросы о покупке и продаже авто и запчастей, растаможке и проверке автомобилей в КР.', 'Частые вопросы'],
     '/akcii': ['Акции и скидки на автозапчасти и сервис | KGzone', 'Актуальные акции и скидки на автозапчасти и обслуживание автомобилей в Кыргызстане.', 'Акции и скидки'],
     '/otzyvy': ['Отзывы автовладельцев Кыргызстана | KGzone', 'Отзывы владельцев автомобилей о машинах, запчастях и сервисе в Кыргызстане.', 'Отзывы автовладельцев'],
@@ -2450,7 +2537,7 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
     { loc: '/avto', priority: '0.8' },
     ...SEO_CATEGORIES.map((c) => ({ loc: `/zapchasti/${c.slug}`, priority: '0.7' })),
     ...SEO_BRANDS.map((b) => ({ loc: `/zapchasti/marka/${seoSlugify(b)}`, priority: '0.7' })),
-    ...['/sto', '/akcii', '/faq', '/otzyvy', '/novosti'].map((loc) => ({ loc, priority: '0.5' })),
+    ...['/sto', '/akcii', '/faq', '/otzyvy', '/novosti', '/pravila', '/konfidencialnost'].map((loc) => ({ loc, priority: '0.5' })),
     ...parts.map((p: any) => ({ loc: partUrl(p), lastmod: day(p.updatedAt || p.raisedAt || p.createdAt), priority: '0.6' })),
     ...cars.map((c: any) => ({ loc: carUrl(c), lastmod: day(c.updatedAt || c.raisedAt || c.createdAt), priority: '0.6' })),
   ];
@@ -2463,7 +2550,7 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
 }));
 
 // Page requests (not files, not API): send prepared HTML when we have it
-app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
+app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet|pravila|konfidencialnost)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
   if (!isProd) return next();
   seoPageFor(req.path)
     .then((page) => {
@@ -2793,11 +2880,40 @@ app.post('/api/part-requests', asyncRoute(async (req: Request, res: Response) =>
     createdAt: new Date().toISOString(),
   };
   await insertRecord('partRequests', record);
+  const sellers = await sellersForBrand(brand);
+  await Promise.all(sellers.slice(0, 50).map((id) => notifyUser(id,
+    `🔎 Покупатель ищет: ${record.part}${[brand, model, record.generation].filter(Boolean).length ? ` для ${[brand, model, record.generation].filter(Boolean).join(' ')}` : ''}` +
+      `${record.vin ? `\nVIN/кузов: ${record.vin}` : ''}${record.comment ? `\n${record.comment}` : ''}\nТелефон покупателя: +${phone}\n\nВсе заявки: ${SITE_URL}/kabinet`)));
   await notifyAdmin(
     `🔎 Заявка на поиск запчасти\n${record.part}${[brand, model, record.generation].filter(Boolean).length ? ` для ${[brand, model, record.generation].filter(Boolean).join(' ')}` : ''}` +
       `${record.vin ? `\nVIN/кузов: ${record.vin}` : ''}${record.comment ? `\n${record.comment}` : ''}\n${record.name ? record.name + ', ' : ''}+${phone}`
   );
   res.status(201).json({ success: true });
+}));
+
+// Owners (users or companies) with live parts for this car brand
+async function sellersForBrand(brand: string): Promise<string[]> {
+  const b = brand.trim().toLowerCase();
+  if (!b) return [];
+  const ids = new Set<string>();
+  for (const p of await listRecords<any>('parts')) {
+    if (p.ownerId && isLive(p) && String(p.brand || '').toLowerCase() === b) ids.add(p.ownerId);
+  }
+  return [...ids];
+}
+
+// Sellers see open requests for the brands they sell (last 30 days)
+app.get('/api/part-requests/for-me', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const ctx = await companyContext(user);
+  const owners = new Set([user.id, ...(ctx ? [ctx.companyId] : [])]);
+  const brands = new Set((await listRecords<any>('parts')).filter((p) => owners.has(p.ownerId) && isLive(p)).map((p) => String(p.brand || '').toLowerCase()).filter(Boolean));
+  const since = Date.now() - 30 * 86_400_000;
+  const requests = (await listRecords<any>('partRequests'))
+    .filter((r) => (r.status === 'new' || r.status === 'in_work') && Date.parse(r.createdAt) > since && brands.has(String(r.brand || '').toLowerCase()) && r.userId !== user.id)
+    .map(({ userId, ...r }) => r);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, requests, brands: [...brands] });
 }));
 
 app.get('/api/admin/part-requests', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
@@ -2810,6 +2926,166 @@ app.patch('/api/admin/part-requests/:id', requireAdmin, asyncRoute(async (req: R
   const updated = await updateRecord('partRequests', req.params.id, { status, updatedAt: new Date().toISOString() });
   if (!updated) return res.status(404).json({ success: false, error: 'Заявка не найдена' });
   res.json({ success: true });
+}));
+
+// ---------------------------------------------------------------------------
+// Telegram linking: the cabinet gives a t.me link with a one-time code; the bot receives
+// "/start <code>" through the webhook and remembers the chat for that account.
+// ---------------------------------------------------------------------------
+const tgWebhookSecret = () => createHmac('sha256', process.env.TELEGRAM_BOT_TOKEN || '').update('kgzone-tg-webhook').digest('hex').slice(0, 48);
+let botUsername = '';
+async function getBotUsername() {
+  if (!botUsername) botUsername = (await tgCall('getMe', {}))?.result?.username || '';
+  return botUsername;
+}
+
+app.post('/api/telegram/link', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const username = process.env.TELEGRAM_BOT_TOKEN ? await getBotUsername() : '';
+  if (!username) return res.status(503).json({ success: false, error: 'Telegram-бот ещё не подключён администратором сайта' });
+  const code = randomBytes(12).toString('base64url');
+  await updateRecord<UserRecord>('users', user.id, { telegramLinkCode: code, telegramLinkExpires: Date.now() + 30 * 60_000 });
+  res.json({ success: true, url: `https://t.me/${username}?start=${code}` });
+}));
+
+app.delete('/api/telegram/link', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  if (user.telegramChatId) await tgSend(user.telegramChatId, 'Уведомления KGzone отключены.');
+  const updated = await updateRecord<UserRecord>('users', user.id, { telegramChatId: undefined, telegramLinkCode: undefined, telegramLinkExpires: undefined });
+  res.json({ success: true, user: publicUser(updated!) });
+}));
+
+app.post('/api/telegram/webhook', asyncRoute(async (req: Request, res: Response) => {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const got = Buffer.from(req.get('x-telegram-bot-api-secret-token') || ''), want = Buffer.from(token ? tgWebhookSecret() : '-');
+  if (!token || got.length !== want.length || !timingSafeEqual(got, want)) return res.status(401).end();
+  await handleTelegramUpdate(req.body).catch((err) => console.warn('[Telegram] update failed:', err));
+  res.json({ ok: true });
+}));
+
+async function handleTelegramUpdate(update: any) {
+  const msg = update?.message;
+  const chatId = msg?.chat?.id ? String(msg.chat.id) : '';
+  const text = String(msg?.text || '').trim();
+  if (!chatId || msg?.chat?.type !== 'private') return;
+  const users = await listRecords<UserRecord>('users');
+  const start = text.match(/^\/start\s+([\w-]{8,40})$/);
+  if (start) {
+    const u = users.find((x) => x.telegramLinkCode === start[1] && (x.telegramLinkExpires || 0) > Date.now());
+    if (!u) return void await tgSend(chatId, 'Ссылка устарела. Откройте Личный кабинет на KGzone и нажмите «Подключить Telegram» ещё раз.');
+    await updateRecord<UserRecord>('users', u.id, { telegramChatId: chatId, telegramLinkCode: undefined, telegramLinkExpires: undefined });
+    return void await tgSend(chatId, `Готово, ${u.name}! Сюда будут приходить новые сообщения покупателей, результаты модерации и заявки на запчасти.\nОтключить: команда /stop`);
+  }
+  if (text === '/stop') {
+    const u = users.find((x) => x.telegramChatId === chatId);
+    if (u) await updateRecord<UserRecord>('users', u.id, { telegramChatId: undefined });
+    return void await tgSend(chatId, 'Уведомления отключены. Подключить снова можно в Личном кабинете KGzone.');
+  }
+  await tgSend(chatId, `Это бот уведомлений KGzone. Чтобы подключить его, откройте ${SITE_URL}/kabinet и нажмите «Подключить Telegram».`);
+}
+
+app.get('/api/admin/telegram', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
+  if (!process.env.TELEGRAM_BOT_TOKEN) return res.json({ success: true, configured: false });
+  const info = await tgCall('getWebhookInfo', {});
+  const url = info?.result?.url || '';
+  res.json({ success: true, configured: true, username: await getBotUsername(), webhookOk: url === `${SITE_URL}/api/telegram/webhook`, lastError: info?.result?.last_error_message || null });
+}));
+
+app.post('/api/admin/telegram/setup', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  if (!process.env.TELEGRAM_BOT_TOKEN) return res.status(400).json({ success: false, error: 'Сначала добавьте TELEGRAM_BOT_TOKEN в настройки Vercel' });
+  const r = await tgCall('setWebhook', { url: `${SITE_URL}/api/telegram/webhook`, secret_token: tgWebhookSecret(), allowed_updates: ['message'], drop_pending_updates: true });
+  if (!r?.ok) return res.status(502).json({ success: false, error: r?.description || 'Telegram не ответил' });
+  await audit((req as any).actor, 'telegram.setup', 'bot');
+  res.json({ success: true, username: await getBotUsername() });
+}));
+
+// Admin loads a seller's price list for them (onboarding shops from the market).
+// Rows are the same as the company import; the parts are published right away.
+app.post('/api/admin/import', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  const owner = await getRecord<UserRecord>('users', str(req.body?.ownerId, 80));
+  if (!owner) return res.status(404).json({ success: false, error: 'Продавец не найден' });
+  const rows: any[] = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!rows.length) return res.status(400).json({ success: false, error: 'Файл пустой' });
+  if (rows.length > 500) return res.status(400).json({ success: false, error: 'Не больше 500 строк за раз. Разделите файл на части.' });
+  const existing = (await listRecords<any>('parts')).filter((p) => p.ownerId === owner.id);
+  const bySku = new Map(existing.filter((p) => p.sku).map((p) => [p.sku, p]));
+  const defaults = {
+    sellerType: owner.accountType,
+    sellerPhone: '+' + owner.phone,
+    storeName: owner.company?.name || owner.name,
+    companyName: owner.company?.name,
+    inn: owner.company?.inn,
+    storeCity: owner.city,
+  };
+  const now = new Date().toISOString();
+  const moderation = { status: 'approved' as PartStatus, submittedAt: now, reviewedAt: now };
+  const errors: { row: number; error: string }[] = [];
+  let created = 0, updated = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i] || {};
+    const prev: any = r.sku ? bySku.get(str(r.sku, 60)) : undefined;
+    const part: any = sanitizePart({ ...defaults, ...(prev || {}), ...r, sellerType: owner.accountType });
+    if (!part.sellerPhone) part.sellerPhone = defaults.sellerPhone;
+    const problem = partProblem(part);
+    if (problem) { errors.push({ row: i + 2, error: problem }); continue; }
+    if (prev) { await updateRecord('parts', prev.id, { ...part, views: prev.views, updatedAt: now }); updated++; }
+    else { await insertRecord('parts', { id: `part-${randomUUID()}`, ...part, ownerId: owner.id, createdAt: now, moderation }); created++; }
+  }
+  await audit((req as any).actor, 'admin.import', owner.id, { created, updated, errors: errors.length });
+  if (created + updated) await notifyUser(owner.id, `📥 KGzone загрузил ваш прайс: новых ${created}, обновлено ${updated}. Проверьте в Личном кабинете: ${SITE_URL}/kabinet`);
+  res.json({ success: true, created, updated, errors });
+}));
+
+// VIP placement (paid offline, set by an admin): shown first with a badge until vipUntil
+app.post('/api/admin/:kind/:id/vip', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  const kind = listingKind(req.params.kind);
+  if (!kind) return res.status(400).json({ success: false, error: 'Неверный тип' });
+  const days = Math.round(num(req.body?.days, 0, 365));
+  const item: any = await getRecord(kind, req.params.id);
+  if (!item) return res.status(404).json({ success: false, error: 'Объявление не найдено' });
+  const vipUntil = days ? new Date(Date.now() + days * 86_400_000).toISOString() : undefined;
+  const updated = await updateRecord(kind, item.id, { vipUntil });
+  await audit((req as any).actor, 'listing.vip', item.id, { days });
+  if (days) await notifyUser(item.ownerId, `⭐ Объявление «${item.title}» получило VIP-размещение на ${days} дн.`);
+  res.json({ success: true, item: updated });
+}));
+
+// "What is this part?" — a photo goes to Gemini, which names the part and suggests a search
+app.post('/api/ai/identify-part', asyncRoute(async (req: Request, res: Response) => {
+  if (!process.env.GEMINI_API_KEY) return res.status(503).json({ success: false, error: 'Распознавание по фото сейчас недоступно' });
+  if (tooMany(`identify:${clientIp(req)}`, 10, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много фото. Попробуйте через час.' });
+  const m = String(req.body?.dataUrl || '').match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+  if (!m || m[2].length > 4_000_000) return res.status(400).json({ success: false, error: 'Пришлите фото JPEG или PNG до 3 МБ' });
+  const prompt = 'Это фото автозапчасти. Определи, что это за деталь. Ответь строго JSON без пояснений: ' +
+    '{"name": "название детали по-русски", "category": "одна из: Двигатель, Трансмиссия, Подвеска, Тормозная система, Кузов, Оптика, Электрика, Система охлаждения, Отопление и кондиционер, Топливная система, Масла и фильтры, Шины и диски, Салон, Выхлопная система", ' +
+    '"search": "короткий поисковый запрос, 1-3 слова", "confidence": "high|medium|low", "note": "короткая подсказка покупателю, что уточнить у продавца"}. ' +
+    'Если на фото не автозапчасть, верни {"name": "", "note": "на фото не видно автозапчасти"}.';
+  let text = '';
+  for (const model of ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-flash-lite-latest']) {
+    try {
+      const r = await ai.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ inlineData: { mimeType: `image/${m[1]}`, data: m[2] } }, { text: prompt }] }],
+        config: { responseMimeType: 'application/json', temperature: 0.2, abortSignal: AbortSignal.timeout(25000) },
+      });
+      text = r.text || '';
+      break;
+    } catch (err: any) {
+      const timedOut = err?.name === 'AbortError' || err?.name === 'TimeoutError';
+      if (!timedOut && ![429, 500, 503, 404].includes(err?.status)) { console.error('[Gemini] identify:', err); break; }
+    }
+  }
+  let result: any = null;
+  try { result = JSON.parse(text.replace(/^```(json)?|```$/g, '').trim()); } catch { /* bad answer */ }
+  if (!result) return res.status(502).json({ success: false, error: 'Не удалось распознать фото. Попробуйте другое фото или опишите деталь словами.' });
+  res.json({
+    success: true,
+    name: str(result.name, 120),
+    category: str(result.category, 60),
+    search: str(result.search, 80),
+    confidence: ['high', 'medium', 'low'].includes(result.confidence) ? result.confidence : 'low',
+    note: str(result.note, 300),
+  });
 }));
 
 // --- Official exchange rates of the National Bank of the Kyrgyz Republic -----------
@@ -2837,6 +3113,7 @@ app.get('/api/rates', asyncRoute(async (_req: Request, res: Response) => {
 // Complaints about listings (parts or cars) -> admin queue
 const REPORT_REASONS = ['Неверная цена', 'Товар уже продан', 'Мошенничество', 'Неверное описание или фото', 'Спам или дубликат', 'Другое'];
 const reportHits = new Map<string, number[]>();
+const AUTO_HIDE_REPORTS = 3;
 
 app.post('/api/reports', asyncRoute(async (req: Request, res: Response) => {
   const ip = (req.get('x-forwarded-for') || req.ip || 'unknown').split(',')[0].trim();
@@ -2860,8 +3137,20 @@ app.post('/api/reports', asyncRoute(async (req: Request, res: Response) => {
     contact: str(body.contact, 80),
     status: 'new',
     createdAt: new Date().toISOString(),
+    ipHash: createHmac('sha256', SESSION_SECRET).update(ip).digest('hex').slice(0, 16),
   };
   await insertRecord('reports', record);
+  // 3 open complaints from different people -> back to moderation (hidden from the site)
+  const open = (await listRecords<any>('reports')).filter((r) => r.listingId === listingId && r.status === 'new');
+  if (new Set(open.map((r) => r.ipHash || r.id)).size >= AUTO_HIDE_REPORTS) {
+    const coll = kind === 'car' ? 'cars' : 'parts';
+    const listing: any = await getRecord(coll, listingId);
+    if (listing && isLive(listing)) {
+      await updateRecord(coll, listingId, { moderation: { ...listing.moderation, status: 'pending', reason: 'Скрыто автоматически после жалоб покупателей' } });
+      await notifyAdmin(`🚫 Объявление скрыто после ${open.length} жалоб: ${listing.title}\nПроверьте: ${SITE_URL}/kabinet → Модерация`);
+      await notifyUser(listing.ownerId, `⚠️ Ваше объявление «${listing.title}» временно скрыто: на него пожаловались несколько покупателей. Модератор проверит его в ближайшее время.`);
+    }
+  }
   await notifyAdmin(`⚠️ Жалоба на объявление\n${record.listingTitle} (${record.listingId})\nПричина: ${record.reason}${record.comment ? '\n' + record.comment : ''}`);
   res.status(201).json({ success: true });
 }));
@@ -2878,78 +3167,57 @@ app.patch('/api/admin/reports/:id', requireAdmin, asyncRoute(async (req: Request
   res.json({ success: true, report: updated });
 }));
 
-// Admin system analytics & live telemetry
-app.get('/api/admin/analytics', asyncRoute(async (_req: Request, res: Response) => {
-  res.json({
-    success: true,
-    analytics: {
-      activeUsersOnline: 48,
-      dailyVisits: 3410,
-      totalListings: 142,
-      totalBookings: (await countRecords('bookings')) + 38,
-      totalRevenueKgs: 845000,
-      dbHealth: isDatabaseConnected ? 'OPTIMAL' : 'IN_MEMORY',
-      backupStatus: 'UP_TO_DATE',
-      lastBackupDate: new Date().toLocaleDateString('ru-RU') + ' 04:00',
-      smsGatewayStatus: 'ACTIVE',
-      telegramBotStatus: 'ONLINE',
-      serverLoad: '12%',
-      memoryUsage: '142 MB',
-      uptimeSeconds: Math.round(process.uptime()),
-    },
-  });
+// Real backups: everything in the database as one JSON file.
+// Staff download it in the cabinet; a daily Vercel cron sends it to the owner's Telegram.
+const ALL_COLLECTIONS: Collection[] = ['orders', 'bookings', 'reviews', 'parts', 'cars', 'reports', 'users', 'audit', 'conversations', 'sellerReviews', 'memberships', 'partRequests'];
+async function makeBackup() {
+  const collections: Record<string, any[]> = {};
+  for (const c of ALL_COLLECTIONS) collections[c] = await listRecords(c);
+  return { createdAt: new Date().toISOString(), site: SITE_URL, database: isDatabaseConnected ? 'redis' : 'memory', collections };
+}
+const backupName = () => `kgzone-backup-${new Date().toISOString().slice(0, 10)}.json`;
+
+app.get('/api/admin/backup', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  const backup = await makeBackup();
+  await audit((req as any).actor, 'backup.download', 'database');
+  res.setHeader('Content-Disposition', `attachment; filename="${backupName()}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(backup);
 }));
 
-// Admin database backup generation
-app.post('/api/admin/backup', asyncRoute(async (req: Request, res: Response) => {
-  const [orders, bookings, reviews] = await Promise.all([
-    listRecords('orders'),
-    listRecords('bookings'),
-    listRecords('reviews'),
-  ]);
-  const backupPayload = {
-    version: '2.5.0-fullstack',
-    createdAt: new Date().toISOString(),
-    environment: 'production-ready',
-    entities: {
-      ordersCount: orders.length,
-      bookingsCount: bookings.length,
-      reviewsCount: reviews.length,
-      // Full records contain customer phones — only include them for an admin
-      ...(isAdmin(req) ? { orders, bookings, reviews } : {}),
-    },
-    checksumSha256: 'a94f82c3e1b7d5982e0fa9983141f' + Date.now(),
-  };
-
-  res.json({
-    success: true,
-    backupId: `bkp-${Date.now()}`,
-    sizeBytes: JSON.stringify(backupPayload).length,
-    downloadAvailable: true,
-    data: backupPayload,
-    message: 'Резервная копия базы данных успешно создана и зашифрована!',
-  });
-}));
-
-// 2FA verification endpoint
-app.post('/api/auth/2fa/verify', (req: Request, res: Response) => {
-  const { code } = req.body;
-  // Accept standard demo TOTP 6-digit or '123456'
-  const isValid = /^\d{6}$/.test(code);
-  if (isValid) {
-    res.json({
-      success: true,
-      authenticated: true,
-      token: `sess_sec_${Date.now()}`,
-      message: 'Двухфакторная аутентификация успешно пройдена!',
-    });
-  } else {
-    res.status(400).json({
-      success: false,
-      error: 'Неверный 6-значный код безопасности Authenticator',
-    });
+async function sendBackupToTelegram(): Promise<number> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return 0;
+  const chats = await staffChatIds();
+  const admins = new Set((await listRecords<any>('users')).filter((u) => u.role === 'admin' && u.telegramChatId).map((u) => u.telegramChatId));
+  if (process.env.TELEGRAM_CHAT_ID) admins.add(process.env.TELEGRAM_CHAT_ID);
+  const targets = chats.filter((c) => admins.has(c)); // the file holds phone numbers: admins only
+  const body = JSON.stringify(await makeBackup());
+  let sent = 0;
+  for (const chatId of targets) {
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('caption', `💾 Резервная копия KGzone, ${new Date().toLocaleDateString('ru-RU')}`);
+    form.append('document', new Blob([body], { type: 'application/json' }), backupName());
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: 'POST', body: form, signal: AbortSignal.timeout(30000) });
+      if (r.ok) sent++;
+    } catch (err) {
+      console.warn('[Backup] Telegram send failed:', err);
+    }
   }
-});
+  return sent;
+}
+
+// Called daily by Vercel Cron (see vercel.json). It returns no data, only sends the file to admins,
+// so a stray call is harmless; CRON_SECRET is checked when it is set.
+app.get('/api/cron/backup', asyncRoute(async (req: Request, res: Response) => {
+  const secret = process.env.CRON_SECRET;
+  if (secret && req.get('authorization') !== `Bearer ${secret}`) return res.status(401).json({ success: false });
+  if (tooMany('cron:backup', 2, 60 * 60_000)) return res.status(429).json({ success: false });
+  const sent = await sendBackupToTelegram();
+  res.json({ success: true, sent });
+}));
 
 // AI Auto-Consultant Chatbot Route (KGzone Автоэксперт)
 app.post('/api/ai/consultant', async (req: Request, res: Response) => {
@@ -2958,14 +3226,17 @@ app.post('/api/ai/consultant', async (req: Request, res: Response) => {
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ success: false, error: 'Пожалуйста, введите вопрос' });
     }
+    if (message.length > 2000) return res.status(400).json({ success: false, error: 'Слишком длинный вопрос' });
+    if (tooMany(`ai:${clientIp(req)}`, 30, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много вопросов. Попробуйте через час.' });
 
     const systemInstruction = `Ты — дружелюбный и экспертный виртуальный автоконсультант портала KGzone (автобазар Кыргызстана).
 Ты превосходно разбираешься в:
 1. Автомобильном рынке Кыргызстана (авторынок «РИОМ-АВТО» в Военно-Антоновке по субботам и воскресеньям, авторынок «Жапалак» в Оше, авторынки Каракола и Джалал-Абада).
 2. Автозапчастях на крупнейшем рынке автозапчастей Центральной Азии «Кудайберген» (проходы, контейнеры, дубликаты KYB, 555, CTR, Brembo, оригинальные запчасти Toyota/Lexus/Honda/BMW/Zeekr/BYD) и авторынке «Дордой Моторс».
 3. Растаможке и таможенных пошлинах ЕАЭС в Кыргызстане (льготная ставка 0% на электромобили, правила утильсбора и оформления в ГРС/Унаа).
-4. Проверке авто через CarCheck KG (проверка арестов, штрафов ГУОБДД «Безопасный город», ДТП, периодов владения, истории пробега).
+4. Проверке авто перед покупкой. Важно: у KGzone НЕТ доступа к базам МВД и ГУ «Унаа» — сайт не показывает аресты, залоги и штрафы. Советуй проверять их официально в ГУ «Унаа» (ЦОН) по госномеру или VIN. На KGzone можно только расшифровать VIN / номер кузова.
 5. Популярных в КР моделях (Toyota Camry, Land Cruiser Prado/300, Lexus RX/LX/GX, Honda Fit/CR-V/Stepwgn, Mercedes E-Class/Sprinter, электрокары BYD Song Plus, Zeekr 001, Li Auto L7/L9).
+Не выдумывай факты о KGzone: сайт не принимает оплату, не доставляет товары и не имеет своих автосервисов — покупатель договаривается с продавцом напрямую. Если не уверен в цифрах (ставки, цены), так и скажи.
 Отвечай вежливо, емко и по существу. Можешь отвечать на русском или кыргызском языке в зависимости от языка пользователя. Давай практические советы для автолюбителей Кыргызстана.`;
 
     // Construct contents from recent history + new prompt
@@ -3021,7 +3292,7 @@ app.post('/api/ai/consultant', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Gemini Consultant API error:', error);
     // Graceful helpful fallback for offline/preview resilience
-    const fallbackAnswer = 'Здравствуйте! Авторынок РИОМ-АВТО работает в Военно-Антоновке в субботу и воскресенье. Рынок запчастей Кудайберген открыт со вторника по воскресенье. Если вам нужен расчет растаможки или подбор запчастей — воспользуйтесь нашими интерактивными сервисами на сайте!';
+    const fallbackAnswer = 'Извините, автоконсультант сейчас недоступен. Попробуйте позже или воспользуйтесь поиском запчастей и калькулятором растаможки на сайте.';
     res.json({
       success: true,
       reply: fallbackAnswer,

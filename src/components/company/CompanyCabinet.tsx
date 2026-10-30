@@ -6,7 +6,7 @@ import {
   type CompanyInfo, type StaffMember, type StaffRole, type Warehouse,
 } from '../../api/company';
 import { formatPhone } from '../../api/auth';
-import { IMPORT_TEMPLATE, parseCsv, rowsToParts } from '../../utils/csv';
+import { IMPORT_TEMPLATE, parseCsv, readCsvFile, rowsToParts } from '../../utils/csv';
 import { CompanyCatalog } from './CompanyCatalog';
 
 type Tab = 'overview' | 'catalog' | 'import' | 'warehouses' | 'orders' | 'staff' | 'audit';
@@ -137,7 +137,7 @@ const ImportExport: React.FC<{ info: CompanyInfo }> = ({ info }) => {
     if (/\.xlsx?$/i.test(file.name)) { setError('Сохраните файл в Excel как «CSV UTF-8» (Файл → Сохранить как) и загрузите его.'); return; }
     if (file.size > 5_000_000) { setError('Файл больше 5 МБ. Разделите его на части.'); return; }
     setFileName(file.name);
-    const table = parseCsv(await file.text());
+    const table = parseCsv(await readCsvFile(file));
     if (table.length < 2) { setError('В файле нет строк с товарами'); return; }
     setPreview(rowsToParts(table, info.company.warehouses));
   };

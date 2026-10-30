@@ -13,7 +13,7 @@ export interface ModerationPanelProps<T extends ModeratedItem> {
   moderate: (id: string, action: 'approve' | 'reject', reason?: string) => Promise<unknown>;
   remove: (id: string) => Promise<unknown>;
   /** Extra button for published items (e.g. toggle stock) */
-  publishedAction?: { label: (item: T) => string; run: (item: T) => Promise<unknown> };
+  publishedActions?: { label: (item: T) => string; run: (item: T) => Promise<unknown> }[];
   image: (item: T) => string;
   heading: (item: T) => string;
   details: (item: T) => React.ReactNode;
@@ -30,7 +30,7 @@ const fmtDate = (iso?: string) => (iso ? new Date(iso).toLocaleString('ru-RU', {
 // Moderation queue for seller submissions (parts or car listings). The admin password
 // (ADMIN_TOKEN on the server) is kept only for this browser session.
 export function ModerationPanel<T extends ModeratedItem>(props: ModerationPanelProps<T>) {
-  const { title, list, moderate, remove, publishedAction, image, heading, details } = props;
+  const { title, list, moderate, remove, publishedActions = [], image, heading, details } = props;
   const [authed, setAuthed] = useState(false);
   const [password, setPassword] = useState('');
   const [tab, setTab] = useState<ModerationStatus>('pending');
@@ -169,11 +169,11 @@ export function ModerationPanel<T extends ModeratedItem>(props: ModerationPanelP
                     <span>Отклонить</span>
                   </button>
                 )}
-                {tab === 'approved' && publishedAction && (
-                  <button type="button" onClick={() => act(() => publishedAction.run(item))} className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold cursor-pointer">
-                    {publishedAction.label(item)}
+                {tab === 'approved' && publishedActions.map((a) => (
+                  <button key={a.label(item)} type="button" onClick={() => act(() => a.run(item))} className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold cursor-pointer">
+                    {a.label(item)}
                   </button>
-                )}
+                ))}
                 {tab !== 'pending' && (
                   <button type="button" onClick={() => { if (confirm('Удалить из базы?')) act(() => remove(item.id)); }} className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-red-800 text-white text-xs font-bold flex items-center gap-1 cursor-pointer">
                     <Trash2 size={13} />

@@ -30,6 +30,11 @@ export interface GarageCar {
   generation?: string;
   year?: number;
   vin?: string;
+  mileage?: number;
+  oilChangeMileage?: number;
+  oilInterval?: number;
+  insuranceUntil?: string; // YYYY-MM-DD
+  inspectionUntil?: string; // YYYY-MM-DD
 }
 
 export interface Account {
@@ -46,6 +51,8 @@ export interface Account {
   lastLoginAt?: string;
   company?: CompanyProfile;
   garage: GarageCar[];
+  telegramLinked?: boolean;
+  termsAcceptedAt?: string;
 }
 
 export const COMPANY_STATUS_LABELS: Record<CompanyStatus, string> = {
@@ -109,6 +116,7 @@ export interface RegisterInput {
   password: string;
   city: string;
   company?: Partial<CompanyProfile>;
+  acceptTerms: boolean;
 }
 
 export const register = (input: RegisterInput) =>
@@ -137,3 +145,12 @@ export const saveGarage = (garage: GarageCar[]) =>
 
 export const claimAdmin = (adminToken: string) =>
   withUser(call('/api/auth/claim-admin', { method: 'POST', body: JSON.stringify({ adminToken }) }));
+
+// Telegram notifications: returns the t.me link that connects this account to the bot
+export const getTelegramLink = () => call<{ url: string }>('/api/telegram/link', { method: 'POST' }).then((r) => r.url);
+export const unlinkTelegram = () => withUser(call('/api/telegram/link', { method: 'DELETE' }));
+
+export async function deleteAccount(password: string) {
+  await call('/api/auth/me', { method: 'DELETE', body: JSON.stringify({ password }) });
+  set({ user: null });
+}

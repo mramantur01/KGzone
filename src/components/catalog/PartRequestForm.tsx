@@ -47,7 +47,7 @@ export const PartRequestForm: React.FC<Props> = ({ part, brand = '', model = '',
   if (sent) {
     return (
       <p className="mt-4 inline-flex items-center gap-2 text-sm text-emerald-400 font-semibold">
-        <CheckCircle2 size={16} /> Заявка принята. Мы поищем деталь и свяжемся с вами.
+        <CheckCircle2 size={16} /> Заявка принята. Её получат продавцы с запчастями для вашей марки — они позвонят вам.
       </p>
     );
   }
@@ -71,6 +71,7 @@ export const PartRequestForm: React.FC<Props> = ({ part, brand = '', model = '',
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Ваше имя" className="px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-xl text-white" />
         <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="+996 700 123 456" className="px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-xl text-white font-mono" />
       </div>
+      <p className="text-neutral-500">Заявку и ваш телефон увидят продавцы KGzone, у которых есть запчасти для этой марки, и администрация сайта.</p>
       {error && <p className="text-red-400">{error}</p>}
       <div className="flex gap-2">
         <button type="submit" disabled={busy} className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black inline-flex items-center gap-2 cursor-pointer disabled:opacity-60">

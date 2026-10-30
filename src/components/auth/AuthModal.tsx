@@ -70,7 +70,7 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
   const submitRegister = (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== password2) { setError('Пароли не совпадают'); return; }
-    if (!agree) { setError('Подтвердите согласие с правилами площадки'); return; }
+    if (!agree) { setError('Примите пользовательское соглашение и политику конфиденциальности'); return; }
     run(() =>
       register({
         accountType,
@@ -79,6 +79,7 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
         email: email.trim() || undefined,
         password,
         city,
+        acceptTerms: agree,
         company: accountType === 'legal'
           ? { name: companyName.trim(), inn: inn.trim(), legalAddress: legalAddress.trim(), actualAddress: actualAddress.trim(), contactPerson: name.trim(), contactPhone: phone, contactEmail: email.trim() }
           : undefined,
@@ -256,7 +257,9 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
               </div>
               <label className="flex items-start gap-2 text-xs text-slate-600 cursor-pointer">
                 <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 accent-[#C8102E]" />
-                <span>Я согласен с правилами площадки: публикую только автозапчасти и автомобили, указываю правдивые данные.</span>
+                <span>
+                  Я принимаю <a href="/pravila" target="_blank" rel="noopener" className="underline font-semibold text-slate-800">пользовательское соглашение</a> и <a href="/konfidencialnost" target="_blank" rel="noopener" className="underline font-semibold text-slate-800">политику конфиденциальности</a>, согласен на обработку моих данных.
+                </span>
               </label>
               <p className="text-[11px] text-slate-500">Подтверждение телефона по SMS появится после подключения SMS-сервиса.</p>
               {error && <p className="text-xs text-red-600 font-semibold">{error}</p>}
