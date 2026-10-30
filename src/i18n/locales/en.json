@@ -3450,5 +3450,11 @@
  "Проверенный продавец": "Verified seller",
  "Компания / ИП": "Company / sole trader",
  "👑 Только проверенные продавцы": "👑 Verified sellers only",
- "+ Продать запчасть — бесплатно": "+ Sell a part — free"
+ "+ Продать запчасть — бесплатно": "+ Sell a part — free",
+ "Не показывается на сайте: нет в наличии. Укажите количество, когда товар появится.": "Not shown on the site: out of stock. Enter the quantity when the item is back.",
+ "Не показывается на сайте: нет своего фото детали.": "Not shown on the site: no own photo of the part.",
+ "Загрузите хотя бы одно своё фото этой детали": "Upload at least one photo of this exact part",
+ "Укажите количество в наличии: товары под заказ на сайте не публикуются": "Enter the quantity in stock: items on order are not published on the site",
+ "Обязательно: сфотографируйте именно эту деталь (до 8 фото). Чужие фото и картинки из интернета не принимаются.": "Required: photograph this exact part (up to 8 photos). Other people’s photos and pictures from the internet are not accepted.",
+ "Добавьте хотя бы одно своё фото этой детали": "Add at least one photo of this exact part"
 }

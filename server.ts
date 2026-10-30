@@ -675,14 +675,14 @@ function sanitizePart(body: any) {
     condition: PART_CONDITIONS.includes(body.condition) ? body.condition : 'Новый',
     inStock: stockCount > 0,
     stockCount,
-    stockStatus: stockCount > 1 ? 'В наличии' : stockCount === 1 ? 'Осталось мало' : 'Под заказ (2-3 дня)',
+    stockStatus: stockCount > 1 ? 'В наличии' : stockCount === 1 ? 'Осталось мало' : 'Нет в наличии',
     market: str(body.market, 80) || 'Кудайберген',
     storeName: str(body.storeName, 120),
     storeLocation: str(body.storeLocation, 160),
     storeCity: str(body.storeCity, 60) || 'Бишкек',
     sellerPhone: str(body.sellerPhone, 30),
     sellerWhatsapp: str(body.sellerWhatsapp, 30).replace(/\D/g, '') || undefined,
-    image: images[0] || '/parts/wm-03.jpg',
+    image: images[0] || '',
     images: images.length ? images : undefined,
     hasCompressionVideo: Boolean(body.hasCompressionVideo),
     compressionBar: body.hasCompressionVideo ? num(body.compressionBar, 0, 30) : undefined,
@@ -714,6 +714,7 @@ const partProblem = (p: ReturnType<typeof sanitizePart>) => {
   if (!p.partNumber) return 'Укажите OEM артикул';
   if (!p.brand) return 'Укажите марку авто';
   if (!p.priceKgs) return 'Укажите цену';
+  if (!p.images?.length) return 'Добавьте хотя бы одно своё фото этой детали';
   if (!/\d{6,}/.test(p.sellerPhone.replace(/\D/g, ''))) return 'Укажите телефон продавца';
   return null;
 };
@@ -731,20 +732,22 @@ const publicPart = ({ moderation, ownerId, ...part }: any, verified?: Set<string
 };
 
 const isLive = (l: any) => l.moderation?.status === 'approved' && (l.listingStatus ?? 'active') === 'active';
+// Parts on the site: published, in stock (no "on order") and with the seller's own photo
+const isPublicPart = (p: any) => isLive(p) && Number(p.stockCount) > 0 && Array.isArray(p.images) && p.images.length > 0;
 // Sellers with the crown: checked by an admin in person, or a company with verified documents
 const verifiedOwners = async () =>
   new Set((await listRecords<UserRecord>('users')).filter((u) => !u.blocked && (u.verifiedSeller || u.company?.status === 'verified')).map((u) => u.id));
 
 app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
   const [parts, verified, ratings] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings()]);
-  res.json({ success: true, parts: parts.filter(isLive).map((p: any) => publicPart(p, verified, ratings)) });
+  res.json({ success: true, parts: parts.filter(isPublicPart).map((p: any) => publicPart(p, verified, ratings)) });
 }));
 
 // Seller submission -> moderation queue
 app.post('/api/parts', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const owner: UserRecord = (req as any).user;
   const part = sanitizePart({ ...(req.body || {}), sellerType: owner.accountType });
-  const problem = partProblem(part);
+  const problem = partProblem(part) || (part.stockCount < 1 ? 'Укажите количество в наличии: товары под заказ на сайте не публикуются' : null);
   if (problem) return res.status(400).json({ success: false, error: problem });
 
   // Basic flood protection: at most 20 parts waiting for review per phone number
@@ -2112,7 +2115,7 @@ app.post('/api/company/parts/bulk', requireCompany(), asyncRoute(async (req: Req
       if (p.oldPriceKgs) patch = { priceKgs: p.oldPriceKgs, oldPriceKgs: undefined };
     } else if (action === 'stock') {
       const count = Math.max(0, Math.round(value));
-      patch = { stockCount: count, inStock: count > 0, stockStatus: count > 1 ? 'В наличии' : count === 1 ? 'Осталось мало' : 'Под заказ (2-3 дня)' };
+      patch = { stockCount: count, inStock: count > 0, stockStatus: count > 1 ? 'В наличии' : count === 1 ? 'Осталось мало' : 'Нет в наличии' };
     } else if (action === 'warehouse') {
       patch = { warehouseId: str(req.body?.warehouseId, 60) || undefined };
     } else if (action === 'archive') patch = { listingStatus: 'inactive' };
@@ -2208,7 +2211,7 @@ app.patch('/api/company/orders/:id', requireCompany('orders'), asyncRoute(async 
     const p: any = await getRecord('parts', order.partId);
     if (p && p.stockCount > 0) {
       const count = p.stockCount - 1;
-      await updateRecord('parts', p.id, { stockCount: count, inStock: count > 0, stockStatus: count > 1 ? 'В наличии' : count === 1 ? 'Осталось мало' : 'Под заказ (2-3 дня)' });
+      await updateRecord('parts', p.id, { stockCount: count, inStock: count > 0, stockStatus: count > 1 ? 'В наличии' : count === 1 ? 'Осталось мало' : 'Нет в наличии' });
     }
   }
   await companyAudit(ctx, (req as any).user, 'order-status', order.id, { status, orderNumber: order.orderNumber });
@@ -2380,7 +2383,7 @@ const conditionSchema = (c: string) =>
 const seoStoreReady = () =>
   initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [] });
 
-const liveParts = async () => (await listRecords('parts')).filter(isLive);
+const liveParts = async () => (await listRecords('parts')).filter(isPublicPart);
 const liveCars = async () => (await listRecords('cars')).filter(isLive);
 
 const CATEGORY_LINKS = (): [string, string][] => SEO_CATEGORIES.map((c) => [c.name, `/zapchasti/${c.slug}`]);
@@ -2832,7 +2835,7 @@ app.get('/api/catalog/parts', (req: Request, res: Response) => {
 app.get('/api/catalog/crosses', asyncRoute(async (req: Request, res: Response) => {
   const oem = normOem(req.query.oem);
   if (oem.length < 4) return res.status(400).json({ success: false, error: 'Введите OEM-номер' });
-  const parts = (await listRecords('parts')).filter(isLive);
+  const parts = (await listRecords('parts')).filter(isPublicPart);
   const local = parts
     .filter((p: any) => normOem(p.partNumber) === oem || (p.crossNumbers || []).some((c: string) => normOem(c) === oem))
     .slice(0, 50)

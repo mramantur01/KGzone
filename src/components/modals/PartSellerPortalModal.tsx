@@ -95,10 +95,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   const [hasCompressionVideo, setHasCompressionVideo] = useState(false);
   const [compressionBar, setCompressionBar] = useState(0);
   const [videoTitle, setVideoTitle] = useState('');
-  const [selectedPhotoSample, setSelectedPhotoSample] = useState(
-    '/parts/wm-03.jpg'
-  );
-  // Seller's own photos (Vercel Blob); when present they replace the sample photo
+  // Seller's own photos of this exact part (Vercel Blob); at least one is required
   const [ownPhotos, setOwnPhotos] = useState<string[]>([]);
   const [photoUploading, setPhotoUploading] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -198,15 +195,6 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
     'Авторазбор Бишкек',
   ];
 
-  // Pre-configured high quality photos of parts
-  const photoPresets = [
-    { label: 'Двигатель', url: '/parts/wm-03.jpg' },
-    { label: 'КПП / вариатор', url: '/parts/wm-10.jpg' },
-    { label: 'Оптика / Фары', url: '/parts/wm-01.jpg' },
-    { label: 'Тормоза / Колодки', url: '/parts/wm-02.jpg' },
-    { label: 'Кузов / Бампер', url: '/parts/wm-15.jpg' },
-  ];
-
   // SUBMIT NEW PART
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -229,6 +217,14 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
       return;
     }
     if (photoUploading > 0) return;
+    if (!ownPhotos.length) {
+      showNotification('Загрузите хотя бы одно своё фото этой детали');
+      return;
+    }
+    if (stockCount < 1) {
+      showNotification('Укажите количество в наличии: товары под заказ на сайте не публикуются');
+      return;
+    }
     // First press shows the preview; the second one ("Опубликовать") sends it
     if (!isPreview) {
       setIsPreview(true);
@@ -256,8 +252,8 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
       city: sellerCity,
       sellerPhone: phone,
       sellerWhatsapp: whatsapp,
-      image: ownPhotos[0] || selectedPhotoSample,
-      images: ownPhotos.length ? ownPhotos : [selectedPhotoSample],
+      image: ownPhotos[0],
+      images: ownPhotos,
       videoTitle: videoTitle,
       hasCompressionVideo: hasCompressionVideo,
       compressionBar: hasCompressionVideo ? compressionBar : undefined,
@@ -596,16 +592,16 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setStockCount((prev) => Math.max(0, prev - 1))}
+                      onClick={() => setStockCount((prev) => Math.max(1, prev - 1))}
                       className="w-10 h-10 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white font-black text-lg flex items-center justify-center cursor-pointer"
                     >
                       -
                     </button>
                     <input
                       type="number"
-                      min="0"
+                      min="1"
                       value={stockCount}
-                      onChange={(e) => setStockCount(Number(e.target.value))}
+                      onChange={(e) => setStockCount(Math.max(1, Number(e.target.value) || 1))}
                       className="flex-1 px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-lg text-center font-bold text-base text-white"
                     />
                     <button
@@ -775,26 +771,8 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                 </div>
                 {photoError && <p className="text-[11px] text-red-400">{photoError}</p>}
                 <p className="text-[11px] text-neutral-500">
-                  {ownPhotos.length ? 'Будут показаны ваши фото.' : 'Лучше загрузить реальные фото детали. Если фото нет — выберите похожий образец:'}
+                  {ownPhotos.length ? 'Будут показаны ваши фото.' : 'Обязательно: сфотографируйте именно эту деталь (до 8 фото). Чужие фото и картинки из интернета не принимаются.'}
                 </p>
-                <div className={`grid grid-cols-2 sm:grid-cols-5 gap-2.5 ${ownPhotos.length ? 'hidden' : ''}`}>
-                  {photoPresets.map((preset, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => setSelectedPhotoSample(preset.url)}
-                      className={`relative h-20 rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${
-                        selectedPhotoSample === preset.url
-                          ? 'border-red-500 ring-2 ring-red-500/40'
-                          : 'border-neutral-800 opacity-60 hover:opacity-100'
-                      }`}
-                    >
-                      <img src={preset.url} alt={preset.label} className="w-full h-full object-cover" />
-                      <span className="absolute bottom-1 left-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[9px] text-center font-bold text-white truncate">
-                        {preset.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
               </div>
 
               {/* COMPATIBILITY TABLE (Requirement 3 & 5) */}
@@ -886,7 +864,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                     {isKg ? 'Алдын ала көрүү — сатып алуучулар ушундай көрөт' : 'Предпросмотр — так объявление увидят покупатели'}
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <img src={ownPhotos[0] || selectedPhotoSample} alt="" className="w-full sm:w-40 h-28 object-cover rounded-xl bg-neutral-950" />
+                    <img src={ownPhotos[0]} alt="" className="w-full sm:w-40 h-28 object-cover rounded-xl bg-neutral-950" />
                     <div className="text-xs space-y-1 min-w-0">
                       <div className="font-bold text-white text-sm">{partTitle || '—'}</div>
                       <div className="text-neutral-400">
@@ -899,7 +877,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                       </div>
                       <div className="text-neutral-400">
                         {[deliveryAvailable && (isKg ? 'жеткирүү' : 'доставка'), pickupAvailable && (isKg ? 'өзү алып кетүү' : 'самовывоз')].filter(Boolean).join(', ') || (isKg ? 'Алуу жолу көрсөтүлгөн эмес' : 'Способ получения не указан')}
-                        {' · '}{(ownPhotos.length || 1)} {isKg ? 'сүрөт' : 'фото'}
+                        {' · '}{ownPhotos.length} {isKg ? 'сүрөт' : 'фото'}
                       </div>
                       {description && <div className="text-neutral-300 line-clamp-3">{description}</div>}
                     </div>

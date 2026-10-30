@@ -1157,7 +1157,6 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
           <div className="flex flex-wrap gap-x-5 gap-y-2 pt-3 text-xs text-neutral-300">
             {[
               { checked: onlyWithPhoto, set: setOnlyWithPhoto, label: isKg ? 'Сүрөтү барлар гана' : 'Только с фото' },
-              { checked: onlyInStock, set: setOnlyInStock, label: isKg ? 'Кампада бар' : 'Только в наличии' },
               { checked: onlyWithVideo, set: setOnlyWithVideo, label: isKg ? 'Видеосу бар' : 'С видео' },
               { checked: onlyVerified, set: setOnlyVerified, label: isKg ? '👑 Текшерилген сатуучулар' : '👑 Только проверенные продавцы' },
               { checked: onlyFavorites, set: setOnlyFavorites, label: (isKg ? 'Тандалгандар' : 'Избранное') + ' (' + favoriteIds.length + ')' },

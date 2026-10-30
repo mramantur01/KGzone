@@ -162,6 +162,12 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar }) => {
                     <div className="text-xs text-red-600">Причина отказа: {item.moderation.reason}</div>
                   )}
                   {b === 'pending' && <div className="text-xs text-amber-600">Ждёт проверки модератором</div>}
+                  {b === 'active' && row.kind === 'parts' && !((item as MyPart).stockCount > 0) && (
+                    <div className="text-xs text-amber-600">Не показывается на сайте: нет в наличии. Укажите количество, когда товар появится.</div>
+                  )}
+                  {b === 'active' && row.kind === 'parts' && !(item as MyPart).images?.length && (
+                    <div className="text-xs text-amber-600">Не показывается на сайте: нет своего фото детали.</div>
+                  )}
 
                   {editing === item.id && (
                     <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
