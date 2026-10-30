@@ -2,7 +2,7 @@
 // Leave SITE_PHONE empty to hide all "contact KGzone" buttons.
 
 /** Digits only, with country code, e.g. 996555777999 */
-export const SITE_PHONE = '996555777999';
+export const SITE_PHONE: string = '';
 
 export const SITE_PHONE_DISPLAY = SITE_PHONE
   ? `+${SITE_PHONE.slice(0, 3)} ${SITE_PHONE.slice(3, 6)} ${SITE_PHONE.slice(6, 9)} ${SITE_PHONE.slice(9)}`

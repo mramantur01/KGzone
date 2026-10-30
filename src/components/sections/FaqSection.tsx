@@ -167,8 +167,9 @@ export const FaqSection: React.FC<FaqSectionProps> = ({ language, onOpenConsulta
               </button>
             )}
 
+            {siteWhatsApp('') && (
             <a
-              href={siteWhatsApp('Здравствуйте! У меня есть вопрос по порталу KGzone.') || undefined}
+              href={siteWhatsApp('Здравствуйте! У меня есть вопрос по порталу KGzone.')!}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
@@ -176,6 +177,7 @@ export const FaqSection: React.FC<FaqSectionProps> = ({ language, onOpenConsulta
               <MessageCircle size={14} />
               <span>WhatsApp</span>
             </a>
+            )}
           </div>
         </div>
 

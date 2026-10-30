@@ -39,7 +39,7 @@ export const AdBannerSlot: React.FC<AdBannerSlotProps> = ({ banners, intervalMs 
           <a
             key={b.id}
             href={b.href}
-            target="_blank"
+            target={b.href.startsWith('http') ? '_blank' : undefined}
             rel="noopener noreferrer sponsored"
             aria-hidden={i !== index}
             tabIndex={i === index ? 0 : -1}
