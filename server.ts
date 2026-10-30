@@ -731,8 +731,9 @@ const publicPart = ({ moderation, ownerId, ...part }: any, verified?: Set<string
 };
 
 const isLive = (l: any) => l.moderation?.status === 'approved' && (l.listingStatus ?? 'active') === 'active';
+// Sellers with the crown: checked by an admin in person, or a company with verified documents
 const verifiedOwners = async () =>
-  new Set((await listRecords<UserRecord>('users')).filter((u) => u.company?.status === 'verified').map((u) => u.id));
+  new Set((await listRecords<UserRecord>('users')).filter((u) => !u.blocked && (u.verifiedSeller || u.company?.status === 'verified')).map((u) => u.id));
 
 app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
   const [parts, verified, ratings] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings()]);
@@ -925,15 +926,16 @@ const carProblem = (c: ReturnType<typeof sanitizeCar>) => {
   return null;
 };
 
-const publicCar = ({ moderation, ownerId, ...car }: any) => ({
+const publicCar = ({ moderation, ownerId, ...car }: any, verified?: Set<string>) => ({
   ...car,
   sellerId: ownerId || undefined,
+  sellerVerified: Boolean(ownerId && verified?.has(ownerId)),
   publishedDate: car.publishedDate || (car.createdAt ? new Date(car.createdAt).toLocaleDateString('ru-RU') : ''),
 });
 
 app.get('/api/cars', asyncRoute(async (_req: Request, res: Response) => {
-  const cars = await listRecords('cars');
-  res.json({ success: true, cars: cars.filter(isLive).map(publicCar) });
+  const [cars, verified] = await Promise.all([listRecords('cars'), verifiedOwners()]);
+  res.json({ success: true, cars: cars.filter(isLive).map((c: any) => publicCar(c, verified)) });
 }));
 
 app.post('/api/cars', requireUser, asyncRoute(async (req: Request, res: Response) => {
@@ -1065,6 +1067,8 @@ interface UserRecord {
   company?: CompanyProfile;
   garage: GarageCar[];
   termsAcceptedAt?: string;
+  verifiedSeller?: boolean; // crown badge: an admin checked this seller in person
+  verifiedSellerAt?: string;
   telegramChatId?: string;
   telegramLinkCode?: string;
   telegramLinkExpires?: number;
@@ -1560,6 +1564,10 @@ app.patch('/api/admin/users/:id', requireAdminOnly, asyncRoute(async (req: Reque
     patch.blocked = Boolean(b.blocked);
     if (patch.blocked) patch.tokenVersion = target.tokenVersion + 1; // sign out everywhere
   }
+  if (b.verifiedSeller !== undefined) {
+    patch.verifiedSeller = Boolean(b.verifiedSeller);
+    patch.verifiedSellerAt = patch.verifiedSeller ? new Date().toISOString() : undefined;
+  }
   if (b.companyStatus !== undefined && target.company) {
     const statuses: CompanyStatus[] = ['unverified', 'pending', 'verified', 'needs_docs', 'rejected', 'blocked'];
     if (!statuses.includes(b.companyStatus)) return res.status(400).json({ success: false, error: 'Неверный статус компании' });
@@ -1567,6 +1575,9 @@ app.patch('/api/admin/users/:id', requireAdminOnly, asyncRoute(async (req: Reque
   }
   const updated = await updateRecord<UserRecord>('users', target.id, patch);
   await audit(actor, 'update-user', target.id, { ...b });
+  if (patch.verifiedSeller && !target.verifiedSeller) {
+    await notifyUser(target.id, '👑 Поздравляем! KGzone отметил вас как проверенного продавца. Теперь рядом с вашими объявлениями виден значок короны.');
+  }
   res.json({ success: true, user: publicUser(updated!) });
 }));
 

@@ -6,6 +6,7 @@ import { CarImagePreview } from '../common/CarImagePreview';
 import { ReportListingButton } from '../common/ReportListingButton';
 import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import { SellerContactBlock } from '../chat/SellerContactBlock';
+import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
 import { recordView, recordContact } from '../../utils/viewHistory';
 import {
   X,
@@ -226,6 +227,7 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
                   Продавец
                 </div>
                 <div className="text-base font-bold text-slate-900">{car.sellerName}</div>
+                {car.sellerVerified && <VerifiedSellerBadge withLabel className="mt-1" />}
                 <div className="text-xs text-slate-600 mt-0.5">{car.sellerLocation}</div>
 
                 {/* Блок CarCheck */}

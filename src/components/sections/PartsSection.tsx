@@ -13,6 +13,7 @@ import { useParts } from '../../api/parts';
 import { decodeVin, type VinInfo } from '../../utils/vin';
 import { isDemoListing, DEMO_NOTICE, isVip } from '../../utils/demo';
 import { PhotoPartButton } from '../catalog/PhotoPartButton';
+import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
 import { findCatalogVehicles, getCatalogStatus, looksLikeFrame, type CatalogVehicle } from '../../api/catalog';
 import { CatalogBrowser } from '../catalog/CatalogBrowser';
 import { decodeFrame } from '../../data/frameCodes';
@@ -140,6 +141,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   const [sortBy, setSortBy] = useState<'relevance' | 'newest' | 'price_asc' | 'price_desc' | 'popular'>('newest');
   const [onlyInStock, setOnlyInStock] = useState<boolean>(false);
   const [onlyWithVideo, setOnlyWithVideo] = useState<boolean>(false);
+  const [onlyVerified, setOnlyVerified] = useState<boolean>(false);
   const [sellerTypeFilter, setSellerTypeFilter] = useState<'Все' | 'individual' | 'legal'>('Все');
   const [deliveryFilter, setDeliveryFilter] = useState<'Все' | 'delivery' | 'pickup'>('Все');
   const [onlyWithPhoto, setOnlyWithPhoto] = useState<boolean>(false);
@@ -602,6 +604,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
       // Video check
       if (onlyWithVideo && !part.hasCompressionVideo && !part.videoUrl) return false;
+      if (onlyVerified && !part.sellerVerified) return false;
 
       if (sellerTypeFilter !== 'Все' && partSellerType(part) !== sellerTypeFilter) return false;
       if (deliveryFilter === 'delivery' && !part.deliveryAvailable) return false;
@@ -646,6 +649,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     sortBy,
     onlyInStock,
     onlyWithVideo,
+    onlyVerified,
     sellerTypeFilter,
     deliveryFilter,
     onlyWithPhoto,
@@ -751,6 +755,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     setSortBy('newest');
     setOnlyInStock(false);
     setOnlyWithVideo(false);
+    setOnlyVerified(false);
     setSellerTypeFilter('Все');
     setDeliveryFilter('Все');
     setOnlyWithPhoto(false);
@@ -826,7 +831,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
               className="py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer hover:scale-102"
             >
               <Store size={16} />
-              <span>{isKg ? '+ Контейнер кошуу (0%)' : '+ Подать запчасть / Контейнер 0%'}</span>
+              <span>{isKg ? '+ Тетик сатуу — акысыз' : '+ Продать запчасть — бесплатно'}</span>
             </button>
           </div>
         </div>
@@ -905,7 +910,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
             </div>
 
             {/* Reset Filters */}
-            {(searchQuery || selectedBrand || selectedModel || selectedYear || selectedCategory !== 'Все' || selectedSubPart !== 'Все' || selectedCityOrMarket !== 'Все' || selectedCondition !== 'Все' || selectedOriginalType !== 'Все' || priceMin || priceMax || onlyInStock || onlyWithVideo || sellerTypeFilter !== 'Все' || deliveryFilter !== 'Все' || onlyWithPhoto || onlyFavorites) && (
+            {(searchQuery || selectedBrand || selectedModel || selectedYear || selectedCategory !== 'Все' || selectedSubPart !== 'Все' || selectedCityOrMarket !== 'Все' || selectedCondition !== 'Все' || selectedOriginalType !== 'Все' || priceMin || priceMax || onlyInStock || onlyWithVideo || onlyVerified || sellerTypeFilter !== 'Все' || deliveryFilter !== 'Все' || onlyWithPhoto || onlyFavorites) && (
               <button
                 onClick={handleResetFilters}
                 className="px-4 py-3.5 bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-red-400 rounded-2xl flex items-center gap-1.5 shrink-0 cursor-pointer transition-colors"
@@ -1154,6 +1159,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
               { checked: onlyWithPhoto, set: setOnlyWithPhoto, label: isKg ? 'Сүрөтү барлар гана' : 'Только с фото' },
               { checked: onlyInStock, set: setOnlyInStock, label: isKg ? 'Кампада бар' : 'Только в наличии' },
               { checked: onlyWithVideo, set: setOnlyWithVideo, label: isKg ? 'Видеосу бар' : 'С видео' },
+              { checked: onlyVerified, set: setOnlyVerified, label: isKg ? '👑 Текшерилген сатуучулар' : '👑 Только проверенные продавцы' },
               { checked: onlyFavorites, set: setOnlyFavorites, label: (isKg ? 'Тандалгандар' : 'Избранное') + ' (' + favoriteIds.length + ')' },
             ].map((t, i) => (
               <label key={i} className="flex items-center gap-1.5 cursor-pointer">
@@ -1391,6 +1397,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-lg bg-neutral-950/85 backdrop-blur-md text-[10px] font-bold text-amber-400 border border-neutral-700">
                             {part.condition}
                           </span>
+                          {part.sellerVerified && <VerifiedSellerBadge withLabel size={11} className="absolute top-9 left-2.5 z-10" />}
 
                           {/* Compression video badge */}
                           {part.hasCompressionVideo && (
@@ -1447,7 +1454,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           <div className="flex items-center gap-1 min-w-0">
                             {partSellerType(part) === 'legal' ? <Building size={11} className="shrink-0" /> : <User size={11} className="shrink-0" />}
                             <span className="truncate">{part.storeName || part.companyName || (isKg ? 'Көрсөтүлгөн эмес' : 'Не указано')}</span>
-                            {part.sellerVerified && <ShieldCheck size={11} className="text-emerald-400 shrink-0" />}
+                            {part.sellerVerified && <VerifiedSellerBadge size={12} />}
                             {part.sellerRating ? <span className="shrink-0 text-amber-400">★ {part.sellerRating}</span> : null}
                             <span className="text-neutral-600">·</span>
                             <span className="shrink-0">{part.storeCity || part.city || (isKg ? 'Көрсөтүлгөн эмес' : 'Не указано')}</span>

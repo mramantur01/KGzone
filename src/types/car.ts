@@ -39,6 +39,7 @@ export interface Car {
   photos: string[];
   photoCredit?: { text: string; url: string };
   sellerId?: string;
+  sellerVerified?: boolean; // crown: seller checked by KGzone
 }
 
 export interface CarCheckReport {

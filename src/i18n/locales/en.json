@@ -3442,5 +3442,13 @@
  "Скрыто автоматически после жалоб покупателей": "Hidden automatically after buyer complaints",
  "Слишком длинный вопрос": "Question is too long",
  "Слишком много вопросов. Попробуйте через час.": "Too many questions. Try again in an hour.",
- "Извините, автоконсультант сейчас недоступен. Попробуйте позже или воспользуйтесь поиском запчастей и калькулятором растаможки на сайте.": "Sorry, the car consultant is unavailable right now. Try later or use the parts search and customs calculator on the site."
+ "Извините, автоконсультант сейчас недоступен. Попробуйте позже или воспользуйтесь поиском запчастей и калькулятором растаможки на сайте.": "Sorry, the car consultant is unavailable right now. Try later or use the parts search and customs calculator on the site.",
+ "Ставьте корону, только если лично проверили продавца: документы, место продажи, товар": "Give the crown only after checking the seller in person: documents, place of sale, goods",
+ "Проверенный · снять": "Verified · remove",
+ "Отметить проверенным": "Mark as verified",
+ "Проверенный продавец: администрация KGzone проверила этого продавца — документы и место продажи.": "Verified seller: the KGzone administration has checked this seller’s documents and place of sale.",
+ "Проверенный продавец": "Verified seller",
+ "Компания / ИП": "Company / sole trader",
+ "👑 Только проверенные продавцы": "👑 Verified sellers only",
+ "+ Продать запчасть — бесплатно": "+ Sell a part — free"
 }

@@ -55,6 +55,7 @@ export interface AdminUser {
   lastLoginAt?: string;
   company?: import('./auth').CompanyProfile;
   listingsCount: number;
+  verifiedSeller?: boolean;
 }
 
 export const listUsers = () => call<{ users: AdminUser[] }>('/api/admin/users', {}, true).then((d) => d.users);

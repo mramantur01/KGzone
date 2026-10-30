@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
 import { RefreshCw, Search, KeyRound, Ban, ShieldCheck, Building2, User } from 'lucide-react';
 import { listAudit, listUsers, resetUserPassword, updateUser, type AdminUser } from '../../api/myListings';
 import { COMPANY_STATUS_LABELS, formatPhone, type CompanyStatus } from '../../api/auth';
@@ -101,6 +102,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
                   <div className="flex items-center gap-1.5 font-bold text-slate-900" data-no-i18n>
                     {u.accountType === 'legal' ? <Building2 size={15} className="text-slate-500 shrink-0" /> : <User size={15} className="text-slate-500 shrink-0" />}
                     <span>{u.company?.name || u.name}</span>
+                    {(u.verifiedSeller || u.company?.status === 'verified') && <VerifiedSellerBadge size={14} />}
                     {u.id === currentUserId && <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">это вы</span>}
                   </div>
                   <div className="text-xs text-slate-500" data-no-i18n>
@@ -128,6 +130,14 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
                       <Ban size={12} /><span>{u.blocked ? 'Разблокировать' : 'Заблокировать'}</span>
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => act(() => updateUser(u.id, { verifiedSeller: !u.verifiedSeller }))}
+                    title="Ставьте корону, только если лично проверили продавца: документы, место продажи, товар"
+                    className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer ${u.verifiedSeller ? 'bg-amber-400 text-neutral-950' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'}`}
+                  >
+                    <span>👑</span><span>{u.verifiedSeller ? 'Проверенный · снять' : 'Отметить проверенным'}</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => { if (confirm(`Сбросить пароль для ${u.name}? Сделайте это, только если проверили, что номер принадлежит этому человеку.`)) act(async () => setTempPassword({ id: u.id, value: await resetUserPassword(u.id) })); }}

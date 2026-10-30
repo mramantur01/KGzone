@@ -3,6 +3,7 @@ import { recordView, recordContact } from '../../utils/viewHistory';
 import { ReportListingButton } from '../common/ReportListingButton';
 import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import { SellerContactBlock } from '../chat/SellerContactBlock';
+import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
@@ -446,9 +447,9 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                       <h4 className="font-bold text-sm text-white">
                         {part.companyName || part.storeName}
                       </h4>
-                      <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                        <CheckCircle2 size={11} />
-                        <span>{part.sellerType === 'individual' ? 'Жеке сатуучу (Авторазбор)' : 'ОсОО / ИП Тастыкталган'}</span>
+                      <span className="text-[10px] text-neutral-400 font-semibold flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span>{part.sellerType === 'legal' ? 'Компания / ИП' : 'Частный продавец'}</span>
+                        {part.sellerVerified && <VerifiedSellerBadge withLabel />}
                       </span>
                     </div>
                   </div>

@@ -1,4 +1,5 @@
 import { isDemoListing, DEMO_NOTICE, isVip } from '../../utils/demo';
+import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
 import React from 'react';
 import { Car, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
@@ -45,6 +46,11 @@ export const CarCard: React.FC<CarCardProps> = ({
           brand={car.brand}
         />
 
+        {car.sellerVerified && (
+          <span className="absolute top-2.5 left-2.5 z-10 px-1.5 py-1 rounded-full bg-black/55 backdrop-blur-xs">
+            <VerifiedSellerBadge size={14} />
+          </span>
+        )}
         {isVip(car) && (
           <span className="absolute bottom-2.5 left-2.5 z-10 px-2 py-0.5 rounded bg-amber-400 text-neutral-950 text-[10px] font-black">VIP</span>
         )}
