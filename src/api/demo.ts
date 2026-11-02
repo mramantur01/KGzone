@@ -1,35 +1,41 @@
-// Demo seller cabinet: https://<site>/kabinet?demo=seller opens a cabinet with made-up data
-// without registration. Nothing is sent to the server: the account's API calls are answered
+// Demo cabinets: https://<site>/kabinet?demo=seller (or ?demo=buyer) opens a cabinet with
+// made-up data without registration. Nothing is sent to the server: the account's API calls are answered
 // here, and every change is refused with a notice. Public data (parts, cars, rates) stays real.
 
 const KEY = 'kgzone-demo-cabinet';
 
-const read = () => {
-  try { return sessionStorage.getItem(KEY) === '1'; } catch { return false; }
+type DemoMode = 'seller' | 'buyer';
+const read = (): DemoMode | null => {
+  try {
+    const v = sessionStorage.getItem(KEY);
+    return v === 'buyer' ? 'buyer' : v === '1' || v === 'seller' ? 'seller' : null;
+  } catch { return null; }
 };
-let active = read();
+let mode: DemoMode | null = read();
 
 // Enter demo mode from the link before anything asks who is signed in
 if (typeof window !== 'undefined') {
   const params = new URLSearchParams(window.location.search);
-  if (params.get('demo') === 'seller') {
-    active = true;
-    try { sessionStorage.setItem(KEY, '1'); } catch { /* private mode: demo lasts until reload */ }
+  const asked = params.get('demo');
+  if (asked === 'seller' || asked === 'buyer') {
+    mode = asked;
+    try { sessionStorage.setItem(KEY, asked); } catch { /* private mode: demo lasts until reload */ }
     params.delete('demo');
     const qs = params.toString();
     window.history.replaceState(null, '', '/kabinet' + (qs ? `?${qs}` : ''));
   }
 }
 
-export const isDemoCabinet = () => active;
+export const isDemoCabinet = () => mode !== null;
+export const demoCabinetMode = () => mode;
 
 export function exitDemoCabinet(reload = true) {
-  active = false;
+  mode = null;
   try { sessionStorage.removeItem(KEY); } catch { /* ignore */ }
   if (reload) window.location.href = '/';
 }
 
-export const DEMO_REFUSED = 'Это демо-кабинет: изменения не сохраняются. Зарегистрируйтесь, чтобы продавать по-настоящему.';
+export const DEMO_REFUSED = 'Это демо-кабинет: изменения не сохраняются. Зарегистрируйтесь, чтобы пользоваться по-настоящему.';
 
 const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
@@ -117,6 +123,39 @@ const demoRequests = {
   ],
 };
 
+// ---- demo buyer ----
+const demoBuyer = {
+  id: 'demo-buyer',
+  accountType: 'individual',
+  name: 'Азамат (демо-покупатель)',
+  phone: '996555000000',
+  email: '',
+  city: 'Бишкек',
+  role: 'user',
+  blocked: false,
+  phoneVerified: false,
+  createdAt: day(20),
+  garage: [
+    { id: 'gb1', brand: 'Toyota', model: 'Camry', year: 2018, vin: 'JTNB11HK0J3012345', mileage: 124300, oilChangeMileage: 116500, oilInterval: 8000, insuranceUntil: day(-12).slice(0, 10) },
+    { id: 'gb2', brand: 'Honda', model: 'Fit', year: 2014, mileage: 186000, oilChangeMileage: 184000, oilInterval: 7000 },
+  ],
+  telegramLinked: false,
+  termsAcceptedAt: day(20),
+};
+const buyerConversation = {
+  id: 'demo-bc1', kind: 'parts', listingId: 'demo-p1', listingTitle: 'Колодки тормозные передние Camry 70', listingImage: '/parts/wm-02.jpg',
+  role: 'buyer', otherName: 'Бакыт, Кудайберген',
+  lastMessage: { text: 'Да, есть. Подъезжайте, контейнер 12, до 17:00.', at: day(0.03), from: 'seller' },
+  lastAt: day(0.03), unread: 1,
+};
+const buyerMessages = [
+  { id: 'b1', text: 'Здравствуйте! Колодки на Camry 2018 есть?', at: day(0.06), mine: true },
+  { id: 'b2', text: 'Да, есть. Подъезжайте, контейнер 12, до 17:00.', at: day(0.03), mine: false },
+];
+const buyerOrders = [
+  { id: 'demo-o1', orderNumber: 'KGZ-1042', partTitle: 'Фильтр масляный оригинал', priceKgs: 650, storeName: 'Бакыт, Кудайберген', status: 'Выполнен', createdAt: new Date(Date.now() - 9 * 86_400_000).toLocaleDateString('ru-RU') },
+];
+
 const refused = () => { throw Object.assign(new Error(DEMO_REFUSED), { status: 403 }); };
 
 /** Answer for an API call in demo mode, or undefined to let a public request through */
@@ -128,12 +167,15 @@ export function demoResponse(url: string, method: string): unknown {
     if (path === '/api/reports' || path.startsWith('/api/stats/')) return undefined;
     return refused();
   }
-  if (path === '/api/auth/me') return { success: true, user: demoUser };
-  if (path === '/api/my/listings') return { success: true, ...demoListings };
-  if (path === '/api/my/orders') return { success: true, orders: [] };
-  if (path === '/api/conversations') return { success: true, conversations: [demoConversation], unread: 1 };
-  if (path.startsWith('/api/conversations/')) return { success: true, conversation: demoConversation, messages: demoMessages };
-  if (path === '/api/part-requests/for-me') return { success: true, ...demoRequests };
+  const buyer = mode === 'buyer';
+  if (path === '/api/auth/me') return { success: true, user: buyer ? demoBuyer : demoUser };
+  if (path === '/api/my/listings') return { success: true, ...(buyer ? { parts: [], cars: [] } : demoListings) };
+  if (path === '/api/my/orders') return { success: true, orders: buyer ? buyerOrders : [] };
+  if (path === '/api/conversations') return { success: true, conversations: [buyer ? buyerConversation : demoConversation], unread: 1 };
+  if (path.startsWith('/api/conversations/')) {
+    return buyer ? { success: true, conversation: buyerConversation, messages: buyerMessages } : { success: true, conversation: demoConversation, messages: demoMessages };
+  }
+  if (path === '/api/part-requests/for-me') return { success: true, ...(buyer ? { brands: [], requests: [] } : demoRequests) };
   if (path === '/api/company' || path.startsWith('/api/company/') || path.startsWith('/api/admin/')) {
     throw Object.assign(new Error('Недоступно в демо-кабинете'), { status: 404 });
   }
