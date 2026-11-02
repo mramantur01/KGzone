@@ -11,6 +11,7 @@ export interface ConversationSummary {
   listingImage: string;
   role: 'buyer' | 'seller';
   otherName: string;
+  otherId?: string;
   lastMessage: { text: string; at: string; from: string } | null;
   lastAt: string;
   unread: number;
@@ -72,7 +73,7 @@ export function useUnreadMessages(signedIn: boolean): number {
 
 // Seller reviews
 export interface SellerReviewsInfo {
-  seller: { id: string; name: string; accountType: 'individual' | 'legal'; verified: boolean; since: string };
+  seller: { id: string; name: string; accountType: 'individual' | 'legal'; verified: boolean; since: string; lastSeenAt?: string };
   rating: number | null;
   reviews: { id: string; authorName: string; rating: number; text: string; listingTitle: string; createdAt: string }[];
   canReview: boolean;

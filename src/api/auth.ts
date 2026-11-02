@@ -37,6 +37,8 @@ export interface GarageCar {
   inspectionUntil?: string; // YYYY-MM-DD
 }
 
+export interface ShopInfo { about: string; market: string; container: string; address: string; hours: string; mapUrl: string }
+
 export interface Account {
   id: string;
   accountType: AccountType;
@@ -54,6 +56,8 @@ export interface Account {
   telegramLinked?: boolean;
   termsAcceptedAt?: string;
   verifiedSeller?: boolean;
+  shop?: ShopInfo;
+  lastSeenAt?: string;
 }
 
 export const COMPANY_STATUS_LABELS: Record<CompanyStatus, string> = {
@@ -131,7 +135,7 @@ export async function logout() {
   set({ user: null });
 }
 
-export const updateProfile = (patch: Partial<Pick<Account, 'name' | 'city' | 'email'>> & { company?: Partial<CompanyProfile> }) =>
+export const updateProfile = (patch: Partial<Pick<Account, 'name' | 'city' | 'email'>> & { company?: Partial<CompanyProfile>; shop?: ShopInfo }) =>
   withUser(call('/api/auth/me', { method: 'PATCH', body: JSON.stringify(patch) }));
 
 export const changePassword = (current: string, next: string) =>

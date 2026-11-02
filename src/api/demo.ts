@@ -56,7 +56,23 @@ const demoUser = {
   telegramLinked: false,
   termsAcceptedAt: day(40),
   verifiedSeller: true,
+  shop: { about: 'Оригинал и контракт на Toyota и Lexus. Подбор по VIN, отправка в регионы.', market: 'Кудайберген', container: 'Ряд 3, контейнер 12', address: '', hours: 'Вт–Вс 8:30–17:00', mapUrl: '' },
 };
+const demoSellerProfile = {
+  id: 'demo-seller', name: 'Бакыт, Кудайберген (демо)', accountType: 'individual', verified: true, city: 'Бишкек',
+  since: day(40), lastSeenAt: day(0.02), shop: null as unknown, rating: 4.8, reviewsCount: 12,
+};
+const demoWatches = [
+  { id: 'demo-w1', q: 'фара', brand: 'Toyota', model: 'Camry', createdAt: day(3) },
+  { id: 'demo-w2', q: 'помпа', brand: 'Toyota', model: 'Land Cruiser Prado', createdAt: day(1) },
+];
+const demoMisses = [
+  { id: 'm1', q: 'фара camry 70 левая', brand: 'Toyota', model: 'Camry', count: 23, lastAt: day(0.2) },
+  { id: 'm2', q: 'помпа 1gd', brand: 'Toyota', model: 'Land Cruiser Prado', count: 17, lastAt: day(0.5) },
+  { id: 'm3', q: 'датчик abs задний', brand: 'Lexus', model: 'RX', count: 11, lastAt: day(1) },
+  { id: 'm4', q: 'стекло лобовое', brand: 'Toyota', model: 'RAV4', count: 8, lastAt: day(2) },
+  { id: 'm5', q: 'шрус внутренний', brand: 'Toyota', model: 'Corolla', count: 6, lastAt: day(3) },
+];
 
 const part = (id: string, title: string, partNumber: string, priceKgs: number, stockCount: number, image: string | null, extra: Record<string, unknown> = {}) => ({
   id, title, partNumber, priceKgs, stockCount,
@@ -186,9 +202,9 @@ const demoBuyer = {
 };
 const buyerConversation = {
   id: 'demo-bc1', kind: 'parts', listingId: 'demo-p1', listingTitle: 'Колодки тормозные передние Camry 70', listingImage: '/parts/wm-02.jpg',
-  role: 'buyer', otherName: 'Бакыт, Кудайберген',
-  lastMessage: { text: 'Да, есть. Подъезжайте, контейнер 12, до 17:00.', at: day(0.03), from: 'seller' },
-  lastAt: day(0.03), unread: 1,
+  role: 'buyer', otherName: 'Бакыт, Кудайберген', otherId: 'demo-seller',
+  lastMessage: { text: 'Да, есть. Подъезжайте, контейнер 12, до 17:00.', at: day(1.5), from: 'seller' },
+  lastAt: day(1.5), unread: 1,
 };
 const buyerMessages = [
   { id: 'b1', text: 'Здравствуйте! Колодки на Camry 2018 есть?', at: day(0.06), mine: true },
@@ -206,7 +222,7 @@ export function demoResponse(url: string, method: string): unknown {
   if (path === '/api/auth/logout') { exitDemoCabinet(false); return { success: true }; }
   if (method !== 'GET') {
     // Public, harmless actions still work (complaints, view counters)
-    if (path === '/api/reports' || path.startsWith('/api/stats/')) return undefined;
+    if (path === '/api/reports' || path.startsWith('/api/stats/') || path === '/api/search-misses') return undefined;
     return refused();
   }
   const buyer = mode === 'buyer';
@@ -217,6 +233,12 @@ export function demoResponse(url: string, method: string): unknown {
   if (path.startsWith('/api/conversations/')) {
     return buyer ? { success: true, conversation: buyerConversation, messages: buyerMessages } : { success: true, conversation: demoConversation, messages: demoMessages };
   }
+  if (path === '/api/watches') return { success: true, watches: buyer ? demoWatches : [] };
+  if (path === '/api/search-misses/for-me') return { success: true, misses: buyer ? [] : demoMisses, brands: buyer ? [] : ['toyota', 'lexus'] };
+  if (path === '/api/sellers/demo-seller/reviews') {
+    return { success: true, seller: { id: 'demo-seller', name: demoSellerProfile.name, accountType: 'individual', verified: true, since: day(40), lastSeenAt: day(0.02) }, rating: 4.8, reviews: [], canReview: buyer };
+  }
+  if (path === '/api/sellers/demo-seller') return { success: true, seller: { ...demoSellerProfile, shop: demoUser.shop } };
   if (path === '/api/part-requests/for-me') return { success: true, ...(buyer ? { brands: [], requests: [] } : demoRequests) };
   if (path === '/api/company' || path.startsWith('/api/company/') || path.startsWith('/api/admin/')) {
     throw Object.assign(new Error('Недоступно в демо-кабинете'), { status: 404 });

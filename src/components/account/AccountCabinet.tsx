@@ -33,6 +33,9 @@ import { SellerRequestsPanel } from '../catalog/SellerRequestsPanel';
 import { TelegramCard } from './TelegramCard';
 import { DeleteAccountCard } from './DeleteAccountCard';
 import { GarageService, garageReminders } from './GarageService';
+import { WatchesCard, RateSellersCard } from './BuyerBlocks';
+import { SearchMissesPanel } from '../catalog/SearchMissesPanel';
+import { ShopSettingsCard } from './ShopSettingsCard';
 
 export interface PartsSearchPreset {
   brand?: string;
@@ -314,47 +317,20 @@ export const AccountCabinet: React.FC<Props> = (props) => {
             <>
               <div className={card}>
                 <h1 className="text-xl font-black text-slate-900">Здравствуйте, {user.name.split(' ')[0]}!</h1>
-                <p className="text-sm text-slate-600 mt-1">Здесь вы управляете объявлениями, избранным, своими автомобилями и заказами.</p>
+                <p className="text-sm text-slate-600 mt-1">Подберём запчасти для ваших машин и подскажем, когда появится нужная деталь.</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" onClick={onSellPart} className="px-4 py-2 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold cursor-pointer">+ Продать запчасть</button>
-                  <button type="button" onClick={onSellCar} className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer">+ Продать авто</button>
-                  <button type="button" onClick={() => setSection('listings')} className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold cursor-pointer">Мои объявления</button>
+                  <button type="button" onClick={() => onFindParts({})} className="px-4 py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold flex items-center gap-2 cursor-pointer"><Search size={16} />Найти запчасть</button>
+                  <button type="button" onClick={() => setSection('garage')} className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-bold flex items-center gap-2 cursor-pointer"><CarFront size={16} />Мои автомобили</button>
                 </div>
               </div>
 
-              {user.garage.flatMap(garageReminders).length > 0 && (
-                <div className={`${card} border-amber-300 bg-amber-50`}>
-                  <div className="text-sm font-bold text-amber-900 mb-1">Напоминания по обслуживанию</div>
-                  {user.garage.map((g) => garageReminders(g).map((r) => (
-                    <div key={g.id + r.text} className={`text-xs font-semibold ${r.urgent ? 'text-red-700' : 'text-amber-800'}`}>
-                      <span data-no-i18n>{g.brand} {g.model}</span>: {r.text}
-                    </div>
-                  )))}
-                  <button type="button" onClick={() => setSection('garage')} className="mt-1 text-xs font-bold underline text-amber-900 cursor-pointer">Мои автомобили</button>
-                </div>
-              )}
-
-              {!user.telegramLinked && <TelegramCard user={user} />}
-
-              {isLegal && user.company && user.company.status !== 'verified' && (
-                <div className={`${card} border-amber-300 bg-amber-50`}>
-                  <div className="text-sm font-bold text-amber-900">Компания: {COMPANY_STATUS_LABELS[user.company.status]}</div>
-                  <p className="text-xs text-amber-800 mt-1">
-                    {user.company.status === 'pending'
-                      ? 'Администратор проверяет данные компании.'
-                      : 'Заполните данные компании и отправьте на проверку, чтобы получить отметку «Проверенная компания».'}
-                  </p>
-                  {user.company.statusComment && <p className="text-xs text-amber-800 mt-1">Комментарий администратора: {user.company.statusComment}</p>}
-                  <button type="button" onClick={() => setSection('company')} className="mt-2 text-xs font-bold underline text-amber-900 cursor-pointer">Открыть данные компании</button>
-                </div>
-              )}
-
               <div className={card}>
-                <div className="flex items-center gap-2 font-bold text-slate-900"><Bell size={16} className="text-[#C8102E]" />Подходящие запчасти для ваших автомобилей</div>
+                <div className="flex items-center gap-2 font-bold text-slate-900"><Bell size={16} className="text-[#C8102E]" />Запчасти для ваших автомобилей</div>
                 {garageMatches.length === 0 ? (
-                  <p className="text-sm text-slate-500 mt-2">
-                    Добавьте свой автомобиль в разделе «Мои автомобили» — здесь будут появляться новые подходящие объявления.
-                  </p>
+                  <div className="mt-2">
+                    <p className="text-sm text-slate-500">Добавьте свою машину — здесь появятся подходящие запчасти и напоминания о замене масла.</p>
+                    <button type="button" onClick={() => setSection('garage')} className="mt-2 text-sm font-bold text-[#1d6fb8] hover:underline cursor-pointer">+ Добавить автомобиль</button>
+                  </div>
                 ) : (
                   <div className="mt-3 space-y-2">
                     {garageMatches.map(({ car, ids }) => {
@@ -375,6 +351,46 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                   </div>
                 )}
               </div>
+
+              {user.garage.flatMap(garageReminders).length > 0 && (
+                <div className={`${card} border-amber-300 bg-amber-50`}>
+                  <div className="text-sm font-bold text-amber-900 mb-1">Напоминания по обслуживанию</div>
+                  {user.garage.map((g) => garageReminders(g).map((r) => (
+                    <div key={g.id + r.text} className={`text-xs font-semibold ${r.urgent ? 'text-red-700' : 'text-amber-800'}`}>
+                      <span data-no-i18n>{g.brand} {g.model}</span>: {r.text}
+                    </div>
+                  )))}
+                  <button type="button" onClick={() => setSection('garage')} className="mt-1 text-xs font-bold underline text-amber-900 cursor-pointer">Мои автомобили</button>
+                </div>
+              )}
+
+              <WatchesCard onSearch={(w) => onFindParts({ search: w.q, brand: w.brand, model: w.model })} />
+
+              <RateSellersCard />
+
+              {!user.telegramLinked && <TelegramCard user={user} audience="buyer" />}
+
+              {isLegal && user.company && user.company.status !== 'verified' && (
+                <div className={`${card} border-amber-300 bg-amber-50`}>
+                  <div className="text-sm font-bold text-amber-900">Компания: {COMPANY_STATUS_LABELS[user.company.status]}</div>
+                  <p className="text-xs text-amber-800 mt-1">
+                    {user.company.status === 'pending'
+                      ? 'Администратор проверяет данные компании.'
+                      : 'Заполните данные компании и отправьте на проверку, чтобы получить отметку «Проверенная компания».'}
+                  </p>
+                  {user.company.statusComment && <p className="text-xs text-amber-800 mt-1">Комментарий администратора: {user.company.statusComment}</p>}
+                  <button type="button" onClick={() => setSection('company')} className="mt-2 text-xs font-bold underline text-amber-900 cursor-pointer">Открыть данные компании</button>
+                </div>
+              )}
+
+              <div className={`${card} flex flex-wrap items-center gap-3`}>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-slate-900">Продаёте запчасти или машину?</div>
+                  <p className="text-xs text-slate-500">Размещение бесплатное. Покупатели напишут вам прямо на сайте.</p>
+                </div>
+                <button type="button" onClick={onSellPart} className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer">Продать запчасть</button>
+                <button type="button" onClick={onSellCar} className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-bold cursor-pointer">Продать авто</button>
+              </div>
             </>
           )}
 
@@ -394,7 +410,12 @@ export const AccountCabinet: React.FC<Props> = (props) => {
             />
           )}
 
-          {section === 'requests' && <SellerRequestsPanel showEmpty />}
+          {section === 'requests' && (
+            <div className="space-y-4">
+              <SellerRequestsPanel showEmpty />
+              <SearchMissesPanel />
+            </div>
+          )}
 
           {section === 'import' && <MyImportPanel onDone={() => { setSection('listings'); listMyListings().then((r) => setMyCount(r.parts.length + r.cars.length)).catch(() => undefined); }} />}
 
@@ -627,7 +648,9 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                 <button type="submit" className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer">Сохранить</button>
               </form>
 
-              <TelegramCard user={user} />
+              {sellerMode && <ShopSettingsCard user={user} />}
+
+              <TelegramCard user={user} audience={sellerMode ? 'seller' : 'buyer'} />
 
               <form onSubmit={savePassword} className={`${card} space-y-3`}>
                 <h2 className="text-lg font-black text-slate-900">Смена пароля</h2>

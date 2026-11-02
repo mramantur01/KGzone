@@ -13,6 +13,8 @@ interface Owned {
   createdAt?: string;
   updatedAt?: string;
   contactsCount?: number;
+  viewsByDay?: Record<string, number>; // YYYY-MM-DD -> count, last 30 days
+  contactsByDay?: Record<string, number>;
 }
 export type MyPart = AutoPartItem & Owned;
 export type MyCar = Car & Owned;

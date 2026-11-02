@@ -44,7 +44,7 @@ import { ShieldCheck, Calculator, Sparkles, SlidersHorizontal, ArrowUpDown } fro
 import { WorkshopBooking } from './types/car';
 import { setSiteLanguage } from './i18n/domTranslator';
 import { useParts, isDbPart } from './api/parts';
-import { parseRoute, setPath, setTitle, carPath, TAB_PATHS, type Route } from './seo/routes';
+import { parseRoute, setPath, setTitle, carPath, shopPath, TAB_PATHS, type Route } from './seo/routes';
 
 // Address the visitor opened (e.g. /zapchast/... from Google)
 const INITIAL_ROUTE: Route = typeof window !== 'undefined' ? parseRoute(window.location.pathname) : { tab: 'cars' };
@@ -68,6 +68,7 @@ const AddListingModal = lazy(() => import('./components/modals/AddListingModal')
 const FavoritesModal = lazy(() => import('./components/modals/FavoritesModal').then((m) => ({ default: m.FavoritesModal })));
 const PartsSection = lazy(() => import('./components/sections/PartsSection').then((m) => ({ default: m.PartsSection })));
 const ReviewsSection = lazy(() => import('./components/sections/ReviewsSection').then((m) => ({ default: m.ReviewsSection })));
+const ShopPage = lazy(() => import('./components/sections/ShopPage').then((m) => ({ default: m.ShopPage })));
 const LegalSection = lazy(() => import('./components/sections/LegalSection').then((m) => ({ default: m.LegalSection })));
 const NewsSection = lazy(() => import('./components/sections/NewsSection').then((m) => ({ default: m.NewsSection })));
 const WorkshopSection = lazy(() => import('./components/sections/WorkshopSection').then((m) => ({ default: m.WorkshopSection })));
@@ -135,6 +136,20 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>(INITIAL_ROUTE.tab);
   const [partsRoute, setPartsRoute] = useState<Route | null>(INITIAL_ROUTE.tab === 'parts' ? INITIAL_ROUTE : null);
   const [pendingCarId, setPendingCarId] = useState<string | undefined>(INITIAL_ROUTE.carId);
+  const [shopId, setShopId] = useState<string | undefined>(INITIAL_ROUTE.sellerId);
+  // Part pages and the cabinet open a seller's shop through this event
+  React.useEffect(() => {
+    const onOpen = (e: Event) => {
+      const id = (e as CustomEvent).detail?.sellerId;
+      if (!id) return;
+      setShopId(id);
+      setActiveTab('shop');
+      setPath(shopPath(id));
+      window.scrollTo({ top: 0 });
+    };
+    window.addEventListener('kgz:open-shop', onOpen);
+    return () => window.removeEventListener('kgz:open-shop', onOpen);
+  }, []);
   // "Панель управления" opens the moderation section of the real cabinet
   const [cabinetOpenSection, setCabinetOpenSection] = useState<{ section: 'moderation'; at: number } | undefined>();
   const openControlPanel = () => {
@@ -191,6 +206,7 @@ export default function App() {
 
   // Keep the address bar in sync with the open section / car, so pages can be shared and indexed
   React.useEffect(() => {
+    if (activeTab === 'shop') { if (shopId) setPath(shopPath(shopId)); return; }
     if (parseRoute(window.location.pathname).tab !== activeTab) setPath(TAB_PATHS[activeTab] || '/');
     if (!selectedCar) setTitle(TAB_TITLES[activeTab] || TAB_TITLES.cars);
   }, [activeTab]);
@@ -212,6 +228,7 @@ export default function App() {
       const r = parseRoute(window.location.pathname);
       setActiveTab(r.tab);
       if (r.tab === 'parts') setPartsRoute({ ...r });
+      if (r.tab === 'shop') setShopId(r.sellerId);
       if (r.carId) setPendingCarId(r.carId);
       else setSelectedCar(null);
     };
@@ -734,6 +751,13 @@ export default function App() {
         {/* Раздел автоновостей */}
         {activeTab === 'news' && (
           <NewsSection language={language} />
+        )}
+
+        {activeTab === 'shop' && shopId && (
+          <ShopPage
+            sellerId={shopId}
+            onOpenPart={(p) => { setPartsRoute({ tab: 'parts', partId: p.id }); setActiveTab('parts'); window.scrollTo({ top: 0 }); }}
+          />
         )}
 
         {(activeTab === 'terms' || activeTab === 'privacy') && (

@@ -139,6 +139,7 @@ export interface AutoPartItem {
   /** Registered seller (database listings only) */
   sellerId?: string;
   sellerVerified?: boolean;
+  sellerLastSeen?: string;
   sellerRating?: number;
   sellerReviewsCount?: number;
   views?: number;

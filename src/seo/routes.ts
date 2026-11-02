@@ -60,12 +60,14 @@ export interface Route {
   carId?: string;
   category?: string; // PartsSection category id
   brandSlug?: string;
+  sellerId?: string; // shop page
 }
 
 export function parseRoute(pathname: string): Route {
   const p = decodeURIComponent(pathname).replace(/\/+$/, '') || '/';
   let m: RegExpMatchArray | null;
   if ((m = p.match(/^\/zapchast\/([^/]+)/))) return { tab: 'parts', partId: m[1] };
+  if ((m = p.match(/^\/magazin\/([^/]+)/))) return { tab: 'shop', sellerId: m[1] };
   if ((m = p.match(/^\/avto\/([^/]+)/))) return { tab: 'cars', carId: m[1] };
   if ((m = p.match(/^\/zapchasti\/marka\/([^/]+)/))) return { tab: 'parts', brandSlug: m[1] };
   if ((m = p.match(/^\/zapchasti\/([^/]+)/))) return { tab: 'parts', category: SLUG_TO_CATEGORY[m[1]] };
@@ -77,6 +79,10 @@ export const partPath = (p: { id: string; title: string }) => `/zapchast/${encod
 export const carPath = (c: { id: string; title: string }) => `/avto/${encodeURIComponent(c.id)}/${slugify(c.title)}`;
 export const categoryPath = (categoryId: string) => (CATEGORY_SLUGS[categoryId] ? `/zapchasti/${CATEGORY_SLUGS[categoryId]}` : '/zapchasti');
 export const brandPath = (brand: string) => `/zapchasti/marka/${slugify(brand)}`;
+export const shopPath = (sellerId: string) => `/magazin/${encodeURIComponent(sellerId)}`;
+
+/** Opens a seller's shop page from anywhere (part pages, cabinet) */
+export const openShop = (sellerId: string) => window.dispatchEvent(new CustomEvent('kgz:open-shop', { detail: { sellerId } }));
 
 /** Changes the address bar without reloading; skips identical paths */
 export function setPath(path: string, replace = false) {

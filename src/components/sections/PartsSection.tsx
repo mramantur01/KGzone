@@ -19,6 +19,8 @@ import { CatalogBrowser } from '../catalog/CatalogBrowser';
 import { decodeFrame } from '../../data/frameCodes';
 import { CrossesPanel } from '../catalog/CrossesPanel';
 import { PartRequestForm } from '../catalog/PartRequestForm';
+import { NotifyWhenAvailable } from '../catalog/NotifyWhenAvailable';
+import { reportSearchMiss } from '../../api/watches';
 import { brandPath, categoryPath, partPath, setPath, setTitle, slugify, type Route } from '../../seo/routes';
 import { togglePartFavorite, usePartFavorites } from '../../utils/partFavorites';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
@@ -656,6 +658,15 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     onlyFavorites,
     favoriteIds,
   ]);
+
+  // Searches that find nothing are counted, so sellers see what buyers need
+  React.useEffect(() => {
+    if (filteredParts.length > 0 || partsList.length === 0) return;
+    const q = searchQuery.trim();
+    if (q.length < 3 && !selectedBrand) return;
+    const t = setTimeout(() => reportSearchMiss(q, selectedBrand, selectedModel), 1500);
+    return () => clearTimeout(t);
+  }, [filteredParts.length, partsList.length, searchQuery, selectedBrand, selectedModel]);
 
   // Back to the first page whenever the result set changes
   React.useEffect(() => setVisibleCount(PAGE_SIZE), [filteredParts.length, sortBy]);
@@ -1340,6 +1351,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                     {isKg ? 'Фильтрлерди тазалоо' : 'Сбросить все фильтры'}
                   </button>
                 </div>
+                <NotifyWhenAvailable q={searchQuery} brand={selectedBrand} model={selectedModel} />
                 <PartRequestForm
                   part={selectedSubPart !== 'Все' ? selectedSubPart : searchQuery.trim() || (selectedCategory !== 'Все' ? categoriesData.find((c) => c.id === selectedCategory)?.labelRu || '' : '')}
                   brand={selectedBrand}

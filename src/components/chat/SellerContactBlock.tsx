@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { MessageSquare, Star, ShieldCheck, Loader2 } from 'lucide-react';
+import { MessageSquare, Star, Loader2, Store, Clock } from 'lucide-react';
+import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
+import { lastSeenText, seenRecently } from '../../utils/lastSeen';
+import { openShop } from '../../seo/routes';
 import { useAuth } from '../../api/auth';
 import { getSellerReviews, postSellerReview, requestSignIn, startConversation, type SellerReviewsInfo } from '../../api/chat';
 import { ChatThread } from './ChatThread';
@@ -64,6 +67,21 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
     }
   };
 
+  // "Отложите до вечера": a ready message to the seller, like asking at the market by phone
+  const reserve = async () => {
+    if (!user) { requestSignIn('Чтобы попросить отложить товар, войдите или зарегистрируйтесь.'); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      const c = await startConversation(kind, listingId, `Здравствуйте! Отложите, пожалуйста, «${listingTitle}» до вечера — приеду сегодня.`);
+      setConversationId(c.id);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const sendReview = async (e: React.FormEvent) => {
     e.preventDefault();
     setReviewMsg(null);
@@ -85,11 +103,12 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
       {info && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="font-bold text-sm" data-no-i18n>{info.seller.name}</span>
-          {info.seller.verified && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-500"><ShieldCheck size={13} />Проверенная компания</span>
-          )}
+          {info.seller.verified && <VerifiedSellerBadge withLabel />}
           <span className={`text-xs ${muted}`}>{info.seller.accountType === 'legal' ? 'Магазин / компания' : 'Частный продавец'}</span>
           <span className={`text-xs ${muted}`}>На KGzone с {new Date(info.seller.since).toLocaleDateString('ru-RU')}</span>
+          {lastSeenText(info.seller.lastSeenAt) && (
+            <span className={`text-xs ${seenRecently(info.seller.lastSeenAt) ? 'text-emerald-500 font-semibold' : muted}`}>{lastSeenText(info.seller.lastSeenAt)}</span>
+          )}
           <button type="button" onClick={() => setShowReviews((v) => !v)} className="inline-flex items-center gap-1 text-xs cursor-pointer">
             {info.rating ? <><Stars value={info.rating} /><b>{info.rating}</b></> : <span className={muted}>Отзывов пока нет</span>}
             {info.reviews.length > 0 && <span className="underline">({info.reviews.length})</span>}
@@ -110,11 +129,21 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
       )}
 
       {!isOwn && !conversationId && !composing && (
-        <button type="button" onClick={openComposer} className="w-full py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white font-bold text-sm flex items-center justify-center gap-2 cursor-pointer">
-          <MessageSquare size={16} />
-          <span>Написать продавцу</span>
-        </button>
+        <div className="space-y-2">
+          <button type="button" onClick={openComposer} className="w-full py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white font-bold text-sm flex items-center justify-center gap-2 cursor-pointer">
+            <MessageSquare size={16} />
+            <span>Написать продавцу</span>
+          </button>
+          {kind === 'parts' && (
+            <button type="button" onClick={reserve} disabled={busy} className={`w-full py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 ${dark ? 'bg-neutral-800 hover:bg-neutral-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}>
+              <Clock size={15} /><span>Попросить отложить до вечера</span>
+            </button>
+          )}
+        </div>
       )}
+      <button type="button" onClick={() => openShop(sellerId)} className={`w-full text-sm font-bold flex items-center justify-center gap-1.5 cursor-pointer ${dark ? 'text-amber-400 hover:text-amber-300' : 'text-[#1d6fb8] hover:underline'}`}>
+        <Store size={14} /><span>Все товары продавца →</span>
+      </button>
       {isOwn && <p className={`text-xs ${muted}`}>Это ваше объявление. Вопросы покупателей — в разделе «Сообщения» личного кабинета.</p>}
 
       {composing && !conversationId && (

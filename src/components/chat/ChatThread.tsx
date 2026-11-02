@@ -6,6 +6,12 @@ import { getConversation, sendMessage, type ChatMessage } from '../../api/chat';
 const SCAM_RE = /предоплат|аванс|задаток|переве(ди|дите|сти)|скин(ь|ьте) (деньги|сумму|на карту)|номер карт|на карту|мбанк|mbank|элсом|о!? ?деньги|optima|оптима|kompanion|компаньон|d{4}[ -]?d{4}[ -]?d{4}[ -]?d{4}/i;
 export const looksLikeScam = (text: string) => SCAM_RE.test(text);
 
+// One-tap replies (they fill the box, so the text can still be edited)
+const QUICK: Record<'buyer' | 'seller', string[]> = {
+  seller: ['Есть в наличии', 'Отложил, жду вас сегодня', 'Нет в наличии, будет через неделю', 'Пришлите VIN — проверю, подойдёт ли', 'Подъезжайте, работаем до 17:00'],
+  buyer: ['Ещё в наличии?', 'Подойдёт на мою машину?', 'Какая последняя цена?', 'Где можно забрать?'],
+};
+
 // Messages of one conversation with a reply box; refreshes every 15 seconds while open.
 export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; className?: string }> = ({ conversationId, dark = false, className = '' }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -13,12 +19,14 @@ export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; clas
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [role, setRole] = useState<'buyer' | 'seller' | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     try {
       const r = await getConversation(conversationId);
       setMessages(r.messages);
+      setRole(r.conversation?.role === 'seller' ? 'seller' : 'buyer');
       setError(null);
     } catch (e: any) {
       setError(e.message);
@@ -79,6 +87,13 @@ export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; clas
         <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2">
           <AlertTriangle size={15} className="shrink-0 mt-0.5" />
           <span><b>Осторожно с предоплатой.</b> Не переводите деньги незнакомым продавцам до осмотра товара — так чаще всего обманывают. Подозрительного продавца отметьте кнопкой «Пожаловаться» в объявлении.</span>
+        </div>
+      )}
+      {role && (
+        <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
+          {QUICK[role].map((q) => (
+            <button key={q} type="button" onClick={() => setText(q)} className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer whitespace-nowrap ${dark ? 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{q}</button>
+          ))}
         </div>
       )}
       <form onSubmit={send} className="mt-2 flex gap-2">

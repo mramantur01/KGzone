@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 // Each collection is a hash (id -> JSON document) plus a sorted set that keeps
 // newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
-type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews' | 'memberships' | 'partRequests';
+type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews' | 'memberships' | 'partRequests' | 'watches' | 'searchMisses';
 
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -27,7 +27,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 
 const isDatabaseConnected = Boolean(redis);
 
-const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [] };
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [] };
 let readyPromise: Promise<void> | null = null;
 
 const dataKey = (c: Collection) => `kgzone:${c}`;
@@ -139,7 +139,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make sure the DB table exists and is seeded before any API call touches it
 app.use('/api', (_req: Request, res: Response, next) => {
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [] })
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [] })
     .then(() => next())
     .catch((err) => {
       console.error('[DB] init failed:', err);
@@ -719,11 +719,12 @@ const partProblem = (p: ReturnType<typeof sanitizePart>) => {
 };
 
 // Public: approved parts only, without moderation details
-const publicPart = ({ moderation, ownerId, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>) => {
+const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>, seen?: Map<string, string>) => {
   const r = ownerId ? ratings?.get(ownerId) : undefined;
   return {
     ...part,
     sellerId: ownerId || undefined,
+    sellerLastSeen: ownerId ? seen?.get(ownerId) : undefined,
     sellerVerified: Boolean(ownerId && verified?.has(ownerId)),
     sellerRating: r ? Math.round((r.sum / r.count) * 10) / 10 : undefined,
     sellerReviewsCount: r?.count || 0,
@@ -734,12 +735,13 @@ const isLive = (l: any) => l.moderation?.status === 'approved' && (l.listingStat
 // Parts on the site: published, in stock (no "on order") and with the seller's own photo
 const isPublicPart = (p: any) => isLive(p) && Number(p.stockCount) > 0 && Array.isArray(p.images) && p.images.length > 0;
 // Sellers with the crown: checked by an admin in person, or a company with verified documents
+const lastSeenMap = async () => new Map((await listRecords<UserRecord>('users')).filter((u) => u.lastSeenAt).map((u) => [u.id, u.lastSeenAt!]));
 const verifiedOwners = async () =>
   new Set((await listRecords<UserRecord>('users')).filter((u) => !u.blocked && (u.verifiedSeller || u.company?.status === 'verified')).map((u) => u.id));
 
 app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
-  const [parts, verified, ratings] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings()]);
-  res.json({ success: true, parts: parts.filter(isPublicPart).map((p: any) => publicPart(p, verified, ratings)) });
+  const [parts, verified, ratings, seen] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings(), lastSeenMap()]);
+  res.json({ success: true, parts: parts.filter(isPublicPart).map((p: any) => publicPart(p, verified, ratings, seen)) });
 }));
 
 // Seller submission -> moderation queue
@@ -817,6 +819,7 @@ app.patch('/api/admin/parts/:id/moderate', requireAdmin, asyncRoute(async (req: 
     reason: action === 'reject' ? str(reason, 300) || 'Не соответствует правилам' : undefined,
   };
   const updated = await updateRecord('parts', req.params.id, { moderation });
+  if (action === 'approve' && updated) await notifyWatchers([updated]);
   await notifyUser(current.ownerId, action === 'approve'
     ? `✅ Запчасть «${current.title}» опубликована на KGzone`
     : `❌ Запчасть «${current.title}» не прошла модерацию: ${moderation.reason}\nИсправьте в Личном кабинете: ${SITE_URL}/kabinet`);
@@ -1054,6 +1057,26 @@ interface GarageCar {
   inspectionUntil?: string;
 }
 
+interface ShopInfo {
+  about: string;
+  market: string;
+  container: string;
+  address: string;
+  hours: string;
+  mapUrl: string;
+}
+const sanitizeShop = (b: any): ShopInfo => {
+  const mapUrl = str(b?.mapUrl, 300);
+  return {
+    about: str(b?.about, 600),
+    market: str(b?.market, 80),
+    container: str(b?.container, 80),
+    address: str(b?.address, 160),
+    hours: str(b?.hours, 120),
+    mapUrl: /^https:\/\/(2gis\.(kg|ru|com)|go\.2gis\.com|yandex\.(ru|kg|com)|maps\.app\.goo\.gl|www\.google\.com\/maps)\//i.test(mapUrl) ? mapUrl : '',
+  };
+};
+
 interface UserRecord {
   id: string;
   accountType: AccountType;
@@ -1072,6 +1095,8 @@ interface UserRecord {
   garage: GarageCar[];
   termsAcceptedAt?: string;
   verifiedSeller?: boolean; // crown badge: an admin checked this seller in person
+  shop?: ShopInfo; // public shop page: /magazin/<user id>
+  lastSeenAt?: string;
   verifiedSellerAt?: string;
   telegramChatId?: string;
   telegramLinkCode?: string;
@@ -1141,6 +1166,11 @@ async function getSessionUser(req: Request): Promise<UserRecord | null> {
   if (Number(exp) < Date.now()) return null;
   const user = await getRecord<UserRecord>('users', id);
   if (!user || user.blocked || String(user.tokenVersion) !== version) return null;
+  // "Был на сайте": refreshed at most once an hour
+  if (!user.lastSeenAt || Date.now() - Date.parse(user.lastSeenAt) > 3_600_000) {
+    user.lastSeenAt = new Date().toISOString();
+    await updateRecord<UserRecord>('users', user.id, { lastSeenAt: user.lastSeenAt }).catch(() => undefined);
+  }
   return user;
 }
 
@@ -1333,6 +1363,7 @@ app.patch('/api/auth/me', requireUser, asyncRoute(async (req: Request, res: Resp
     }
     patch.email = email;
   }
+  if (b.shop !== undefined) patch.shop = sanitizeShop(b.shop);
   if (b.company !== undefined && user.accountType === 'legal') {
     const next = sanitizeCompany(b.company, user.company);
     if (!next.name) return res.status(400).json({ success: false, error: 'Укажите название компании' });
@@ -1518,7 +1549,9 @@ app.post('/api/my/import', requireUser, asyncRoute(async (req: Request, res: Res
     if (prev) { await updateRecord('parts', prev.id, { ...part, views: prev.views, updatedAt: now, ...(trusted ? {} : { moderation }) }); updated++; }
     else { await insertRecord('parts', { id: `part-${randomUUID()}`, ...part, ownerId: user.id, createdAt: now, moderation }); created++; }
   }
-  const noPhoto = (await listRecords<any>('parts')).filter((p) => p.ownerId === user.id && !p.images?.length).length;
+  const myParts = (await listRecords<any>('parts')).filter((p) => p.ownerId === user.id);
+  const noPhoto = myParts.filter((p) => !p.images?.length).length;
+  if (trusted) await notifyWatchers(myParts.filter((p) => (p.updatedAt || p.createdAt) === now));
   if (created + updated && !trusted) await notifyAdmin(`📥 Прайс продавца ${user.name}: новых ${created}, обновлено ${updated}
 Проверить: ${SITE_URL}/kabinet → Модерация`);
   res.json({ success: true, created, updated, errors, noPhoto, moderation: moderation.status });
@@ -1564,7 +1597,12 @@ app.post('/api/stats/:kind/:id', asyncRoute(async (req: Request, res: Response) 
   const item: any = await getRecord(kind, req.params.id);
   if (!item) return res.json({ success: true });
   const field = type === 'contact' ? 'contactsCount' : kind === 'cars' ? 'viewsCount' : 'views';
-  await updateRecord(kind, item.id, { [field]: (item[field] || 0) + 1 });
+  const dayField = type === 'contact' ? 'contactsByDay' : 'viewsByDay';
+  const today = new Date().toISOString().slice(0, 10);
+  const days: Record<string, number> = { ...(item[dayField] || {}) };
+  days[today] = (days[today] || 0) + 1;
+  for (const d of Object.keys(days).sort().slice(0, -30)) delete days[d];
+  await updateRecord(kind, item.id, { [field]: (item[field] || 0) + 1, [dayField]: days });
   res.json({ success: true });
 }));
 
@@ -1673,6 +1711,7 @@ const conversationView = (c: Conversation, me: string) => {
     listingImage: c.listingImage,
     role: isBuyer ? 'buyer' : 'seller',
     otherName: isBuyer ? c.sellerName : c.buyerName,
+    otherId: isBuyer ? c.sellerId : c.buyerId,
     lastMessage: c.messages[c.messages.length - 1] || null,
     lastAt: c.lastAt,
     unread: c.messages.filter((m) => m.from !== me && m.at > lastRead).length,
@@ -1809,6 +1848,27 @@ async function sellerRatings() {
   return map;
 }
 
+app.get('/api/sellers/:id', asyncRoute(async (req: Request, res: Response) => {
+  const seller = await getRecord<UserRecord>('users', req.params.id);
+  if (!seller || seller.blocked) return res.status(404).json({ success: false, error: 'Магазин не найден' });
+  const reviews = (await listRecords<SellerReview>('sellerReviews')).filter((r) => r.sellerId === seller.id && !r.hidden);
+  res.json({
+    success: true,
+    seller: {
+      id: seller.id,
+      name: seller.company?.name || seller.name,
+      accountType: seller.accountType,
+      verified: Boolean(seller.verifiedSeller || seller.company?.status === 'verified'),
+      city: seller.city,
+      since: seller.createdAt,
+      lastSeenAt: seller.lastSeenAt,
+      shop: seller.shop || null,
+      rating: reviews.length ? Math.round((reviews.reduce((n, r) => n + r.rating, 0) / reviews.length) * 10) / 10 : null,
+      reviewsCount: reviews.length,
+    },
+  });
+}));
+
 app.get('/api/sellers/:id/reviews', asyncRoute(async (req: Request, res: Response) => {
   const seller = await getRecord<UserRecord>('users', req.params.id);
   if (!seller) return res.status(404).json({ success: false, error: 'Продавец не найден' });
@@ -1825,8 +1885,9 @@ app.get('/api/sellers/:id/reviews', asyncRoute(async (req: Request, res: Respons
       id: seller.id,
       name: seller.company?.name || seller.name,
       accountType: seller.accountType,
-      verified: seller.company?.status === 'verified',
+      verified: Boolean(seller.verifiedSeller || seller.company?.status === 'verified'),
       since: seller.createdAt,
+      lastSeenAt: seller.lastSeenAt,
     },
     rating: reviews.length ? Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) * 10) / 10 : null,
     reviews: reviews.map(({ authorId, ...r }) => r),
@@ -2416,7 +2477,7 @@ const conditionSchema = (c: string) =>
 
 // Page requests do not pass the /api middleware, so make sure the store is ready here
 const seoStoreReady = () =>
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [] });
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [] });
 
 const liveParts = async () => (await listRecords('parts')).filter(isPublicPart);
 const liveCars = async () => (await listRecords('cars')).filter(isLive);
@@ -2437,6 +2498,22 @@ async function seoPageFor(pathname: string): Promise<SeoPage | null> {
       path: '/zapchasti',
       body: `${crumbsHtml([['KGzone', '/'], ['Автозапчасти', '/zapchasti']])}<h1>Автозапчасти в Кыргызстане</h1><p>Новые, б/у, контрактные и восстановленные запчасти от частных продавцов, магазинов и авторазборок Бишкека, Оша и всех областей.</p><h2>Категории</h2>${linkList(CATEGORY_LINKS())}<h2>Запчасти по маркам</h2>${linkList(BRAND_LINKS())}<h2>Свежие объявления</h2>${partsListHtml(parts)}`,
       structured: [breadcrumbs([['KGzone', '/'], ['Автозапчасти', '/zapchasti']]), itemList(parts)],
+    };
+  }
+
+  if ((m = p.match(/^\/magazin\/([^/]+)$/))) {
+    const seller = await getRecord<UserRecord>('users', m[1]);
+    if (!seller || seller.blocked) return null;
+    const name = seller.company?.name || seller.name;
+    const parts = (await liveParts()).filter((x: any) => x.ownerId === seller.id);
+    const where = [seller.shop?.market, seller.shop?.container, seller.city].filter(Boolean).join(', ');
+    const crumbs: [string, string][] = [['KGzone', '/'], ['Автозапчасти', '/zapchasti'], [name, p]];
+    return {
+      title: `${name} — автозапчасти${where ? `, ${where}` : ''} | KGzone`,
+      description: `Магазин автозапчастей «${name}»${where ? ` (${where})` : ''}: ${parts.length} товаров в наличии с ценами и фото. ${seller.shop?.about || ''}`.slice(0, 300),
+      path: p,
+      body: `${crumbsHtml(crumbs)}<h1>${esc(name)}</h1>${where ? `<p>${esc(where)}</p>` : ''}${seller.shop?.about ? `<p>${esc(seller.shop.about)}</p>` : ''}<h2>Товары в наличии</h2>${partsListHtml(parts.slice(0, 100))}`,
+      structured: [breadcrumbs(crumbs), itemList(parts)],
     };
   }
 
@@ -2599,7 +2676,7 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
 }));
 
 // Page requests (not files, not API): send prepared HTML when we have it
-app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet|pravila|konfidencialnost)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
+app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet|pravila|konfidencialnost|magazin)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
   if (!isProd) return next();
   seoPageFor(req.path)
     .then((page) => {
@@ -3080,7 +3157,9 @@ app.post('/api/admin/import', requireAdminOnly, asyncRoute(async (req: Request, 
     if (prev) { await updateRecord('parts', prev.id, { ...part, views: prev.views, updatedAt: now }); updated++; }
     else { await insertRecord('parts', { id: `part-${randomUUID()}`, ...part, ownerId: owner.id, createdAt: now, moderation }); created++; }
   }
-  const noPhoto = (await listRecords<any>('parts')).filter((p) => p.ownerId === owner.id && !p.images?.length).length;
+  const ownerParts = (await listRecords<any>('parts')).filter((p) => p.ownerId === owner.id);
+  const noPhoto = ownerParts.filter((p) => !p.images?.length).length;
+  await notifyWatchers(ownerParts.filter((p) => (p.updatedAt || p.createdAt) === now));
   await audit((req as any).actor, 'admin.import', owner.id, { created, updated, errors: errors.length });
   if (created + updated) {
     await notifyUser(owner.id, `📥 KGzone загрузил ваш прайс: новых ${created}, обновлено ${updated}.` +
@@ -3140,6 +3219,88 @@ app.post('/api/ai/identify-part', asyncRoute(async (req: Request, res: Response)
     confidence: ['high', 'medium', 'low'].includes(result.confidence) ? result.confidence : 'low',
     note: str(result.note, 300),
   });
+}));
+
+// ---------------------------------------------------------------------------
+// "Сообщить, когда появится": a buyer saves a search; when a matching part is published,
+// they get a Telegram message (and see it in the cabinet).
+// ---------------------------------------------------------------------------
+interface Watch { id: string; userId: string; q: string; brand: string; model: string; createdAt: string; lastNotifiedAt?: string }
+const normSearch = (v: unknown) => str(v, 80).toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+const compact = (v: string) => v.toLowerCase().replace(/[\s-]/g, '');
+const watchMatches = (w: Watch, p: any) => {
+  if (w.brand && String(p.brand || '').toLowerCase() !== w.brand.toLowerCase()) return false;
+  if (w.model && !String(p.model || '').toLowerCase().includes(w.model.toLowerCase())) return false;
+  const hay = compact([p.title, p.partNumber, ...(p.crossNumbers || []), p.model].join(' '));
+  return w.q.split(' ').filter(Boolean).every((word) => hay.includes(compact(word)));
+};
+async function notifyWatchers(parts: any[]) {
+  const live = parts.filter(isPublicPart);
+  if (!live.length) return;
+  const watches = await listRecords<Watch>('watches');
+  for (const w of watches) {
+    if (w.lastNotifiedAt && Date.now() - Date.parse(w.lastNotifiedAt) < 6 * 3_600_000) continue;
+    const hit = live.find((p) => p.ownerId !== w.userId && watchMatches(w, p));
+    if (!hit) continue;
+    await notifyUser(w.userId, `🔔 Появилось то, что вы искали: ${hit.title} — ${Number(hit.priceKgs).toLocaleString('ru-RU')} сом\n${SITE_URL}/zapchast/${encodeURIComponent(hit.id)}`);
+    await updateRecord('watches', w.id, { lastNotifiedAt: new Date().toISOString() });
+  }
+}
+
+app.get('/api/watches', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, watches: (await listRecords<Watch>('watches')).filter((w) => w.userId === user.id) });
+}));
+app.post('/api/watches', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const q = normSearch(req.body?.q);
+  const brand = str(req.body?.brand, 60);
+  const model = str(req.body?.model, 80);
+  if (!q && !brand) return res.status(400).json({ success: false, error: 'Напишите, что ищете' });
+  const mine = (await listRecords<Watch>('watches')).filter((w) => w.userId === user.id);
+  if (mine.length >= 20) return res.status(400).json({ success: false, error: 'Не больше 20 подписок. Удалите ненужные.' });
+  const dup = mine.find((w) => w.q === q && w.brand === brand && w.model === model);
+  if (dup) return res.json({ success: true, watch: dup });
+  const watch: Watch = { id: `wt-${randomUUID()}`, userId: user.id, q, brand, model, createdAt: new Date().toISOString() };
+  await insertRecord('watches', watch);
+  res.status(201).json({ success: true, watch });
+}));
+app.delete('/api/watches/:id', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const w = await getRecord<Watch>('watches', req.params.id);
+  if (!w || w.userId !== user.id) return res.status(404).json({ success: false, error: 'Подписка не найдена' });
+  await deleteRecord('watches', w.id);
+  res.json({ success: true });
+}));
+
+// "Что ищут, а у вас нет": searches that found nothing, counted per phrase
+interface SearchMiss { id: string; q: string; brand: string; model: string; count: number; firstAt: string; lastAt: string }
+app.post('/api/search-misses', asyncRoute(async (req: Request, res: Response) => {
+  if (tooMany(`miss:${clientIp(req)}`, 30, 60 * 60_000)) return res.json({ success: true });
+  const q = normSearch(req.body?.q);
+  const brand = str(req.body?.brand, 60);
+  const model = str(req.body?.model, 80);
+  if (q.length < 3 && !brand) return res.json({ success: true });
+  const id = 'sm-' + createHmac('sha256', 'kgzone-miss').update(`${q}|${brand.toLowerCase()}|${model.toLowerCase()}`).digest('hex').slice(0, 20);
+  const now = new Date().toISOString();
+  const prev = await getRecord<SearchMiss>('searchMisses', id);
+  if (prev) await updateRecord('searchMisses', id, { count: prev.count + 1, lastAt: now });
+  else await insertRecord('searchMisses', { id, q, brand, model, count: 1, firstAt: now, lastAt: now });
+  res.json({ success: true });
+}));
+app.get('/api/search-misses/for-me', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const ctx = await companyContext(user);
+  const owners = new Set([user.id, ...(ctx ? [ctx.companyId] : [])]);
+  const brands = new Set((await listRecords<any>('parts')).filter((p) => owners.has(p.ownerId)).map((p) => String(p.brand || '').toLowerCase()).filter(Boolean));
+  const since = Date.now() - 30 * 86_400_000;
+  const misses = (await listRecords<SearchMiss>('searchMisses'))
+    .filter((m) => Date.parse(m.lastAt) > since && (!m.brand || brands.has(m.brand.toLowerCase())))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 40);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, misses, brands: [...brands] });
 }));
 
 // --- Official exchange rates of the National Bank of the Kyrgyz Republic -----------
@@ -3223,7 +3384,7 @@ app.patch('/api/admin/reports/:id', requireAdmin, asyncRoute(async (req: Request
 
 // Real backups: everything in the database as one JSON file.
 // Staff download it in the cabinet; a daily Vercel cron sends it to the owner's Telegram.
-const ALL_COLLECTIONS: Collection[] = ['orders', 'bookings', 'reviews', 'parts', 'cars', 'reports', 'users', 'audit', 'conversations', 'sellerReviews', 'memberships', 'partRequests'];
+const ALL_COLLECTIONS: Collection[] = ['orders', 'bookings', 'reviews', 'parts', 'cars', 'reports', 'users', 'audit', 'conversations', 'sellerReviews', 'memberships', 'partRequests', 'watches', 'searchMisses'];
 async function makeBackup() {
   const collections: Record<string, any[]> = {};
   for (const c of ALL_COLLECTIONS) collections[c] = await listRecords(c);

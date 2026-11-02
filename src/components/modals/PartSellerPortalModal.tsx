@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AutoPartItem, Currency, Language } from '../../types/car';
-import { submitPart } from '../../api/parts';
+import { submitPart, useParts } from '../../api/parts';
+import { priceRange } from '../../utils/oemOffers';
 import { uploadPhoto } from '../../api/upload';
 import { useAuth } from '../../api/auth';
 import { OemHint } from '../catalog/OemHint';
@@ -137,6 +138,9 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
 
   // Contacts come from the signed-in account; the seller can still change them for this listing
   const { user: account } = useAuth();
+  // Price hint: what the same OEM costs at other sellers on KGzone
+  const allParts = useParts();
+  const range = priceRange(partOEM, allParts, account?.id);
   React.useEffect(() => {
     if (!account) return;
     setSellerType(account.accountType);
@@ -579,6 +583,11 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                     </select>
                   </div>
                   <p className="text-[10px] text-neutral-500 mt-1">{isKg ? 'Каталогдо сом менен көрсөтүлөт (НБКР курсу).' : 'В каталоге цена показывается в сомах по курсу НБ КР.'}</p>
+                  {range && (
+                    <p className="text-[11px] text-sky-300 mt-1.5">
+                      Этот номер у других продавцов: {range.min === range.max ? <b>{range.min.toLocaleString('ru-RU')} сом</b> : <>от <b>{range.min.toLocaleString('ru-RU')}</b> до <b>{range.max.toLocaleString('ru-RU')}</b> сом</>} ({range.count})
+                    </p>
+                  )}
                 </div>
 
                 {/* Stock Control (+ / -) */}

@@ -4,6 +4,7 @@ import { ReportListingButton } from '../common/ReportListingButton';
 import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import { SellerContactBlock } from '../chat/SellerContactBlock';
 import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
+import { sameOemOffers } from '../../utils/oemOffers';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
@@ -101,6 +102,9 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
   const sellerParts = allParts
     .filter((p) => p.id !== part.id && sellerDigits.length >= 6 && p.sellerPhone.replace(/[^0-9]/g, '').endsWith(sellerDigits))
     .slice(0, 4);
+
+  // The same number at other sellers, cheapest first
+  const offers = sameOemOffers(part, allParts);
 
   // Similar parts: same category for the same car first, then same category, then same car
   const score = (p: AutoPartItem) =>
@@ -560,6 +564,30 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
             </div>
 
           </div>
+
+          {offers.length > 0 && (
+            <div className="pt-6 border-t border-neutral-800">
+              <h4 className="font-bold text-sm text-white mb-1">
+                Этот номер есть ещё у {offers.length} {offers.length === 1 ? 'продавца' : 'продавцов'}: от {offers[0].priceKgs.toLocaleString('ru-RU')} сом
+              </h4>
+              <p className="text-xs text-neutral-400 mb-3">Сравните цену, состояние и где забрать. Совпадение по OEM и кросс-номерам.</p>
+              <div className="divide-y divide-neutral-800 rounded-2xl border border-neutral-800 overflow-hidden">
+                {offers.slice(0, 6).map((p) => (
+                  <button key={p.id} type="button" onClick={() => onSelectPart?.(p)} className="w-full text-left px-3 py-2.5 bg-neutral-900 hover:bg-neutral-800 flex items-center gap-3 cursor-pointer">
+                    <img src={p.image} alt="" loading="lazy" className="w-12 h-10 rounded-md object-cover bg-neutral-950 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-white truncate" data-no-i18n>{p.title}</div>
+                      <div className="text-[11px] text-neutral-400 truncate flex items-center gap-1" data-no-i18n>
+                        {p.sellerVerified && <VerifiedSellerBadge size={11} />}
+                        <span>{[p.storeName || p.companyName, p.storeCity || p.city, p.condition].filter(Boolean).join(' · ')}</span>
+                      </div>
+                    </div>
+                    <div className={`text-sm font-black shrink-0 ${p.priceKgs < part.priceKgs ? 'text-emerald-400' : 'text-white'}`}>{p.priceKgs.toLocaleString('ru-RU')} сом</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {part.sellerId && (
             <div className="pt-6 border-t border-neutral-800">

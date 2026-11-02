@@ -4,7 +4,7 @@ import { getTelegramLink, refreshMe, unlinkTelegram, type Account } from '../../
 
 // Connects the account to the KGzone Telegram bot: new messages, moderation results and
 // "find me a part" requests arrive in Telegram.
-export const TelegramCard: React.FC<{ user: Account; compact?: boolean }> = ({ user, compact }) => {
+export const TelegramCard: React.FC<{ user: Account; compact?: boolean; audience?: 'seller' | 'buyer' }> = ({ user, compact, audience = 'seller' }) => {
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +55,9 @@ export const TelegramCard: React.FC<{ user: Account; compact?: boolean }> = ({ u
       </div>
       {!compact && (
         <p className="text-sm text-slate-600 mt-1">
-          Сразу узнавайте о новых сообщениях покупателей, результатах модерации и заявках на запчасти для ваших марок.
+          {audience === 'buyer'
+            ? 'Ответы продавцов и «появилась деталь, которую вы ждали» — сразу в Telegram.'
+            : 'Сразу узнавайте о новых сообщениях покупателей, результатах модерации и заявках на запчасти для ваших марок.'}
         </p>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
