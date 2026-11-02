@@ -17,13 +17,21 @@ interface SellerRequest {
 }
 
 // Buyers' "find me a part" requests for the brands this seller has listed
-export const SellerRequestsPanel: React.FC = () => {
+export const SellerRequestsPanel: React.FC<{ showEmpty?: boolean }> = ({ showEmpty = false }) => {
   const [data, setData] = useState<{ requests: SellerRequest[]; brands: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = () => call<{ requests: SellerRequest[]; brands: string[] }>('/api/part-requests/for-me').then(setData).catch((e) => setError(e.message));
   useEffect(() => { load(); }, []);
 
-  if (data && data.brands.length === 0) return null; // nothing listed yet: nothing to match
+  if (data && data.brands.length === 0) {
+    // nothing listed yet: nothing to match
+    return showEmpty ? (
+      <div className="p-6 rounded-2xl bg-white border border-slate-200 text-center text-sm text-slate-600">
+        <p className="font-bold text-slate-900 text-base">Заявки покупателей</p>
+        <p className="mt-1">Здесь появятся заявки «ищу деталь» для марок, по которым у вас есть товары на сайте.</p>
+      </div>
+    ) : null;
+  }
 
   return (
     <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 space-y-3">

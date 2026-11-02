@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   LayoutDashboard, ListChecks, Heart, History, CarFront, ShoppingBag, Building2, UserCog, ShieldCheck, Users,
-  LogOut, Loader2, Trash2, Search, Bell, MessageSquare,
+  LogOut, Loader2, Trash2, Search, Bell, MessageSquare, Upload, Settings, Crown,
 } from 'lucide-react';
+import { call } from '../../api/admin';
+import { MyImportPanel } from './MyImportPanel';
 import { MessagesPanel } from '../chat/MessagesPanel';
 import { CompanyCabinet } from '../company/CompanyCabinet';
 import { useCompany } from '../../api/company';
@@ -13,7 +15,7 @@ import {
   isStaff, formatPhone, COMPANY_STATUS_LABELS, type GarageCar,
 } from '../../api/auth';
 import { useParts } from '../../api/parts';
-import { listMyOrders } from '../../api/myListings';
+import { listMyOrders, listMyListings } from '../../api/myListings';
 import { usePartFavorites, togglePartFavorite } from '../../utils/partFavorites';
 import { useViewHistory, clearViewHistory } from '../../utils/viewHistory';
 import { partFitsModel } from '../../utils/partMatching';
@@ -51,7 +53,7 @@ interface Props {
   onFindParts: (preset: PartsSearchPreset) => void;
 }
 
-type Section = 'overview' | 'business' | 'messages' | 'listings' | 'favorites' | 'history' | 'garage' | 'orders' | 'company' | 'profile' | 'moderation' | 'users';
+type Section = 'overview' | 'business' | 'messages' | 'listings' | 'requests' | 'import' | 'favorites' | 'history' | 'garage' | 'orders' | 'company' | 'profile' | 'moderation' | 'users';
 
 const card = 'p-4 sm:p-5 rounded-2xl bg-white border border-slate-200';
 const inputCls = 'w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#C8102E] focus:outline-hidden';
@@ -103,10 +105,17 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const [garageMsg, setGarageMsg] = useState<string | null>(null);
 
   const [orders, setOrders] = useState<any[] | null>(null);
+  // Seller mode: has listings, or is a company. Decides the menu and the start page.
+  const [myCount, setMyCount] = useState<number | null>(null);
+  const [requestsCount, setRequestsCount] = useState(0);
+  const [startChosen, setStartChosen] = useState(false);
 
   useEffect(() => {
-    setSection('overview');
+    setStartChosen(false);
+    setMyCount(null);
     if (!user) return;
+    listMyListings().then((r) => setMyCount(r.parts.length + r.cars.length)).catch(() => setMyCount(0));
+    call<{ requests: unknown[] }>('/api/part-requests/for-me').then((r) => setRequestsCount(r.requests.length)).catch(() => setRequestsCount(0));
     setName(user.name);
     setCity(user.city);
     setEmail(user.email);
@@ -120,6 +129,16 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   useEffect(() => {
     if (section === 'orders' && user) listMyOrders().then(setOrders).catch(() => setOrders([]));
   }, [section, user]);
+
+  const sellerMode = Boolean(user && ((myCount ?? 0) > 0 || user.accountType === 'legal' || biz.info));
+  // Start page: sellers see their listings first (like drom.ru), buyers the overview
+  useEffect(() => {
+    if (startChosen || !user || myCount === null) return;
+    setStartChosen(true);
+    if (props.openSection) return;
+    setSection(sellerMode ? 'listings' : 'overview');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myCount, user?.id, startChosen]);
 
   // Fitting parts per garage car (live catalog)
   const garageMatches = useMemo(
@@ -154,20 +173,39 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const isLegal = user.accountType === 'legal';
   const newMatches = garageMatches.reduce((n, m) => n + m.ids.filter((id) => !(seen[m.car.id] || []).includes(id)).length, 0);
 
-  const nav: { id: Section; label: string; icon: React.ElementType; badge?: number }[] = [
-    { id: 'overview', label: 'Обзор', icon: LayoutDashboard },
-    ...(biz.info ? [{ id: 'business' as Section, label: 'Бизнес-кабинет', icon: Building2 }] : []),
-    { id: 'messages', label: 'Сообщения', icon: MessageSquare, badge: unreadMessages || undefined },
-    { id: 'listings', label: 'Мои объявления', icon: ListChecks },
-    { id: 'favorites', label: 'Избранное', icon: Heart, badge: partFavIds.length + favoriteCarIds.length },
-    { id: 'history', label: 'История просмотров', icon: History },
-    { id: 'garage', label: 'Мои автомобили', icon: CarFront, badge: newMatches || undefined },
-    { id: 'orders', label: 'Мои заказы', icon: ShoppingBag },
-    ...(isLegal ? [{ id: 'company' as Section, label: 'Компания', icon: Building2 }] : []),
-    { id: 'profile', label: 'Профиль и безопасность', icon: UserCog },
+  type NavItem = { id: Section; label: string; icon: React.ElementType; badge?: number; muted?: boolean };
+  const staffNav: NavItem[] = [
     ...(staff ? [{ id: 'moderation' as Section, label: 'Модерация', icon: ShieldCheck }] : []),
     ...(user.role === 'admin' ? [{ id: 'users' as Section, label: 'Пользователи', icon: Users }] : []),
   ];
+  const nav: NavItem[] = sellerMode
+    ? [
+        { id: 'listings', label: 'Мои объявления', icon: ListChecks, badge: myCount || undefined, muted: true },
+        { id: 'messages', label: 'Сообщения', icon: MessageSquare, badge: unreadMessages || undefined },
+        { id: 'requests', label: 'Заявки покупателей', icon: Search, badge: requestsCount || undefined },
+        biz.info ? { id: 'business', label: 'Бизнес-кабинет', icon: Building2 } : { id: 'import', label: 'Загрузить прайс', icon: Upload },
+        ...(isLegal ? [{ id: 'company' as Section, label: 'Данные компании', icon: Building2 }] : []),
+        { id: 'profile', label: 'Настройки', icon: Settings },
+        ...staffNav,
+      ]
+    : [
+        { id: 'overview', label: 'Главная', icon: LayoutDashboard },
+        { id: 'messages', label: 'Сообщения', icon: MessageSquare, badge: unreadMessages || undefined },
+        { id: 'favorites', label: 'Избранное', icon: Heart, badge: partFavIds.length + favoriteCarIds.length || undefined, muted: true },
+        { id: 'history', label: 'История просмотров', icon: History },
+        { id: 'garage', label: 'Мои автомобили', icon: CarFront, badge: newMatches || undefined },
+        { id: 'orders', label: 'Мои заказы', icon: ShoppingBag },
+        { id: 'listings', label: 'Мои объявления', icon: ListChecks },
+        { id: 'profile', label: 'Настройки', icon: Settings },
+        ...staffNav,
+      ];
+  // Buyer links kept for sellers too, in a quiet second group
+  const buyerExtras: NavItem[] = sellerMode
+    ? [
+        { id: 'favorites', label: 'Избранное', icon: Heart, badge: partFavIds.length + favoriteCarIds.length || undefined, muted: true },
+        { id: 'history', label: 'История просмотров', icon: History },
+      ]
+    : [];
 
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,7 +267,10 @@ export const AccountCabinet: React.FC<Props> = (props) => {
         {/* Navigation */}
         <aside className="lg:col-span-3 space-y-3">
           <div className={card}>
-            <div className="font-black text-slate-900" data-no-i18n>{user.company?.name || user.name}</div>
+            <div className="font-black text-slate-900 flex items-center gap-1.5" data-no-i18n>
+              <span>{user.company?.name || user.name}</span>
+              {(user.verifiedSeller || user.company?.status === 'verified') && <Crown size={15} className="text-amber-500 fill-amber-400/30 shrink-0" />}
+            </div>
             <div className="text-xs text-slate-500" data-no-i18n>{formatPhone(user.phone)} · {user.city}</div>
             <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold">
               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{isLegal ? 'Юридическое лицо' : 'Физическое лицо'}</span>
@@ -238,23 +279,28 @@ export const AccountCabinet: React.FC<Props> = (props) => {
               {!isLegal && biz.info && <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800" data-no-i18n>{biz.info.company.name}</span>}
             </div>
           </div>
-          <nav className="flex flex-wrap lg:flex-col gap-1.5">
-            {nav.map((n) => (
+          <nav className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex lg:flex-col overflow-x-auto">
+            {[...nav, ...buyerExtras].map((n, i) => (
               <button
                 key={n.id}
                 type="button"
                 onClick={() => setSection(n.id)}
-                className={`px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 cursor-pointer text-left ${section === n.id ? 'bg-[#C8102E] text-white' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'}`}
+                className={`shrink-0 px-4 py-3 text-sm flex items-center gap-2.5 cursor-pointer text-left whitespace-nowrap lg:border-l-[3px] ${i > 0 ? 'lg:border-t lg:border-t-slate-100' : ''} ${buyerExtras.length && i === nav.length ? 'lg:mt-2 lg:border-t-slate-200' : ''} ${section === n.id ? 'lg:border-l-[#C8102E] text-[#C8102E] font-bold bg-red-50/40' : 'lg:border-l-transparent text-slate-700 hover:bg-slate-50'}`}
               >
-                <n.icon size={15} className="shrink-0" />
+                <n.icon size={16} className="shrink-0" />
                 <span>{n.label}</span>
-                {n.badge ? <span className={`ml-auto text-[10px] px-1.5 rounded-full ${section === n.id ? 'bg-white/25' : 'bg-red-100 text-red-700'}`}>{n.badge}</span> : null}
+                {n.badge ? <span className={`ml-auto text-xs font-bold ${n.muted ? 'text-slate-400' : 'px-1.5 rounded-full bg-[#C8102E] text-white'}`}>{n.badge}</span> : null}
               </button>
             ))}
-            <button type="button" onClick={() => logout()} className="px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-2 cursor-pointer bg-white text-slate-500 border border-slate-200 hover:bg-slate-100">
-              <LogOut size={15} /><span>Выйти</span>
+            <button type="button" onClick={() => logout()} className="shrink-0 px-4 py-3 text-sm flex items-center gap-2.5 cursor-pointer text-slate-500 hover:bg-slate-50 lg:border-t lg:border-t-slate-100 lg:border-l-[3px] lg:border-l-transparent whitespace-nowrap">
+              <LogOut size={16} /><span>Выйти</span>
             </button>
           </nav>
+          {!sellerMode && (
+            <button type="button" onClick={onSellPart} className="hidden lg:block w-full px-4 py-3 rounded-2xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold cursor-pointer">
+              Начать продавать запчасти
+            </button>
+          )}
         </aside>
 
         <main className="lg:col-span-9 space-y-4 min-w-0">
@@ -283,8 +329,6 @@ export const AccountCabinet: React.FC<Props> = (props) => {
               )}
 
               {!user.telegramLinked && <TelegramCard user={user} />}
-
-              <SellerRequestsPanel />
 
               {isLegal && user.company && user.company.status !== 'verified' && (
                 <div className={`${card} border-amber-300 bg-amber-50`}>
@@ -335,11 +379,18 @@ export const AccountCabinet: React.FC<Props> = (props) => {
           )}
 
           {section === 'listings' && (
-            <div className="space-y-4">
-              <SellerRequestsPanel />
-              <MyListingsPanel onSellPart={onSellPart} onSellCar={onSellCar} />
-            </div>
+            <MyListingsPanel
+              onSellPart={onSellPart}
+              onSellCar={onSellCar}
+              requestsCount={requestsCount}
+              onOpenRequests={() => setSection('requests')}
+              onOpenImport={() => setSection(biz.info ? 'business' : 'import')}
+            />
           )}
+
+          {section === 'requests' && <SellerRequestsPanel showEmpty />}
+
+          {section === 'import' && <MyImportPanel onDone={() => { setSection('listings'); listMyListings().then((r) => setMyCount(r.parts.length + r.cars.length)).catch(() => undefined); }} />}
 
           {section === 'favorites' && (
             <div className="space-y-4">

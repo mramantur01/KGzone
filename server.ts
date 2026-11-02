@@ -1491,6 +1491,39 @@ app.patch('/api/my/:kind/:id', requireUser, asyncRoute(async (req: Request, res:
   res.json({ success: true, item: updated, needsReview });
 }));
 
+// Price list upload for any seller (companies have their own import in the business cabinet).
+// Rows with an SKU that already exists update that item. Sellers with the crown publish at once,
+// others go to moderation. Parts without photos are kept but stay hidden until photos are added.
+app.post('/api/my/import', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const rows: any[] = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!rows.length) return res.status(400).json({ success: false, error: 'Файл пустой' });
+  if (rows.length > 500) return res.status(400).json({ success: false, error: 'Не больше 500 строк за раз. Разделите файл на части.' });
+  if (tooMany(`myimport:${user.id}`, 20, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много загрузок. Попробуйте через час.' });
+  const mine = (await listRecords<any>('parts')).filter((p) => p.ownerId === user.id);
+  const bySku = new Map(mine.filter((p) => p.sku).map((p) => [p.sku, p]));
+  const trusted = Boolean(user.verifiedSeller || user.company?.status === 'verified');
+  const now = new Date().toISOString();
+  const moderation = trusted ? { status: 'approved' as PartStatus, submittedAt: now, reviewedAt: now } : { status: 'pending' as PartStatus, submittedAt: now };
+  const defaults = { sellerPhone: '+' + user.phone, storeName: user.company?.name || user.name, companyName: user.company?.name, storeCity: user.city };
+  const errors: { row: number; error: string }[] = [];
+  let created = 0, updated = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i] || {};
+    const prev: any = r.sku ? bySku.get(str(r.sku, 60)) : undefined;
+    const part: any = sanitizePart({ ...defaults, ...(prev || {}), ...r, sellerType: user.accountType });
+    if (!part.sellerPhone) part.sellerPhone = defaults.sellerPhone;
+    const problem = partProblem(part);
+    if (problem) { errors.push({ row: i + 2, error: problem }); continue; }
+    if (prev) { await updateRecord('parts', prev.id, { ...part, views: prev.views, updatedAt: now, ...(trusted ? {} : { moderation }) }); updated++; }
+    else { await insertRecord('parts', { id: `part-${randomUUID()}`, ...part, ownerId: user.id, createdAt: now, moderation }); created++; }
+  }
+  const noPhoto = (await listRecords<any>('parts')).filter((p) => p.ownerId === user.id && !p.images?.length).length;
+  if (created + updated && !trusted) await notifyAdmin(`📥 Прайс продавца ${user.name}: новых ${created}, обновлено ${updated}
+Проверить: ${SITE_URL}/kabinet → Модерация`);
+  res.json({ success: true, created, updated, errors, noPhoto, moderation: moderation.status });
+}));
+
 app.post('/api/my/:kind/:id/status', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const own = await ownListing(req, res);
   if (!own) return;

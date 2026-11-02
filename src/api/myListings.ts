@@ -18,6 +18,9 @@ export type MyPart = AutoPartItem & Owned;
 export type MyCar = Car & Owned;
 export type ListingKind = 'parts' | 'cars';
 
+export const importMyParts = (rows: Record<string, unknown>[]) =>
+  call<{ created: number; updated: number; errors: { row: number; error: string }[]; noPhoto: number; moderation: string }>('/api/my/import', { method: 'POST', body: JSON.stringify({ rows }) });
+
 export const listMyListings = () => call<{ parts: MyPart[]; cars: MyCar[] }>('/api/my/listings');
 
 const after = async <T,>(p: Promise<T>) => {

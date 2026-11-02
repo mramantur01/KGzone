@@ -53,6 +53,7 @@ export interface Account {
   garage: GarageCar[];
   telegramLinked?: boolean;
   termsAcceptedAt?: string;
+  verifiedSeller?: boolean;
 }
 
 export const COMPANY_STATUS_LABELS: Record<CompanyStatus, string> = {

@@ -47,6 +47,7 @@ const demoUser = {
   garage: [{ id: 'g1', brand: 'Toyota', model: 'Camry', year: 2019, mileage: 98500, oilChangeMileage: 91000, oilInterval: 8000, inspectionUntil: day(-20).slice(0, 10) }],
   telegramLinked: false,
   termsAcceptedAt: day(40),
+  verifiedSeller: true,
 };
 
 const part = (id: string, title: string, partNumber: string, priceKgs: number, stockCount: number, image: string | null, extra: Record<string, unknown> = {}) => ({
@@ -59,6 +60,31 @@ const part = (id: string, title: string, partNumber: string, priceKgs: number, s
   ...extra,
 });
 
+// A large made-up stock so the demo shows search, filters and pages like a real parts seller
+const STOCK: [string, string, string, number, string][] = [
+  ['Стойка стабилизатора передняя', '48820-33070', 'Toyota', 900, 'Camry'], ['Ступица задняя в сборе', '42450-48041', 'Lexus', 6200, 'RX'],
+  ['Подушка двигателя правая', '12362-0V010', 'Toyota', 4100, 'Camry'], ['Свечи зажигания Denso (4 шт)', '90919-01253', 'Toyota', 2400, 'Camry'],
+  ['Фильтр воздушный', '17801-0V020', 'Toyota', 750, 'RAV4'], ['Фильтр салона угольный', '87139-33010', 'Toyota', 600, 'Camry'],
+  ['Рычаг передний нижний левый', '48069-33060', 'Toyota', 5300, 'Camry'], ['Шаровая опора', '43330-09510', 'Toyota', 1900, 'Corolla'],
+  ['Колодки задние', '04466-48090', 'Lexus', 2600, 'RX'], ['Диск тормозной передний', '43512-48140', 'Lexus', 5400, 'RX'],
+  ['Помпа водяная', '16100-29415', 'Toyota', 4800, 'Land Cruiser Prado'], ['Ремень генератора', '90916-02671', 'Toyota', 1300, 'Prado'],
+  ['Амортизатор задний', '48530-80424', 'Toyota', 3600, 'Camry'], ['Пыльник ШРУСа', '04438-33150', 'Toyota', 850, 'Camry'],
+  ['Зеркало правое с подогревом', '87910-33C60', 'Toyota', 7200, 'Camry'], ['Фара противотуманная', '81210-06052', 'Toyota', 3900, 'Camry'],
+  ['Колодки передние Honda', '45022-T5A-J01', 'Honda', 2300, 'Fit'], ['Фильтр масляный Honda', '15400-RTA-003', 'Honda', 550, 'CR-V'],
+  ['Сайлентблок рычага', '51391-TF0-003', 'Honda', 1100, 'Fit'], ['Стойка стабилизатора Honda', '51320-TF0-003', 'Honda', 800, 'Fit'],
+  ['Катушка зажигания', '30520-RNA-A01', 'Honda', 3100, 'Civic'], ['Датчик кислорода', '36531-RNA-A01', 'Honda', 4600, 'Civic'],
+  ['Радиатор охлаждения', '16400-0H220', 'Toyota', 11500, 'Camry'], ['Термостат', '90916-03129', 'Toyota', 1700, 'Camry'],
+  ['Бачок омывателя', '85315-33350', 'Toyota', 2100, 'Camry'], ['Щётки стеклоочистителя (пара)', '85222-33190', 'Toyota', 1200, 'Camry'],
+  ['Подшипник ступицы', '90369-43008', 'Toyota', 2700, 'Corolla'], ['Тяга рулевая', '45503-09510', 'Toyota', 2200, 'Corolla'],
+  ['Наконечник рулевой', '45046-09550', 'Toyota', 1400, 'Corolla'], ['Датчик ABS передний', '89542-33060', 'Toyota', 3300, 'Camry'],
+];
+const PHOTOS = ['/parts/wm-01.jpg', '/parts/wm-02.jpg', '/parts/wm-03.jpg', '/parts/wm-10.jpg', '/parts/wm-15.jpg'];
+const MORE_PARTS = STOCK.flatMap(([title, oem, brand, price, model], i) => [0, 1].map((k) => part(
+  `demo-s${i}-${k}`, k ? `${title} (дубликат)` : title, k ? `${oem}-D` : oem, k ? Math.round(price * 0.6) : price,
+  (i * 7 + k * 3) % 9 === 0 ? 0 : ((i + k) % 5) + 1, (i + k) % 11 === 4 ? null : PHOTOS[(i + k) % PHOTOS.length],
+  { brand, model, condition: k ? 'Дубликат (OEM)' : 'Новый (Оригинал)', views: (i * 13 + k * 7) % 90, contactsCount: (i + k) % 6, createdAt: day(i + k) },
+)));
+
 const demoListings = {
   parts: [
     part('demo-p1', 'Колодки тормозные передние Camry 70', '04465-33471', 2800, 6, '/parts/wm-02.jpg', { views: 112, contactsCount: 9 }),
@@ -66,6 +92,7 @@ const demoListings = {
     part('demo-p3', 'Амортизатор передний правый', '48510-80000', 3200, 4, null, { category: 'Подвеска', views: 0, contactsCount: 0 }),
     part('demo-p4', 'Фильтр масляный оригинал', '90915-YZZE1', 650, 0, '/parts/wm-10.jpg', { category: 'Масла и фильтры', views: 23 }),
     part('demo-p5', 'Радиатор кондиционера', '88460-06380', 9500, 2, '/parts/wm-15.jpg', { moderation: { status: 'pending' }, views: 0, contactsCount: 0 }),
+    ...MORE_PARTS,
   ],
   cars: [],
 };
