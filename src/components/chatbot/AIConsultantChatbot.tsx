@@ -116,7 +116,7 @@ export const AIConsultantChatbot: React.FC<AIConsultantChatbotProps> = ({
   return (
     <>
       {/* Floating CTA Toggle Button */}
-      <div className="fixed bottom-5 right-5 z-40">
+      <div className="kgz-chatbot-btn fixed bottom-5 right-5 z-40">
         {!isOpen && (
           <button
             onClick={() => setIsOpen(true)}

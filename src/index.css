@@ -22,3 +22,9 @@
   background: #94a3b8;
 }
 
+
+/* Cabinet on phones has a bottom tab bar: the floating assistant button would cover the rows */
+@media (max-width: 1023px) {
+  body.kgz-bottom-nav .kgz-chatbot-btn { display: none; }
+  body.kgz-bottom-nav { padding-bottom: 4rem; }
+}

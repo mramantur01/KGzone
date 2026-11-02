@@ -3543,5 +3543,14 @@
  "Новое описание проверит модератор": "A moderator will check the new description",
  "Показано": "Showing",
  "Дальше →": "Next →",
- "Здесь появятся заявки «ищу деталь» для марок, по которым у вас есть товары на сайте.": "“Looking for a part” requests for the makes you sell will appear here."
+ "Здесь появятся заявки «ищу деталь» для марок, по которым у вас есть товары на сайте.": "“Looking for a part” requests for the makes you sell will appear here.",
+ "Товары": "Items",
+ "Заявки": "Requests",
+ "Прайс": "Price list",
+ "Бизнес": "Business",
+ "Мои авто": "My cars",
+ "Ещё": "More",
+ "Заявки покупателей:": "Buyer requests:",
+ "Поиск: название или OEM-номер": "Search: name or OEM number",
+ "Фильтры": "Filters"
 }

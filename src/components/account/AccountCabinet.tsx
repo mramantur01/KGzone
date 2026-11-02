@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   LayoutDashboard, ListChecks, Heart, History, CarFront, ShoppingBag, Building2, UserCog, ShieldCheck, Users,
-  LogOut, Loader2, Trash2, Search, Bell, MessageSquare, Upload, Settings, Crown,
+  LogOut, Loader2, Trash2, Search, Bell, MessageSquare, Upload, Settings, Crown, Menu, X,
 } from 'lucide-react';
 import { call } from '../../api/admin';
 import { MyImportPanel } from './MyImportPanel';
@@ -109,6 +109,12 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const [myCount, setMyCount] = useState<number | null>(null);
   const [requestsCount, setRequestsCount] = useState(0);
   const [startChosen, setStartChosen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  // Phones get a bottom tab bar; the floating assistant button moves above it
+  useEffect(() => {
+    document.body.classList.add('kgz-bottom-nav');
+    return () => document.body.classList.remove('kgz-bottom-nav');
+  }, []);
 
   useEffect(() => {
     setStartChosen(false);
@@ -263,9 +269,9 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
   return (
     <div className="bg-slate-50 min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 pt-3 sm:pt-6 pb-24 lg:pb-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Navigation */}
-        <aside className="lg:col-span-3 space-y-3">
+        <aside className="hidden lg:block lg:col-span-3 space-y-3">
           <div className={card}>
             <div className="font-black text-slate-900 flex items-center gap-1.5" data-no-i18n>
               <span>{user.company?.name || user.name}</span>
@@ -682,6 +688,60 @@ export const AccountCabinet: React.FC<Props> = (props) => {
           {section === 'users' && user.role === 'admin' && <AdminUsersPanel currentUserId={user.id} />}
         </main>
       </div>
+
+      {/* Phone: bottom tab bar (like an app) + "Ещё" sheet with the rest of the menu */}
+      {(() => {
+        const primaryIds: Section[] = sellerMode
+          ? ['listings', 'messages', 'requests', biz.info ? 'business' : 'import']
+          : ['overview', 'messages', 'favorites', 'garage'];
+        const short: Partial<Record<Section, string>> = {
+          listings: 'Товары', messages: 'Сообщения', requests: 'Заявки', import: 'Прайс', business: 'Бизнес',
+          overview: 'Главная', favorites: 'Избранное', garage: 'Мои авто',
+        };
+        const all = [...nav, ...buyerExtras];
+        const primary = primaryIds.map((id) => all.find((n) => n.id === id)).filter(Boolean) as typeof nav;
+        const rest = all.filter((n) => !primaryIds.includes(n.id));
+        const go = (id: Section) => { setSection(id); setMoreOpen(false); window.scrollTo({ top: 0 }); };
+        return (
+          <>
+            {moreOpen && (
+              <div className="lg:hidden fixed inset-0 z-[45] bg-black/40" onClick={() => setMoreOpen(false)}>
+                <div className="absolute bottom-16 inset-x-0 bg-white rounded-t-2xl p-2 pb-3 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                  <div className="px-3 py-2 flex items-center justify-between">
+                    <span className="font-black text-slate-900 flex items-center gap-1.5" data-no-i18n>
+                      {user.company?.name || user.name}
+                      {(user.verifiedSeller || user.company?.status === 'verified') && <Crown size={14} className="text-amber-500 fill-amber-400/30" />}
+                    </span>
+                    <button type="button" onClick={() => setMoreOpen(false)} className="p-1.5 rounded-full hover:bg-slate-100 cursor-pointer" aria-label="Закрыть"><X size={18} /></button>
+                  </div>
+                  {rest.map((n) => (
+                    <button key={n.id} type="button" onClick={() => go(n.id)} className={`w-full px-3 py-3 rounded-xl text-left text-[15px] flex items-center gap-3 cursor-pointer ${section === n.id ? 'bg-red-50 text-[#C8102E] font-bold' : 'text-slate-800 hover:bg-slate-50'}`}>
+                      <n.icon size={18} className="shrink-0" /><span>{n.label}</span>
+                      {n.badge ? <span className="ml-auto text-xs font-bold text-slate-400">{n.badge}</span> : null}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => logout()} className="w-full px-3 py-3 rounded-xl text-left text-[15px] flex items-center gap-3 cursor-pointer text-slate-500 hover:bg-slate-50 border-t border-slate-100 mt-1">
+                    <LogOut size={18} /><span>Выйти</span>
+                  </button>
+                </div>
+              </div>
+            )}
+            <nav className="lg:hidden fixed bottom-0 inset-x-0 z-[46] bg-white border-t border-slate-200 grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
+              {primary.map((n) => (
+                <button key={n.id} type="button" onClick={() => go(n.id)} className={`relative h-16 flex flex-col items-center justify-center gap-0.5 text-[11px] cursor-pointer ${section === n.id && !moreOpen ? 'text-[#C8102E] font-bold' : 'text-slate-500'}`}>
+                  <n.icon size={21} />
+                  <span>{short[n.id] || n.label}</span>
+                  {n.badge && !n.muted ? <span className="absolute top-1.5 left-1/2 ml-2 min-w-4 h-4 px-1 rounded-full bg-[#C8102E] text-white text-[10px] leading-4 font-bold">{n.badge}</span> : null}
+                </button>
+              ))}
+              <button type="button" onClick={() => setMoreOpen((v) => !v)} className={`h-16 flex flex-col items-center justify-center gap-0.5 text-[11px] cursor-pointer ${moreOpen || rest.some((n) => n.id === section) ? 'text-[#C8102E] font-bold' : 'text-slate-500'}`}>
+                <Menu size={21} />
+                <span>Ещё</span>
+              </button>
+            </nav>
+          </>
+        );
+      })()}
     </div>
   );
 };

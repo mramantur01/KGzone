@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Plus, Minus, Camera, Search, MoreHorizontal, Download } from 'lucide-react';
+import { Loader2, Plus, Minus, Camera, Search, MoreHorizontal, Download, SlidersHorizontal } from 'lucide-react';
 import {
   deleteMyListing, editMyListing, listMyListings, raiseMyListing, setMyListingStatus,
   type ListingKind, type MyCar, type MyPart,
@@ -80,6 +80,7 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
   const [descEdit, setDescEdit] = useState<{ id: string; value: string } | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false); // phones: filters folded behind a button
   const photoInput = useRef<HTMLInputElement>(null);
   const photoFor = useRef<Row | null>(null);
 
@@ -252,44 +253,51 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
       <input ref={photoInput} type="file" accept="image/*" multiple className="hidden" onChange={(e) => onPhotoFiles(e.target.files)} />
 
       {/* Heading */}
-      <div className="flex flex-wrap items-start justify-between gap-3 px-4 sm:px-5 pt-4">
-        <div>
-          <h1 className="text-xl font-black text-slate-900">Мои объявления</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+      <div className="flex items-center justify-between gap-3 px-3 sm:px-5 pt-3 sm:pt-4">
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-xl font-black text-slate-900">Мои объявления <span className="sm:hidden text-slate-400 font-bold">{rows.length.toLocaleString('ru-RU')}</span></h1>
+          <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
             {rows.length.toLocaleString('ru-RU')} товаров · {totalViews.toLocaleString('ru-RU')} просмотров · {totalContacts.toLocaleString('ru-RU')} обращений
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={onSellPart} className="px-4 py-2.5 rounded-lg bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold flex items-center gap-1.5 cursor-pointer">
-            <Plus size={16} /><span>Подать объявление</span>
+        <div className="flex gap-2 shrink-0">
+          <button type="button" onClick={onSellPart} aria-label="Подать объявление" className="w-11 h-11 sm:w-auto sm:h-auto sm:px-4 sm:py-2.5 rounded-full sm:rounded-lg bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+            <Plus size={20} /><span className="hidden sm:inline">Подать объявление</span>
           </button>
-          <button type="button" onClick={onSellCar} className="px-3 py-2.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-bold cursor-pointer">Продать авто</button>
+          <button type="button" onClick={onSellCar} className="hidden sm:block px-3 py-2.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-bold cursor-pointer">Продать авто</button>
         </div>
       </div>
 
       {requestsCount > 0 && onOpenRequests && (
-        <div className="px-4 sm:px-5 mt-3">
+        <div className="px-3 sm:px-5 mt-3">
           <button type="button" onClick={onOpenRequests} className="w-full text-left px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2 cursor-pointer hover:bg-emerald-100">
             <Search size={15} className="shrink-0" />
-            <span>Покупатели ищут запчасти для ваших марок: <b>{requestsCount}</b></span>
+            <span className="hidden sm:inline">Покупатели ищут запчасти для ваших марок: <b>{requestsCount}</b></span>
+            <span className="sm:hidden">Заявки покупателей: <b>{requestsCount}</b></span>
             <span className="ml-auto font-bold whitespace-nowrap">Посмотреть →</span>
           </button>
         </div>
       )}
 
       {/* Search and filters */}
-      <div className="px-4 sm:px-5 mt-3 flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Поиск по своим товарам: название или OEM-номер" className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-hidden focus:border-[#1d6fb8]" />
+      <div className="px-3 sm:px-5 mt-3 flex flex-col sm:flex-row gap-2">
+        <div className="flex gap-2 flex-1">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Поиск: название или OEM-номер" className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-hidden focus:border-[#1d6fb8]" />
+          </div>
+          <button type="button" onClick={() => setFiltersOpen((v) => !v)} aria-label="Фильтры" className={`sm:hidden relative w-11 shrink-0 rounded-lg border flex items-center justify-center cursor-pointer ${filtersOpen ? 'border-[#1d6fb8] text-[#1d6fb8] bg-sky-50' : 'border-slate-300 text-slate-600'}`}>
+            <SlidersHorizontal size={18} />
+            {(brand || lowStock || sort !== 'new') && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#C8102E]" />}
+          </button>
         </div>
         {brands.length > 1 && (
-          <select value={brand} onChange={(e) => setBrand(e.target.value)} className="px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white" data-no-i18n>
+          <select value={brand} onChange={(e) => setBrand(e.target.value)} className={`${filtersOpen ? '' : 'hidden'} sm:block px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white`} data-no-i18n>
             <option value="">Все марки</option>
             {brands.map((b) => <option key={b} value={b}>{b}</option>)}
           </select>
         )}
-        <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+        <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className={`${filtersOpen ? '' : 'hidden'} sm:block px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white`}>
           <option value="new">Сначала новые</option>
           <option value="cheap">Сначала дешевле</option>
           <option value="expensive">Сначала дороже</option>
@@ -297,19 +305,19 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
           <option value="stock">Меньше остаток</option>
         </select>
       </div>
-      <div className="px-4 sm:px-5 mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+      <div className={`${filtersOpen ? 'flex' : 'hidden'} sm:flex px-3 sm:px-5 mt-2 flex-wrap items-center gap-x-5 gap-y-2 text-sm`}>
         <label className="flex items-center gap-1.5 cursor-pointer text-slate-600">
           <input type="checkbox" checked={lowStock} onChange={(e) => setLowStock(e.target.checked)} className="accent-[#C8102E]" />
           <span>Мало осталось (1–2 шт)</span>
         </label>
-        <span className="ml-auto flex gap-4">
+        <span className="sm:ml-auto flex gap-4">
           {onOpenImport && <button type="button" onClick={onOpenImport} className={linkCls}>Загрузить прайс</button>}
           <button type="button" onClick={exportCsv} className={`${linkCls} inline-flex items-center gap-1`}><Download size={13} />Скачать в Excel</button>
         </span>
       </div>
 
       {/* Tabs */}
-      <div className="mt-3 px-4 sm:px-5 flex gap-5 overflow-x-auto border-b border-slate-200 text-sm whitespace-nowrap">
+      <div className="mt-3 px-3 sm:px-5 flex gap-5 overflow-x-auto border-b border-slate-200 text-sm whitespace-nowrap">
         {BUCKETS.filter((b) => b.id === 'active' || counts[b.id] > 0).map((b) => (
           <button
             key={b.id}
@@ -381,7 +389,7 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
               const meta = [isPart(r) && r.item.partNumber && `OEM ${r.item.partNumber}`, [item.brand, item.model].filter(Boolean).join(' '), `${viewsOf(r)} просм.`, item.contactsCount ? `${item.contactsCount} обращ.` : '']
                 .filter(Boolean).join(' · ');
               return (
-                <li key={item.id} className={`px-4 sm:px-5 py-3 ${selected.has(item.id) ? 'bg-sky-50/60' : ''}`}>
+                <li key={item.id} className={`px-3 sm:px-5 py-3 ${selected.has(item.id) ? 'bg-sky-50/60' : ''}`}>
                   <div className="grid grid-cols-[28px_64px_minmax(0,1fr)_36px] sm:grid-cols-[28px_64px_minmax(0,1fr)_120px_130px_36px] gap-3 items-center">
                     <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} aria-label="Выбрать" className="w-4 h-4 accent-[#1d6fb8]" />
 
@@ -407,10 +415,31 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
                       {b === 'pending' && <div className="text-xs text-sky-700">На проверке у модератора</div>}
                       {b === 'rejected' && <div className="text-xs text-red-600">Отклонено: {item.moderation?.reason || 'не соответствует правилам'}</div>}
                       {/* price and stock on phones */}
-                      <div className="sm:hidden mt-1 flex items-center gap-3">
-                        <span className="font-black text-slate-900">{priceText(r)}</span>
-                        {isPart(r) && <span className="text-xs text-slate-500">{r.item.stockCount} шт</span>}
+                      <div className="sm:hidden mt-1.5 flex items-center justify-between gap-2">
+                        <button type="button" onClick={() => setPriceEdit({ id: item.id, value: String(priceOf(r)) })} className="font-black text-slate-900 text-[15px] whitespace-nowrap text-left cursor-pointer">
+                          {priceText(r)}
+                        </button>
+                        {isPart(r) && b !== 'sold' && b !== 'rejected' && (
+                          <div className={`inline-flex items-center border rounded-lg overflow-hidden ${r.item.stockCount <= 0 ? 'border-amber-400' : 'border-slate-300'}`}>
+                            <button type="button" disabled={r.item.stockCount <= 0} onClick={() => setStock(r, r.item.stockCount - 1)} className="w-9 h-9 flex items-center justify-center active:bg-slate-100 cursor-pointer disabled:opacity-30" aria-label="Меньше"><Minus size={15} /></button>
+                            <span className={`w-9 text-center text-sm font-bold ${r.item.stockCount <= 0 ? 'text-amber-700' : r.item.stockCount <= 2 ? 'text-orange-600' : ''}`}>{r.item.stockCount}</span>
+                            <button type="button" onClick={() => setStock(r, r.item.stockCount + 1)} className="w-9 h-9 flex items-center justify-center active:bg-slate-100 cursor-pointer" aria-label="Больше"><Plus size={15} /></button>
+                          </div>
+                        )}
                       </div>
+                      {priceEdit?.id === item.id && (
+                        <input
+                          autoFocus
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          value={priceEdit.value}
+                          onChange={(e) => setPriceEdit({ id: item.id, value: e.target.value })}
+                          onBlur={() => savePrice(r)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          className="sm:hidden mt-1 w-full px-3 py-2 border border-[#1d6fb8] rounded-lg text-base font-bold"
+                        />
+                      )}
                     </div>
 
                     {/* Price: click to edit */}
@@ -452,8 +481,6 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
                       {menuFor === item.id && (
                         <div onClick={(e) => e.stopPropagation()} className="absolute right-0 top-9 z-20 w-56 bg-white border border-slate-200 rounded-lg shadow-lg py-1 text-sm">
                           {isPart(r) && b !== 'sold' && <button type="button" onClick={() => { setMenuFor(null); addPhotos(r); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer flex items-center gap-2"><Camera size={14} />{r.item.images?.length ? `Добавить фото (${r.item.images.length}/8)` : 'Добавить фото'}</button>}
-                          <button type="button" onClick={() => { setMenuFor(null); setPriceEdit({ id: item.id, value: String(priceOf(r)) }); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer sm:hidden">Изменить цену</button>
-                          {isPart(r) && <button type="button" onClick={() => { setMenuFor(null); const v = window.prompt('Сколько штук в наличии?', String(r.item.stockCount)); if (v !== null && v.trim() !== '') setStock(r, Math.round(Number(v)) || 0); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer sm:hidden">Изменить количество</button>}
                           {b !== 'sold' && <button type="button" onClick={() => { setMenuFor(null); setDescEdit({ id: item.id, value: item.description && item.description !== '—' ? item.description : '' }); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer">Изменить описание</button>}
                           {b === 'active' && <button type="button" onClick={() => { setMenuFor(null); act(r, () => raiseMyListing(kind, item.id), 'Объявление поднято в поиске'); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer">Поднять в поиске</button>}
                           {url && <a href={url} target="_blank" rel="noopener" className="block px-3 py-2 hover:bg-slate-50">Открыть на сайте</a>}
