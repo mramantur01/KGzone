@@ -2,6 +2,8 @@
 // made-up data without registration. Nothing is sent to the server: the account's API calls are answered
 // here, and every change is refused with a notice. Public data (parts, cars, rates) stays real.
 
+import COMMONS from '../data/demoPartPhotos.json';
+
 const KEY = 'kgzone-demo-cabinet';
 
 type DemoMode = 'seller' | 'buyer';
@@ -66,38 +68,78 @@ const part = (id: string, title: string, partNumber: string, priceKgs: number, s
   ...extra,
 });
 
-// A large made-up stock so the demo shows search, filters and pages like a real parts seller
-const STOCK: [string, string, string, number, string][] = [
-  ['Стойка стабилизатора передняя', '48820-33070', 'Toyota', 900, 'Camry'], ['Ступица задняя в сборе', '42450-48041', 'Lexus', 6200, 'RX'],
-  ['Подушка двигателя правая', '12362-0V010', 'Toyota', 4100, 'Camry'], ['Свечи зажигания Denso (4 шт)', '90919-01253', 'Toyota', 2400, 'Camry'],
-  ['Фильтр воздушный', '17801-0V020', 'Toyota', 750, 'RAV4'], ['Фильтр салона угольный', '87139-33010', 'Toyota', 600, 'Camry'],
-  ['Рычаг передний нижний левый', '48069-33060', 'Toyota', 5300, 'Camry'], ['Шаровая опора', '43330-09510', 'Toyota', 1900, 'Corolla'],
-  ['Колодки задние', '04466-48090', 'Lexus', 2600, 'RX'], ['Диск тормозной передний', '43512-48140', 'Lexus', 5400, 'RX'],
-  ['Помпа водяная', '16100-29415', 'Toyota', 4800, 'Land Cruiser Prado'], ['Ремень генератора', '90916-02671', 'Toyota', 1300, 'Prado'],
-  ['Амортизатор задний', '48530-80424', 'Toyota', 3600, 'Camry'], ['Пыльник ШРУСа', '04438-33150', 'Toyota', 850, 'Camry'],
-  ['Зеркало правое с подогревом', '87910-33C60', 'Toyota', 7200, 'Camry'], ['Фара противотуманная', '81210-06052', 'Toyota', 3900, 'Camry'],
-  ['Колодки передние Honda', '45022-T5A-J01', 'Honda', 2300, 'Fit'], ['Фильтр масляный Honda', '15400-RTA-003', 'Honda', 550, 'CR-V'],
-  ['Сайлентблок рычага', '51391-TF0-003', 'Honda', 1100, 'Fit'], ['Стойка стабилизатора Honda', '51320-TF0-003', 'Honda', 800, 'Fit'],
-  ['Катушка зажигания', '30520-RNA-A01', 'Honda', 3100, 'Civic'], ['Датчик кислорода', '36531-RNA-A01', 'Honda', 4600, 'Civic'],
-  ['Радиатор охлаждения', '16400-0H220', 'Toyota', 11500, 'Camry'], ['Термостат', '90916-03129', 'Toyota', 1700, 'Camry'],
-  ['Бачок омывателя', '85315-33350', 'Toyota', 2100, 'Camry'], ['Щётки стеклоочистителя (пара)', '85222-33190', 'Toyota', 1200, 'Camry'],
-  ['Подшипник ступицы', '90369-43008', 'Toyota', 2700, 'Corolla'], ['Тяга рулевая', '45503-09510', 'Toyota', 2200, 'Corolla'],
-  ['Наконечник рулевой', '45046-09550', 'Toyota', 1400, 'Corolla'], ['Датчик ABS передний', '89542-33060', 'Toyota', 3300, 'Camry'],
+// A made-up stock for the demo. Each item uses a photo of that kind of part (the same photos the
+// site's example listings use); items marked null have no photo, to show the "Нет фото" state.
+const PH = {
+  pads: '/parts/wm-02.jpg',
+  engine2ar: '/parts/wm-03.jpg',
+  engineV6: '/parts/wm-04.jpg',
+  engineBmw: '/parts/wm-08.jpg',
+  cvt: '/parts/wm-10.jpg',
+  turbo: '/parts/wm-12.jpg',
+  alternator: '/parts/wm-14.jpg',
+  starter: '/parts/wm-16.jpg',
+  shock: 'https://images.unsplash.com/photo-1760836395763-25ea44ae8145?auto=format&fit=crop&w=600&q=80',
+  airSpring: 'https://images.unsplash.com/photo-1760317890283-540a468b86f6?auto=format&fit=crop&w=600&q=80',
+  radiator: 'https://images.unsplash.com/photo-1760804462190-82832c8eb582?auto=format&fit=crop&w=600&q=80',
+  airStrut: 'https://images.unsplash.com/photo-1760317890353-5b156b3f9769?auto=format&fit=crop&w=600&q=80',
+};
+// title, OEM, make, model, price, photo, category, stock
+const STOCK: [string, string, string, string, number, string | null, string, number][] = [
+  ['Фара передняя правая ксенон RX 350', '81145-48D20', 'Lexus', 'RX', 24500, 'projector', 'Оптика', 2],
+  ['Фара передняя ксенон W211 рестайлинг', 'A2118207661', 'Mercedes-Benz', 'E-Class', 21000, 'headlight', 'Оптика', 1],
+  ['Фара левая LED Camry 70 (дубликат)', '81150-33K10-D', 'Toyota', 'Camry', 9800, 'headlight', 'Оптика', 4],
+  ['Колодки тормозные передние RAV4', '04465-42180', 'Toyota', 'RAV4', 2600, PH.pads, 'Тормозная система', 8],
+  ['Колодки тормозные передние (дубликат)', '04465-33471-D', 'Toyota', 'Camry', 1500, PH.pads, 'Тормозная система', 12],
+  ['Двигатель 2AR-FE 2.5 контрактный', '19000-36380', 'Toyota', 'Camry', 165000, PH.engine2ar, 'Двигатель', 1],
+  ['Двигатель 2GR-FE 3.5 контрактный', '19000-31D20', 'Lexus', 'RX', 230000, PH.engineV6, 'Двигатель', 1],
+  ['Двигатель M54B30 3.0 контрактный', '11000304265', 'BMW', 'X5', 145000, PH.engineBmw, 'Двигатель', 0],
+  ['Амортизатор передний Prado 150', '48510-69675', 'Toyota', 'Land Cruiser Prado', 7800, PH.shock, 'Подвеска', 4],
+  ['Амортизатор передний (дубликат)', '48510-69675-D', 'Toyota', 'Land Cruiser Prado', 4200, PH.shock, 'Подвеска', 6],
+  ['Рычаг передний нижний левый Fit', '51360-TF0-J01', 'Honda', 'Fit', 4600, 'arm', 'Подвеска', 3],
+  ['Рычаг передний нижний (дубликат)', '51360-TF0-J01-D', 'Honda', 'Fit', 2500, 'arm', 'Подвеска', 5],
+  ['Пневмобаллон задний W213', 'A2133200725', 'Mercedes-Benz', 'E-Class', 18000, PH.airSpring, 'Подвеска', 2],
+  ['Пневмостойка передняя в сборе', '9011200100', 'Zeekr', '001', 52000, PH.airStrut, 'Подвеска', 1],
+  ['Радиатор охлаждения основной', '17118654769', 'BMW', 'X5', 26000, PH.radiator, 'Система охлаждения', 2],
+  ['Радиатор охлаждения (дубликат)', '16400-0H220-D', 'Toyota', 'Camry', 8500, PH.radiator, 'Система охлаждения', 3],
+  ['Генератор 65A Matiz / Spark', '96567255', 'Daewoo', 'Matiz', 5500, PH.alternator, 'Электрика', 7],
+  ['Стартер редукторный Нива', '5722.3708', 'Lada', 'Нива 4x4', 4900, PH.starter, 'Электрика', 10],
+  ['Вариатор CVT Fit GE8 контрактный', '20031-RPC-000', 'Honda', 'Fit', 58000, PH.cvt, 'Трансмиссия', 2],
+  ['Турбина Garrett Santa Fe 2.2 CRDi', '28231-2F700', 'Hyundai', 'Santa Fe', 39000, PH.turbo, 'Двигатель', 2],
+  // Photos from Wikimedia Commons (scripts/photos/part-photos.mjs), credited on the part page
+  ['Стойка стабилизатора передняя', '48820-33070', 'Toyota', 'Camry', 900, 'stabilizer', 'Подвеска', 14],
+  ['Ступица передняя в сборе с подшипником', '43550-0R010', 'Toyota', 'RAV4', 7400, 'hub', 'Подвеска', 3],
+  ['Свечи зажигания (4 шт)', '90919-01253', 'Toyota', 'Camry', 2400, 'sparkplug', 'Двигатель', 9],
+  ['Колодки тормозные задние', '04466-48090', 'Lexus', 'RX', 2600, 'pads', 'Тормозная система', 6],
+  ['Рычаг передний нижний левый', '54500-A6000', 'Kia', 'Ceed', 5200, 'arm', 'Подвеска', 4],
+  ['Пыльник ШРУСа наружный (комплект)', '04438-33150', 'Toyota', 'Camry', 850, 'cvboot', 'Трансмиссия', 20],
+  ['Привод (полуось) с ШРУСом', '43410-33320', 'Toyota', 'Camry', 9800, 'cvjoint', 'Трансмиссия', 2],
+  ['Наконечник рулевой тяги', '45046-09550', 'Toyota', 'Corolla', 1400, 'tierod', 'Подвеска', 8],
+  ['Комплект ремня ГРМ', '13568-09130', 'Toyota', 'Corolla', 4300, 'pump', 'Двигатель', 3],
+  ['Ремень генератора поликлиновой', '90916-02671', 'Toyota', 'Land Cruiser Prado', 1300, 'belt', 'Двигатель', 11],
+  ['Катушка зажигания', '90919-02240', 'Toyota', 'Corolla', 3100, 'coil', 'Электрика', 5],
+  ['Генератор 90A восстановленный', '27060-0H160', 'Toyota', 'Camry', 9500, 'alternator', 'Электрика', 2],
+  ['Стартер 1.4 кВт', '28100-0D110', 'Toyota', 'Corolla', 7600, 'starter', 'Электрика', 3],
+  ['Аккумулятор 55 Ач 460 А', 'AKB-55-460', 'Toyota', 'Corolla', 7900, 'battery', 'Электрика', 6],
+  ['Фильтр воздушный', '17801-0V020', 'Toyota', 'RAV4', 750, 'airfilter', 'Масла и фильтры', 15],
+  ['Зеркало боковое правое', '87910-33C60', 'Toyota', 'Camry', 7200, 'mirror', 'Кузов', 2],
+  ['Фара противотуманная левая', '4M5J-15K202', 'Ford', 'Focus', 3900, 'foglight', 'Оптика', 4],
 ];
-const PHOTOS = ['/parts/wm-01.jpg', '/parts/wm-02.jpg', '/parts/wm-03.jpg', '/parts/wm-10.jpg', '/parts/wm-15.jpg'];
-const MORE_PARTS = STOCK.flatMap(([title, oem, brand, price, model], i) => [0, 1].map((k) => part(
-  `demo-s${i}-${k}`, k ? `${title} (дубликат)` : title, k ? `${oem}-D` : oem, k ? Math.round(price * 0.6) : price,
-  (i * 7 + k * 3) % 9 === 0 ? 0 : ((i + k) % 5) + 1, (i + k) % 11 === 4 ? null : PHOTOS[(i + k) % PHOTOS.length],
-  { brand, model, condition: k ? 'Дубликат (OEM)' : 'Новый (Оригинал)', views: (i * 13 + k * 7) % 90, contactsCount: (i + k) % 6, createdAt: day(i + k) },
-)));
+const commons = COMMONS as Record<string, { src: string; author: string; license: string; url: string }>;
+const MORE_PARTS = STOCK.map(([title, oem, brand, model, price, photo, category, stock], i) => part(
+  `demo-s${i}`, title, oem, price, stock, photo && commons[photo] ? commons[photo].src : photo,
+  { brand, model, category,
+    photoCredit: photo && commons[photo] ? { author: commons[photo].author, license: commons[photo].license, url: commons[photo].url } : undefined, generation: '', condition: /дубликат/i.test(title) ? 'Дубликат (OEM)' : /контрактн/i.test(title) ? 'Б/у (Контрактный)' : 'Новый (Оригинал)',
+    views: (i * 13) % 90 + 3, contactsCount: i % 6, createdAt: day(i * 0.7 + 1) },
+));
 
 const demoListings = {
   parts: [
     part('demo-p1', 'Колодки тормозные передние Camry 70', '04465-33471', 2800, 6, '/parts/wm-02.jpg', { views: 112, contactsCount: 9 }),
-    part('demo-p2', 'Фара левая LED Camry 70', '81150-33K10', 18500, 1, '/parts/wm-01.jpg', { category: 'Оптика', views: 64 }),
+    part('demo-p2', 'Фара левая LED Camry 70', '81150-33K10', 18500, 1, '/parts/demo/projector.jpg', { category: 'Оптика', views: 64 }),
     part('demo-p3', 'Амортизатор передний правый', '48510-80000', 3200, 4, null, { category: 'Подвеска', views: 0, contactsCount: 0 }),
-    part('demo-p4', 'Фильтр масляный оригинал', '90915-YZZE1', 650, 0, '/parts/wm-10.jpg', { category: 'Масла и фильтры', views: 23 }),
-    part('demo-p5', 'Радиатор кондиционера', '88460-06380', 9500, 2, '/parts/wm-15.jpg', { moderation: { status: 'pending' }, views: 0, contactsCount: 0 }),
+    part('demo-p4', 'Генератор 90A Camry 2.5', '27060-36070', 12500, 0, '/parts/wm-14.jpg', { category: 'Электрика', views: 23 }),
+    part('demo-p5', 'Радиатор охлаждения Camry 70', '16400-F0010', 11500, 2, 'https://images.unsplash.com/photo-1760804462190-82832c8eb582?auto=format&fit=crop&w=600&q=80', { category: 'Система охлаждения', moderation: { status: 'pending' }, views: 0, contactsCount: 0 }),
     ...MORE_PARTS,
   ],
   cars: [],

@@ -394,7 +394,7 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
                     <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} aria-label="Выбрать" className="w-4 h-4 accent-[#1d6fb8]" />
 
                     {item.image ? (
-                      <img src={item.image} alt="" loading="lazy" className="w-16 h-12 object-cover rounded-md bg-slate-100" />
+                      <img src={item.image} alt="" loading="lazy" title={isPart(r) && r.item.photoCredit ? `Фото: ${r.item.photoCredit.author}, ${r.item.photoCredit.license}, Wikimedia Commons` : undefined} className="w-16 h-12 object-cover rounded-md bg-slate-100" />
                     ) : (
                       <button type="button" onClick={() => addPhotos(r)} disabled={isBusy} className="w-16 h-12 rounded-md border-2 border-dashed border-amber-300 bg-amber-50 text-amber-700 flex items-center justify-center cursor-pointer hover:bg-amber-100" title="Добавить фото">
                         {isBusy ? <Loader2 size={16} className="animate-spin" /> : <Camera size={18} />}

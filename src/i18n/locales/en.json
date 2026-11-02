@@ -3554,5 +3554,6 @@
  "Поиск: название или OEM-номер": "Search: name or OEM number",
  "Фильтры": "Filters",
  "Это демо-кабинет: изменения не сохраняются. Зарегистрируйтесь, чтобы пользоваться по-настоящему.": "This is a demo account: changes are not saved. Register to use it for real.",
- "Демо-кабинет покупателя: данные выдуманы, изменения не сохраняются.": "Demo buyer account: the data is made up and changes are not saved."
+ "Демо-кабинет покупателя: данные выдуманы, изменения не сохраняются.": "Demo buyer account: the data is made up and changes are not saved.",
+ "Фото: {}, {}, Wikimedia Commons": "Photo: {}, {}, Wikimedia Commons"
 }
