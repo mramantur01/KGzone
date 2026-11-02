@@ -90,7 +90,7 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
             </div>
             {seller.shop?.about && <p className="mt-3 text-sm text-slate-700 whitespace-pre-wrap" data-no-i18n>{seller.shop.about}</p>}
           </div>
-          <button type="button" onClick={share} className="px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer">
+          <button type="button" onClick={share} className="order-last sm:order-none w-full sm:w-auto justify-center px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer">
             <Share2 size={15} /><span>{copied ? 'Ссылка скопирована' : 'Поделиться'}</span>
           </button>
         </div>

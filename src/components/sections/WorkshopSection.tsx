@@ -549,7 +549,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
                     <input
                       type="text"
                       required
-                      placeholder="Амантур"
+                      placeholder="Ваше имя"
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
                       className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-[#C8102E]"

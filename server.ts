@@ -450,7 +450,7 @@ const seedBookings: any[] = [
     date: 'Завтра',
     timeSlot: '11:00',
     carBrandModel: 'Toyota Camry 70',
-    clientName: 'Амантур Беков',
+    clientName: 'Пример клиента',
     clientPhone: '+996 555 123 456',
     paymentMethod: 'mbank',
     status: 'Подтверждено',
@@ -2503,7 +2503,9 @@ async function seoPageFor(pathname: string): Promise<SeoPage | null> {
 
   if ((m = p.match(/^\/magazin\/([^/]+)$/))) {
     const seller = await getRecord<UserRecord>('users', m[1]);
-    if (!seller || seller.blocked) return null;
+    if (!seller || seller.blocked) {
+      return { title: 'Магазин не найден | KGzone', description: 'Магазин закрыт или не существует.', path: p, body: '<h1>Магазин не найден</h1><p><a href="/zapchasti" style="color:#fbbf24">Все автозапчасти</a></p>', structured: [], status: 404, noindex: true };
+    }
     const name = seller.company?.name || seller.name;
     const parts = (await liveParts()).filter((x: any) => x.ownerId === seller.id);
     const where = [seller.shop?.market, seller.shop?.container, seller.city].filter(Boolean).join(', ');
@@ -2666,6 +2668,8 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
     ...['/sto', '/akcii', '/faq', '/otzyvy', '/novosti', '/pravila', '/konfidencialnost'].map((loc) => ({ loc, priority: '0.5' })),
     ...parts.map((p: any) => ({ loc: partUrl(p), lastmod: day(p.updatedAt || p.raisedAt || p.createdAt), priority: '0.6' })),
     ...cars.map((c: any) => ({ loc: carUrl(c), lastmod: day(c.updatedAt || c.raisedAt || c.createdAt), priority: '0.6' })),
+    // Shop pages of sellers with items in stock
+    ...[...new Set(parts.map((p: any) => p.ownerId).filter(Boolean))].map((id) => ({ loc: `/magazin/${encodeURIComponent(String(id))}`, priority: '0.6' })),
   ];
   const xml =
     '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
