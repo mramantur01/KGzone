@@ -302,28 +302,30 @@ export const Header: React.FC<HeaderProps> = ({
                 setActiveTab('cabinet');
               }
             }}
-            className={`flex items-center gap-2.5 sm:gap-3 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl border transition-all cursor-pointer group shrink-0 ${
-              activeTab === 'cabinet'
-                ? 'bg-neutral-900 border-amber-400 ring-2 ring-amber-400/30 shadow-lg'
-                : 'bg-neutral-900 hover:bg-neutral-800 border-neutral-700 hover:border-neutral-500 shadow-sm'
+            className={`relative flex items-center gap-2 h-9 rounded-lg border transition-colors cursor-pointer shrink-0 ${userName ? 'pl-1 pr-1 sm:pr-3' : 'px-3'} ${
+              activeTab === 'cabinet' ? 'bg-neutral-800 border-amber-400' : 'bg-transparent hover:bg-neutral-800 border-neutral-700 hover:border-neutral-500'
             }`}
-            title="Личный кабинет"
+            title={userName ? 'Личный кабинет' : 'Войти или зарегистрироваться'}
           >
-            {/* Желтый / золотой контурный значок пользователя */}
-            <span className="relative shrink-0">
-              <User size={20} className="text-amber-400 group-hover:scale-105 transition-transform" strokeWidth={1.8} />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-black leading-4 text-center" title="Новые сообщения">
-                  {unreadCount > 9 ? '9+' : unreadCount}
+            {userName ? (
+              <>
+                {/* Signed in: first letter in a circle + first name */}
+                <span className="w-7 h-7 rounded-full bg-amber-400 text-neutral-950 text-sm font-black flex items-center justify-center shrink-0" data-no-i18n>
+                  {userName.trim().charAt(0).toUpperCase()}
                 </span>
-              )}
-            </span>
-
-            {/* Две строки: Личный \n кабинет жирным белым шрифтом */}
-            <div className="flex flex-col text-left leading-[1.15]">
-              <span className="text-white font-black text-xs sm:text-sm tracking-tight max-w-[110px] truncate" data-no-i18n={userName ? '' : undefined}>{userName ? userName.split(' ')[0] : 'Войти'}</span>
-              <span className="text-white font-black text-xs sm:text-sm tracking-tight">{userName ? 'Кабинет' : 'Регистрация'}</span>
-            </div>
+                <span className="hidden sm:inline text-white font-bold text-sm max-w-[110px] truncate" data-no-i18n>{userName.split(' ')[0]}</span>
+              </>
+            ) : (
+              <>
+                <User size={17} className="text-amber-400 shrink-0" strokeWidth={2} />
+                <span className="text-white font-bold text-sm">Войти</span>
+              </>
+            )}
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-black leading-4 text-center" title="Новые сообщения">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
 
           {/* Избранное */}
@@ -454,11 +456,8 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'bg-neutral-900 border-neutral-800 text-white hover:bg-neutral-800'
               }`}
             >
-              <User size={22} className="text-amber-400 shrink-0" strokeWidth={1.8} />
-              <div className="flex flex-col text-left leading-[1.15]">
-                <span className="text-white font-black text-sm tracking-tight">{userName ? 'Личный' : 'Войти /'}</span>
-                <span className="text-white font-black text-sm tracking-tight">{userName ? 'кабинет' : 'Регистрация'}</span>
-              </div>
+              <User size={20} className="text-amber-400 shrink-0" strokeWidth={1.8} />
+              <span className="text-white font-bold text-sm">{userName ? 'Личный кабинет' : 'Войти или зарегистрироваться'}</span>
             </button>
 
             {/* Панель управления сайтом в мобильном меню */}
