@@ -495,7 +495,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans selection:bg-[#C8102E] selection:text-white">
       {isDemoCabinet() && (
         <div className="sticky top-0 z-[60] bg-amber-400 text-neutral-950 text-xs sm:text-sm font-bold px-4 py-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
-          <span>{demoCabinetMode() === 'buyer' ? 'Демо-кабинет покупателя: данные выдуманы, изменения не сохраняются.' : 'Демо-кабинет продавца: данные выдуманы, изменения не сохраняются.'}</span>
+          <span>{demoCabinetMode() === 'company' ? 'Демо-кабинет компании (юрлицо): данные выдуманы, изменения не сохраняются.' : 'Демо-кабинет продавца: данные выдуманы, изменения не сохраняются.'}</span>
           <button type="button" onClick={() => exitDemoCabinet()} className="underline cursor-pointer">Выйти из демо</button>
         </div>
       )}

@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ListChecks, Heart, History, Building2, UserCog, ShieldCheck, Users,
+  ListChecks, Heart, History, Building2, Contact, UserCog, ShieldCheck, Users,
   LogOut, Loader2, Trash2, Search, MessageSquare, Upload, Settings, Crown, Menu, X,
 } from 'lucide-react';
 import { call } from '../../api/admin';
 import { MyImportPanel } from './MyImportPanel';
 import { MessagesPanel } from '../chat/MessagesPanel';
 import { CompanyCabinet } from '../company/CompanyCabinet';
+import { CompanyCrm } from '../company/CompanyCrm';
 import { useCompany } from '../../api/company';
 import { useUnreadMessages } from '../../api/chat';
 import type { AutoPartItem, Car } from '../../types/car';
@@ -53,7 +54,7 @@ interface Props {
   onFindParts: (preset: PartsSearchPreset) => void;
 }
 
-type Section = 'business' | 'messages' | 'listings' | 'requests' | 'import' | 'favorites' | 'history' | 'company' | 'profile' | 'moderation' | 'users';
+type Section = 'business' | 'crm' | 'messages' | 'listings' | 'requests' | 'import' | 'favorites' | 'history' | 'company' | 'profile' | 'moderation' | 'users';
 
 const card = 'p-4 sm:p-5 rounded-2xl bg-white border border-slate-200';
 const inputCls = 'w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#C8102E] focus:outline-hidden';
@@ -156,6 +157,8 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const nav: NavItem[] = [
     { id: 'listings', label: 'Мои объявления', icon: ListChecks, badge: myCount || undefined, muted: true },
     { id: 'messages', label: 'Сообщения', icon: MessageSquare, badge: unreadMessages || undefined },
+    // Companies: CRM with clients from chats and orders
+    ...(biz.info && (biz.info.permissions.includes('messages') || biz.info.permissions.includes('orders.view')) ? [{ id: 'crm' as Section, label: 'Клиенты (CRM)', icon: Contact }] : []),
     { id: 'requests', label: 'Заявки покупателей', icon: Search, badge: requestsCount || undefined },
     biz.info ? { id: 'business', label: 'Бизнес-кабинет', icon: Building2 } : { id: 'import', label: 'Загрузить прайс', icon: Upload },
     ...(isLegal ? [{ id: 'company' as Section, label: 'Данные компании', icon: Building2 }] : []),
@@ -239,6 +242,8 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
         <main className="lg:col-span-9 space-y-4 min-w-0">
           {section === 'messages' && <MessagesPanel />}
+
+          {section === 'crm' && biz.info && <CompanyCrm info={biz.info} onOpenMessages={() => setSection('messages')} />}
 
           {section === 'business' && biz.info && (
             <CompanyCabinet info={biz.info} onChanged={biz.reload} onOpenMessages={() => setSection('messages')} />
@@ -470,9 +475,9 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
       {/* Phone: bottom tab bar (like an app) + "Ещё" sheet with the rest of the menu */}
       {(() => {
-        const primaryIds: Section[] = ['listings', 'messages', 'requests', biz.info ? 'business' : 'import'];
+        const primaryIds: Section[] = ['listings', 'messages', biz.info ? 'crm' : 'requests', biz.info ? 'business' : 'import'];
         const short: Partial<Record<Section, string>> = {
-          listings: 'Товары', messages: 'Сообщения', requests: 'Заявки', import: 'Прайс', business: 'Бизнес',
+          listings: 'Товары', messages: 'Сообщения', crm: 'Клиенты', requests: 'Заявки', import: 'Прайс', business: 'Бизнес',
           favorites: 'Избранное',
         };
         const all = [...nav, ...buyerExtras];

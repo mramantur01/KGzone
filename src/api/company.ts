@@ -108,3 +108,32 @@ export const setCompanyOrderStatus = (id: string, status: string) =>
 
 export const getCompanyStats = () => call<any>('/api/company/stats');
 export const getCompanyAudit = () => call<{ entries: any[] }>('/api/company/audit').then((r) => r.entries);
+
+// ---- CRM: clients from chats, orders and added by hand ----
+export type CrmStage = 'new' | 'work' | 'waiting' | 'won' | 'lost';
+export const CRM_STAGE_LABELS: Record<CrmStage, string> = { new: 'Новый', work: 'В работе', waiting: 'Ждёт оплату', won: 'Продано', lost: 'Отказ' };
+export interface CrmClient {
+  id: string;
+  source: 'chat' | 'order' | 'manual';
+  name: string;
+  phone: string;
+  interest: string;
+  stage: CrmStage;
+  amountKgs: number;
+  note: string;
+  nextAt: string;
+  managerId: string;
+  managerName: string;
+  conversationId?: string;
+  orderId?: string;
+  log: { at: string; by: string; text: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+export interface CrmTeamMember { id: string; name: string }
+export const listCrm = () => call<{ clients: CrmClient[]; team: CrmTeamMember[] }>('/api/company/crm');
+export const addCrmClient = (c: Partial<CrmClient>) =>
+  call<{ client: CrmClient }>('/api/company/crm', { method: 'POST', body: JSON.stringify(c) }).then((r) => r.client);
+export const updateCrmClient = (id: string, patch: Partial<CrmClient> & { comment?: string }) =>
+  call<{ client: CrmClient }>(`/api/company/crm/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) }).then((r) => r.client);
+export const deleteCrmClient = (id: string) => call(`/api/company/crm/${encodeURIComponent(id)}`, { method: 'DELETE' });

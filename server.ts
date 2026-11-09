@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 // Each collection is a hash (id -> JSON document) plus a sorted set that keeps
 // newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
-type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews' | 'memberships' | 'partRequests' | 'watches' | 'searchMisses';
+type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews' | 'memberships' | 'partRequests' | 'watches' | 'searchMisses' | 'crm';
 
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -27,7 +27,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 
 const isDatabaseConnected = Boolean(redis);
 
-const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [] };
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [], crm: [] };
 let readyPromise: Promise<void> | null = null;
 
 const dataKey = (c: Collection) => `kgzone:${c}`;
@@ -139,7 +139,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make sure the DB table exists and is seeded before any API call touches it
 app.use('/api', (_req: Request, res: Response, next) => {
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [] })
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [], crm: [] })
     .then(() => next())
     .catch((err) => {
       console.error('[DB] init failed:', err);
@@ -2452,6 +2452,143 @@ app.get('/api/company/stats', requireCompany(), asyncRoute(async (req: Request, 
   });
 }));
 
+// --- CRM for companies: clients from chats and orders, deal stages, notes, call-back dates, managers ---
+
+const CRM_STAGES = ['new', 'work', 'waiting', 'won', 'lost'] as const;
+type CrmStage = (typeof CRM_STAGES)[number];
+interface CrmClient {
+  id: string;
+  companyId: string;
+  /** chat:<conversation id>, order:<order id> or manual:<uuid> — one client card per source */
+  key: string;
+  source: 'chat' | 'order' | 'manual';
+  name: string;
+  phone: string;
+  interest: string;
+  stage: CrmStage;
+  amountKgs: number;
+  note: string;
+  nextAt: string; // YYYY-MM-DD, call back / follow-up date
+  managerId: string;
+  managerName: string;
+  conversationId?: string;
+  orderId?: string;
+  log: { at: string; by: string; text: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+const canCrm = (ctx: CompanyContext) => ctx.can('messages') || ctx.can('orders.view');
+const crmOf = async (companyId: string) => (await listRecords<CrmClient>('crm')).filter((c) => c.companyId === companyId);
+
+// New chats and orders become client cards automatically
+async function syncCrm(ctx: CompanyContext): Promise<CrmClient[]> {
+  const existing = await crmOf(ctx.companyId);
+  const keys = new Set(existing.map((c) => c.key));
+  const now = new Date().toISOString();
+  const fresh: CrmClient[] = [];
+  const base = { companyId: ctx.companyId, stage: 'new' as CrmStage, note: '', nextAt: '', managerId: '', managerName: '', log: [], updatedAt: now };
+  for (const c of (await listRecords<Conversation>('conversations')).filter((x) => x.sellerId === ctx.companyId)) {
+    if (keys.has(`chat:${c.id}`)) continue;
+    fresh.push({ ...base, id: `crm-${randomUUID()}`, key: `chat:${c.id}`, source: 'chat', name: c.buyerName || 'Покупатель', phone: '', interest: c.listingTitle, amountKgs: 0, conversationId: c.id, createdAt: c.messages?.[0]?.at || now });
+  }
+  if (ctx.can('orders.view')) {
+    for (const o of await companyOrders(ctx.companyId)) {
+      if (keys.has(`order:${o.id}`)) continue;
+      const stage: CrmStage = o.status === 'Выполнен' ? 'won' : o.status === 'Отменен' ? 'lost' : 'work';
+      fresh.push({ ...base, id: `crm-${randomUUID()}`, key: `order:${o.id}`, source: 'order', stage, name: o.customerName || 'Покупатель', phone: o.customerPhone || '', interest: `${o.partTitle} (заказ ${o.orderNumber})`, amountKgs: o.priceKgs || 0, orderId: o.id, createdAt: now });
+    }
+  }
+  for (const c of fresh) await insertRecord('crm', c);
+  return [...existing, ...fresh];
+}
+
+async function crmTeam(ctx: CompanyContext) {
+  const members = (await listRecords<Membership>('memberships')).filter((m) => m.companyId === ctx.companyId);
+  const users = await Promise.all(members.map((m) => getRecord<UserRecord>('users', m.userId)));
+  return [{ id: ctx.owner.id, name: ctx.owner.name }, ...users.filter(Boolean).map((u) => ({ id: u!.id, name: u!.name }))];
+}
+
+app.get('/api/company/crm', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  if (!canCrm(ctx)) return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к клиентам' });
+  const clients = (await syncCrm(ctx)).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  // Phones from orders are shown only to roles that work with orders
+  const showPhones = ctx.can('orders.view');
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, clients: clients.map((c) => (showPhones || c.source === 'manual' ? c : { ...c, phone: '' })), team: await crmTeam(ctx), stages: CRM_STAGES });
+}));
+
+const crmFields = (b: any, team: { id: string; name: string }[]) => {
+  const out: Partial<CrmClient> = {};
+  if (b.name !== undefined) out.name = str(b.name, 100) || 'Клиент';
+  if (b.phone !== undefined) out.phone = str(b.phone, 30);
+  if (b.interest !== undefined) out.interest = str(b.interest, 200);
+  if (b.note !== undefined) out.note = str(b.note, 2000);
+  if (b.stage !== undefined && CRM_STAGES.includes(b.stage)) out.stage = b.stage;
+  if (b.amountKgs !== undefined) out.amountKgs = Math.max(0, Math.min(100_000_000, Math.round(Number(b.amountKgs) || 0)));
+  if (b.nextAt !== undefined) out.nextAt = /^\d{4}-\d{2}-\d{2}$/.test(String(b.nextAt)) ? String(b.nextAt) : '';
+  if (b.managerId !== undefined) {
+    const m = team.find((t) => t.id === b.managerId);
+    out.managerId = m?.id || '';
+    out.managerName = m?.name || '';
+  }
+  return out;
+};
+const STAGE_NAMES: Record<CrmStage, string> = { new: 'Новый', work: 'В работе', waiting: 'Ждёт оплату', won: 'Продано', lost: 'Отказ' };
+
+app.post('/api/company/crm', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const user: UserRecord = (req as any).user;
+  if (!canCrm(ctx)) return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к клиентам' });
+  if ((await crmOf(ctx.companyId)).length >= 5000) return res.status(400).json({ success: false, error: 'Слишком много клиентов' });
+  const now = new Date().toISOString();
+  const fields = crmFields(req.body || {}, await crmTeam(ctx));
+  const client: CrmClient = {
+    id: `crm-${randomUUID()}`, companyId: ctx.companyId, key: `manual:${randomUUID()}`, source: 'manual',
+    name: 'Клиент', phone: '', interest: '', stage: 'new', amountKgs: 0, note: '', nextAt: '', managerId: '', managerName: '',
+    ...fields, log: [{ at: now, by: user.name, text: 'Клиент добавлен вручную' }], createdAt: now, updatedAt: now,
+  };
+  await insertRecord('crm', client);
+  await companyAudit(ctx, user, 'crm-add', client.id, { name: client.name });
+  res.status(201).json({ success: true, client });
+}));
+
+app.patch('/api/company/crm/:id', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const user: UserRecord = (req as any).user;
+  if (!canCrm(ctx)) return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к клиентам' });
+  const current = await getRecord<CrmClient>('crm', req.params.id);
+  if (!current || current.companyId !== ctx.companyId) return res.status(404).json({ success: false, error: 'Клиент не найден' });
+  const fields = crmFields(req.body || {}, await crmTeam(ctx));
+  const now = new Date().toISOString();
+  const changes: string[] = [];
+  if (fields.stage && fields.stage !== current.stage) changes.push(`Этап: ${STAGE_NAMES[current.stage]} → ${STAGE_NAMES[fields.stage]}`);
+  if (fields.managerId !== undefined && fields.managerId !== current.managerId) changes.push(fields.managerName ? `Ответственный: ${fields.managerName}` : 'Ответственный снят');
+  if (fields.nextAt !== undefined && fields.nextAt !== current.nextAt && fields.nextAt) changes.push(`Связаться: ${fields.nextAt.split('-').reverse().join('.')}`);
+  if (fields.amountKgs !== undefined && fields.amountKgs !== current.amountKgs) changes.push(`Сумма: ${fields.amountKgs.toLocaleString('ru-RU')} сом`);
+  const comment = str(req.body?.comment, 1000);
+  if (comment) changes.push(`💬 ${comment}`);
+  const log = [...changes.map((text) => ({ at: now, by: user.name, text })), ...(current.log || [])].slice(0, 100);
+  const prevManager = current.managerId; // read before the update (the in-memory store edits in place)
+  const updated = await updateRecord<CrmClient>('crm', current.id, { ...fields, log, updatedAt: now });
+  // The assigned manager gets a notice in the bell
+  if (fields.managerId && fields.managerId !== prevManager && fields.managerId !== user.id) {
+    await notifyUser(fields.managerId, `📇 Вам передан клиент «${updated!.name}»${updated!.interest ? `: ${updated!.interest}` : ''}. Откройте «Клиенты» в кабинете.`);
+  }
+  res.json({ success: true, client: updated });
+}));
+
+app.delete('/api/company/crm/:id', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  if (!ctx.can('orders') && !ctx.can('company.edit')) return res.status(403).json({ success: false, error: 'У вашей роли нет права удалять клиентов' });
+  const current = await getRecord<CrmClient>('crm', req.params.id);
+  if (!current || current.companyId !== ctx.companyId) return res.status(404).json({ success: false, error: 'Клиент не найден' });
+  if (current.source !== 'manual') return res.status(400).json({ success: false, error: 'Клиента из переписки или заказа нельзя удалить — переведите его в «Отказ».' });
+  await deleteRecord('crm', current.id);
+  await companyAudit(ctx, (req as any).user, 'crm-delete', current.id, { name: current.name });
+  res.json({ success: true });
+}));
+
 app.get('/api/company/audit', requireCompany('audit'), asyncRoute(async (req: Request, res: Response) => {
   const ctx: CompanyContext = (req as any).company;
   res.json({ success: true, entries: (await listRecords('audit')).filter((a: any) => a.companyId === ctx.companyId).slice(0, 300) });
@@ -2656,7 +2793,7 @@ const conditionSchema = (c: string) =>
 
 // Page requests do not pass the /api middleware, so make sure the store is ready here
 const seoStoreReady = () =>
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [] });
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [], crm: [] });
 
 const liveParts = async () => (await listRecords('parts')).filter(isPublicPart);
 const liveCars = async () => (await listRecords('cars')).filter(isLive);
@@ -3641,7 +3778,7 @@ app.patch('/api/admin/reports/:id', requireAdmin, asyncRoute(async (req: Request
 
 // Real backups: everything in the database as one JSON file.
 // Staff download it in the cabinet; a daily Vercel cron sends it to the owner's Telegram.
-const ALL_COLLECTIONS: Collection[] = ['orders', 'bookings', 'reviews', 'parts', 'cars', 'reports', 'users', 'audit', 'conversations', 'sellerReviews', 'memberships', 'partRequests', 'watches', 'searchMisses'];
+const ALL_COLLECTIONS: Collection[] = ['orders', 'bookings', 'reviews', 'parts', 'cars', 'reports', 'users', 'audit', 'conversations', 'sellerReviews', 'memberships', 'partRequests', 'watches', 'searchMisses', 'crm'];
 async function makeBackup() {
   const collections: Record<string, any[]> = {};
   for (const c of ALL_COLLECTIONS) collections[c] = await listRecords(c);
