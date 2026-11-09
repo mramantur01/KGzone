@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Phone, PhoneCall, MessageSquare, ShoppingBag, UserPlus, X, Loader2, Trash2, LayoutGrid, List, Download } from 'lucide-react';
+import { Plus, Search, Phone, PhoneCall, MessageSquare, ShoppingBag, UserPlus, X, Loader2, Trash2, LayoutGrid, List, Download, FileText } from 'lucide-react';
 import { useAuth } from '../../api/auth';
+import { InvoiceModal, type DocKind } from './InvoiceModal';
 import {
   CRM_STAGE_LABELS, addCrmClient, deleteCrmClient, listCrm, updateCrmClient,
   type CompanyInfo, type CrmClient, type CrmStage, type CrmTeamMember,
@@ -221,6 +222,7 @@ export const CompanyCrm: React.FC<{ info: CompanyInfo; onOpenMessages: () => voi
 
       {editing && (
         <ClientEditor
+          info={info}
           client={editing === 'new' ? null : editing}
           team={team}
           canDelete={info.permissions.includes('orders') || info.permissions.includes('company.edit')}
@@ -235,6 +237,7 @@ export const CompanyCrm: React.FC<{ info: CompanyInfo; onOpenMessages: () => voi
 };
 
 const ClientEditor: React.FC<{
+  info: CompanyInfo;
   client: CrmClient | null;
   team: CrmTeamMember[];
   canDelete: boolean;
@@ -242,7 +245,8 @@ const ClientEditor: React.FC<{
   onSaved: (c: CrmClient) => void;
   onDeleted: (id: string) => void;
   onOpenMessages: () => void;
-}> = ({ client, team, canDelete, onClose, onSaved, onDeleted, onOpenMessages }) => {
+}> = ({ info, client, team, canDelete, onClose, onSaved, onDeleted, onOpenMessages }) => {
+  const [doc, setDoc] = useState<DocKind | null>(null);
   const [f, setF] = useState({
     name: client?.name || '', phone: client?.phone || '', interest: client?.interest || '', stage: client?.stage || 'new' as CrmStage,
     amountKgs: client?.amountKgs ? String(client.amountKgs) : '', nextAt: client?.nextAt || '', managerId: client?.managerId || '', note: client?.note || '',
@@ -252,7 +256,7 @@ const ClientEditor: React.FC<{
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF((v) => ({ ...v, [k]: e.target.value }));
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('[data-invoice-modal]')) onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -325,6 +329,13 @@ const ClientEditor: React.FC<{
               <input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Например: позвонил, приедет в субботу" className={inputCls} data-no-i18n />
             </div>
           )}
+          {client && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setDoc('invoice')} className="px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-sm font-bold text-slate-700 inline-flex items-center gap-1.5 cursor-pointer"><FileText size={14} />Счёт на оплату</button>
+              <button type="button" onClick={() => setDoc('waybill')} className="px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-sm font-bold text-slate-700 inline-flex items-center gap-1.5 cursor-pointer"><FileText size={14} />Накладная</button>
+            </div>
+          )}
+          {doc && <InvoiceModal info={info} kind={doc} buyer={f.name} lines={f.interest ? [{ name: f.interest, qty: '1', price: f.amountKgs }] : []} onClose={() => setDoc(null)} />}
           {client?.source === 'chat' && (
             <button type="button" onClick={() => { onClose(); onOpenMessages(); }} className="text-sm font-bold text-[#1d6fb8] hover:underline cursor-pointer inline-flex items-center gap-1"><MessageSquare size={14} />Открыть переписку</button>
           )}

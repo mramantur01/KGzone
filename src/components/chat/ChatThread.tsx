@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Send, Loader2, AlertTriangle } from 'lucide-react';
 import { getConversation, sendMessage, type ChatMessage } from '../../api/chat';
+import { call } from '../../api/admin';
+
+// Company reply templates (set in the business cabinet), loaded once per page
+let companyTemplates: Promise<string[]> | null = null;
+const loadCompanyTemplates = () =>
+  (companyTemplates ||= call<{ settings: { replyTemplates: string[] } }>('/api/company/settings').then((r) => r.settings.replyTemplates || []).catch(() => []));
 
 // Typical prepayment-scam wording (KG): prepayment, card numbers, money transfer apps
 const SCAM_RE = /предоплат|аванс|задаток|переве(ди|дите|сти)|скин(ь|ьте) (деньги|сумму|на карту)|номер карт|на карту|мбанк|mbank|элсом|о!? ?деньги|optima|оптима|kompanion|компаньон|d{4}[ -]?d{4}[ -]?d{4}[ -]?d{4}/i;
@@ -20,6 +26,8 @@ export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; clas
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<'buyer' | 'seller' | null>(null);
+  const [templates, setTemplates] = useState<string[]>([]);
+  useEffect(() => { if (role === 'seller') loadCompanyTemplates().then(setTemplates); }, [role]);
   const listRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -91,8 +99,8 @@ export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; clas
       )}
       {role && (
         <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
-          {QUICK[role].map((q) => (
-            <button key={q} type="button" onClick={() => setText(q)} className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer whitespace-nowrap ${dark ? 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{q}</button>
+          {[...(role === 'seller' ? templates : []), ...QUICK[role]].map((q) => (
+            <button key={q} type="button" onClick={() => setText(q)} title={q} className={`shrink-0 max-w-[240px] truncate px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer whitespace-nowrap ${dark ? 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{q}</button>
           ))}
         </div>
       )}

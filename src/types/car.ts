@@ -136,9 +136,14 @@ export interface AutoPartItem {
   manufacturer?: string;
   warehouseId?: string;
   oldPriceKgs?: number;
+  /** Wholesale price from N pieces (companies) */
+  wholesalePriceKgs?: number;
+  wholesaleMinQty?: number;
   /** Registered seller (database listings only) */
   sellerId?: string;
   sellerVerified?: boolean;
+  /** Company with checked documents: "Официальная компания" */
+  sellerOfficial?: boolean;
   sellerLastSeen?: string;
   sellerRating?: number;
   sellerReviewsCount?: number;

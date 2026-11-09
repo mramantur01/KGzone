@@ -276,6 +276,10 @@ interface OrderRecord {
   deliveryAddress: string;
   status: 'Новый' | 'В обработке' | 'Готов к выдаче' | 'Выполнен' | 'Отменен';
   comment?: string;
+  /** "offline": a sale at the market recorded in the company cash desk */
+  source?: 'offline';
+  qty?: number;
+  soldBy?: string;
 }
 
 const seedOrders: OrderRecord[] = [
@@ -721,6 +725,9 @@ function sanitizePart(body: any) {
     manufacturer: str(body.manufacturer, 60) || undefined,
     warehouseId: str(body.warehouseId, 60) || undefined,
     oldPriceKgs: (() => { const o = Math.round(num(body.oldPriceKgs, 0, 100_000_000)); return o > num(body.priceKgs, 0, 100_000_000) ? o : undefined; })(),
+    // Wholesale: a lower price from N pieces (companies)
+    wholesalePriceKgs: (() => { const w = Math.round(num(body.wholesalePriceKgs, 0, 100_000_000)); return w > 0 && w < num(body.priceKgs, 0, 100_000_000) ? w : undefined; })(),
+    wholesaleMinQty: (() => { const w = Math.round(num(body.wholesalePriceKgs, 0, 100_000_000)); return w > 0 && w < num(body.priceKgs, 0, 100_000_000) ? Math.round(num(body.wholesaleMinQty, 2, 10000)) || 2 : undefined; })(),
     sellerType: body.sellerType === 'legal' ? 'legal' : 'individual',
     companyName: str(body.companyName, 120) || undefined,
     inn: str(body.inn, 20).replace(/\D/g, '') || undefined,
@@ -746,13 +753,14 @@ const partProblem = (p: ReturnType<typeof sanitizePart>) => {
 };
 
 // Public: approved parts only, without moderation details
-const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>, seen?: Map<string, string>) => {
+const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>, seen?: Map<string, string>, companies?: Set<string>) => {
   const r = ownerId ? ratings?.get(ownerId) : undefined;
   return {
     ...part,
     sellerId: ownerId || undefined,
     sellerLastSeen: ownerId ? seen?.get(ownerId) : undefined,
     sellerVerified: Boolean(ownerId && verified?.has(ownerId)),
+    sellerOfficial: Boolean(ownerId && companies?.has(ownerId)),
     sellerRating: r ? Math.round((r.sum / r.count) * 10) / 10 : undefined,
     sellerReviewsCount: r?.count || 0,
   };
@@ -763,12 +771,15 @@ const isLive = (l: any) => l.moderation?.status === 'approved' && (l.listingStat
 const isPublicPart = (p: any) => isLive(p) && Number(p.stockCount) > 0 && Array.isArray(p.images) && p.images.length > 0;
 // Sellers with the crown: checked by an admin in person, or a company with verified documents
 const lastSeenMap = async () => new Map((await listRecords<UserRecord>('users')).filter((u) => u.lastSeenAt).map((u) => [u.id, u.lastSeenAt!]));
+// Companies with checked documents: "Официальная компания" badge and a higher place in the catalog
+const officialCompanies = async () =>
+  new Set((await listRecords<UserRecord>('users')).filter((u) => !u.blocked && u.accountType === 'legal' && u.company?.status === 'verified').map((u) => u.id));
 const verifiedOwners = async () =>
   new Set((await listRecords<UserRecord>('users')).filter((u) => !u.blocked && (u.verifiedSeller || u.company?.status === 'verified')).map((u) => u.id));
 
 app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
-  const [parts, verified, ratings, seen] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings(), lastSeenMap()]);
-  res.json({ success: true, parts: parts.filter(isPublicPart).map((p: any) => publicPart(p, verified, ratings, seen)) });
+  const [parts, verified, ratings, seen, companies] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings(), lastSeenMap(), officialCompanies()]);
+  res.json({ success: true, parts: parts.filter(isPublicPart).map((p: any) => publicPart(p, verified, ratings, seen, companies)) });
 }));
 
 // Seller submission -> moderation queue
@@ -1091,6 +1102,10 @@ interface ShopInfo {
   address: string;
   hours: string;
   mapUrl: string;
+  /** Companies: logo, banner and extra points of sale */
+  logoUrl?: string;
+  bannerUrl?: string;
+  branches?: { name: string; address: string; phone: string }[];
 }
 const sanitizeShop = (b: any): ShopInfo => {
   const mapUrl = str(b?.mapUrl, 300);
@@ -1101,10 +1116,35 @@ const sanitizeShop = (b: any): ShopInfo => {
     address: str(b?.address, 160),
     hours: str(b?.hours, 120),
     mapUrl: /^https:\/\/(2gis\.(kg|ru|com)|go\.2gis\.com|yandex\.(ru|kg|com)|maps\.app\.goo\.gl|www\.google\.com\/maps)\//i.test(mapUrl) ? mapUrl : '',
+    logoUrl: imageUrl(b?.logoUrl) || undefined,
+    bannerUrl: imageUrl(b?.bannerUrl) || undefined,
+    branches: (Array.isArray(b?.branches) ? b.branches : []).slice(0, 8)
+      .map((x: any) => ({ name: str(x?.name, 80), address: str(x?.address, 160), phone: str(x?.phone, 30) }))
+      .filter((x: any) => x.name || x.address),
   };
 };
 
+interface CompanySettings {
+  /** Discount for big orders, shown on the shop page and listings */
+  wholesale: { discountPct: number; fromKgs: number };
+  /** Google Sheets link with the price list; updated every night */
+  priceFeedUrl: string;
+  priceFeedAt?: string;
+  priceFeedResult?: string;
+  replyTemplates: string[];
+  /** Automatic reply outside working hours (Bishkek time) */
+  autoReply: { enabled: boolean; text: string; from: string; to: string };
+  lastBroadcastAt?: string;
+}
+const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
+  wholesale: { discountPct: 0, fromKgs: 0 },
+  priceFeedUrl: '',
+  replyTemplates: [],
+  autoReply: { enabled: false, text: 'Здравствуйте! Сейчас мы не работаем. Ответим утром в рабочее время.', from: '09:00', to: '18:00' },
+};
+
 interface UserRecord {
+  companySettings?: CompanySettings;
   id: string;
   accountType: AccountType;
   name: string;
@@ -1784,6 +1824,8 @@ interface ChatMessage {
   from: string; // user id
   text: string;
   at: string;
+  /** Automatic reply of a company outside working hours */
+  auto?: boolean;
 }
 
 interface Conversation {
@@ -1867,6 +1909,7 @@ app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res:
       readAt: { ...existing.readAt, [user.id]: now },
     });
     await notifyChat(updated!, user, text);
+    await companyAutoReply(updated!, user);
     return res.json({ success: true, conversation: conversationView(updated!, user.id) });
   }
   const conv: Conversation = {
@@ -1885,6 +1928,7 @@ app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res:
   };
   await insertRecord('conversations', conv);
   await notifyChat(conv, user, text);
+  await companyAutoReply(conv, user);
   res.status(201).json({ success: true, conversation: conversationView(conv, user.id) });
 }));
 
@@ -1922,7 +1966,8 @@ app.post('/api/conversations/:id/messages', requireUser, asyncRoute(async (req: 
     readAt: { ...c.readAt, [user.id]: now },
   });
   await notifyChat(c, user, text);
-  res.json({ success: true, messages: updated!.messages.map((m) => ({ ...m, mine: m.from === user.id })) });
+  const withAuto = (await companyAutoReply(updated!, user)) || updated!;
+  res.json({ success: true, messages: withAuto.messages.map((m) => ({ ...m, mine: m.from === user.id })) });
 }));
 
 // --- Seller reviews ---------------------------------------------------------
@@ -1962,6 +2007,8 @@ app.get('/api/sellers/:id', asyncRoute(async (req: Request, res: Response) => {
       name: seller.company?.name || seller.name,
       accountType: seller.accountType,
       verified: Boolean(seller.verifiedSeller || seller.company?.status === 'verified'),
+      official: seller.accountType === 'legal' && seller.company?.status === 'verified',
+      wholesale: seller.accountType === 'legal' && seller.companySettings?.wholesale?.discountPct ? seller.companySettings.wholesale : null,
       city: seller.city,
       since: seller.createdAt,
       lastSeenAt: seller.lastSeenAt,
@@ -2288,7 +2335,7 @@ app.post('/api/company/parts/bulk', requireCompany(), asyncRoute(async (req: Req
   const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 1000).map((x: unknown) => String(x)) : [];
   const action = String(req.body?.action || '');
   const value = Number(req.body?.value);
-  const needs: Record<string, Permission> = { price: 'catalog.edit', discount: 'catalog.edit', clearDiscount: 'catalog.edit', stock: 'stock.edit', archive: 'catalog.edit', activate: 'catalog.edit', sold: 'catalog.edit', delete: 'catalog.edit', warehouse: 'stock.edit' };
+  const needs: Record<string, Permission> = { wholesale: 'catalog.edit', price: 'catalog.edit', discount: 'catalog.edit', clearDiscount: 'catalog.edit', stock: 'stock.edit', archive: 'catalog.edit', activate: 'catalog.edit', sold: 'catalog.edit', delete: 'catalog.edit', warehouse: 'stock.edit' };
   if (!needs[action]) return res.status(400).json({ success: false, error: 'Неизвестное действие' });
   if (!ctx.can(needs[action])) return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к этому действию' });
   if (['price', 'discount', 'stock'].includes(action) && !Number.isFinite(value)) return res.status(400).json({ success: false, error: 'Укажите значение' });
@@ -2309,6 +2356,11 @@ app.post('/api/company/parts/bulk', requireCompany(), asyncRoute(async (req: Req
       if (value <= 0 || value >= 90) return res.status(400).json({ success: false, error: 'Скидка от 1 до 89%' });
       const base = p.oldPriceKgs || p.priceKgs;
       patch = { oldPriceKgs: base, priceKgs: Math.max(1, Math.round(base * (1 - value / 100))) };
+    } else if (action === 'wholesale') {
+      // value: wholesale discount in % (0 removes it), minQty: from how many pieces
+      if (!Number.isFinite(value) || value < 0 || value >= 90) return res.status(400).json({ success: false, error: 'Оптовая скидка от 0 до 89%' });
+      const minQty = Math.max(2, Math.min(10000, Math.round(Number(req.body?.minQty) || 2)));
+      patch = value > 0 ? { wholesalePriceKgs: Math.max(1, Math.round(p.priceKgs * (1 - value / 100))), wholesaleMinQty: minQty } : { wholesalePriceKgs: undefined, wholesaleMinQty: undefined };
     } else if (action === 'clearDiscount') {
       if (p.oldPriceKgs) patch = { priceKgs: p.oldPriceKgs, oldPriceKgs: undefined };
     } else if (action === 'stock') {
@@ -2335,6 +2387,12 @@ app.post('/api/company/import', requireCompany('import'), asyncRoute(async (req:
   if (rows.length > 500) return res.status(400).json({ success: false, error: 'Не больше 500 строк за раз. Разделите файл на части.' });
   if (tooMany(`import:${ctx.companyId}`, 20, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много загрузок. Попробуйте через час.' });
 
+  const result = await importCompanyRows(ctx, actor, rows);
+  res.json({ success: true, ...result });
+}));
+
+/** Creates or updates company parts from parsed price rows (by seller SKU) */
+async function importCompanyRows(ctx: CompanyContext, actor: UserRecord, rows: any[], via = 'import') {
   // Rows with an SKU that already exists update that item instead of creating a duplicate
   const existing = await companyParts(ctx.companyId);
   const bySku = new Map(existing.filter((p: any) => p.sku).map((p: any) => [p.sku, p]));
@@ -2357,12 +2415,12 @@ app.post('/api/company/import', requireCompany('import'), asyncRoute(async (req:
     }
   }
   const noPhoto = (await companyParts(ctx.companyId)).filter((p: any) => !p.images?.length).length;
-  await companyAudit(ctx, actor, 'import', ctx.companyId, { created, updated, errors: errors.length });
+  await companyAudit(ctx, actor, via, ctx.companyId, { created, updated, errors: errors.length });
   if (created + updated > 0 && moderation.status === 'pending') {
     await notifyAdmin(`📥 Импорт товаров: ${ctx.owner.company!.name}\nНовых: ${created}, обновлено: ${updated}\nПроверить: ${SITE_URL} → Личный кабинет → Модерация`);
   }
-  res.json({ success: true, created, updated, errors, moderation: moderation.status, noPhoto });
-}));
+  return { created, updated, errors, moderation: moderation.status, noPhoto };
+}
 
 const csvCell = (v: unknown) => {
   const s = Array.isArray(v) ? v.join(', ') : v === undefined || v === null ? '' : String(v);
@@ -2587,6 +2645,266 @@ app.delete('/api/company/crm/:id', requireCompany(), asyncRoute(async (req: Requ
   await deleteRecord('crm', current.id);
   await companyAudit(ctx, (req as any).user, 'crm-delete', current.id, { name: current.name });
   res.json({ success: true });
+}));
+
+// --- Company settings, price feed, reports, broadcast, cash desk ---
+
+const companySettingsOf = (owner: UserRecord): CompanySettings => ({
+  ...DEFAULT_COMPANY_SETTINGS,
+  ...(owner.companySettings || {}),
+  wholesale: { ...DEFAULT_COMPANY_SETTINGS.wholesale, ...(owner.companySettings?.wholesale || {}) },
+  autoReply: { ...DEFAULT_COMPANY_SETTINGS.autoReply, ...(owner.companySettings?.autoReply || {}) },
+});
+const hhmm = (v: unknown, fallback: string) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v)) ? String(v) : fallback);
+
+app.get('/api/company/settings', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, settings: companySettingsOf(ctx.owner) });
+}));
+
+app.put('/api/company/settings', requireCompany('company.edit'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const b = req.body || {};
+  const cur = companySettingsOf(ctx.owner);
+  const next: CompanySettings = { ...cur };
+  if (b.wholesale) {
+    next.wholesale = {
+      discountPct: Math.max(0, Math.min(50, Math.round(Number(b.wholesale.discountPct) || 0))),
+      fromKgs: Math.max(0, Math.min(100_000_000, Math.round(Number(b.wholesale.fromKgs) || 0))),
+    };
+  }
+  if (b.priceFeedUrl !== undefined) {
+    const url = feedCsvUrl(str(b.priceFeedUrl, 400));
+    if (b.priceFeedUrl && !url) return res.status(400).json({ success: false, error: 'Нужна ссылка на Google-таблицу (docs.google.com/spreadsheets/...)' });
+    next.priceFeedUrl = url || '';
+  }
+  if (Array.isArray(b.replyTemplates)) next.replyTemplates = b.replyTemplates.map((t: unknown) => str(t, 300)).filter(Boolean).slice(0, 15);
+  if (b.autoReply) {
+    next.autoReply = {
+      enabled: Boolean(b.autoReply.enabled),
+      text: str(b.autoReply.text, 400) || DEFAULT_COMPANY_SETTINGS.autoReply.text,
+      from: hhmm(b.autoReply.from, '09:00'),
+      to: hhmm(b.autoReply.to, '18:00'),
+    };
+  }
+  await updateRecord<UserRecord>('users', ctx.owner.id, { companySettings: next });
+  await companyAudit(ctx, (req as any).user, 'settings', ctx.companyId, {});
+  res.json({ success: true, settings: next });
+}));
+
+// Automatic reply of a company to a buyer outside working hours (at most once in 12 hours per chat)
+async function companyAutoReply(conv: Conversation, sender: UserRecord): Promise<Conversation | null> {
+  try {
+    if (sender.id !== conv.buyerId) return null;
+    const seller = await getRecord<UserRecord>('users', conv.sellerId);
+    if (!seller || seller.accountType !== 'legal') return null;
+    const ar = companySettingsOf(seller).autoReply;
+    if (!ar.enabled || !ar.text) return null;
+    const now = new Date(Date.now() + 6 * 3600_000); // Bishkek
+    const t = now.toISOString().slice(11, 16);
+    const open = ar.from <= ar.to ? t >= ar.from && t < ar.to : t >= ar.from || t < ar.to;
+    if (open) return null;
+    const recent = conv.messages.some((m) => m.auto && Date.now() - Date.parse(m.at) < 12 * 3600_000);
+    if (recent) return null;
+    const at = new Date().toISOString();
+    return await updateRecord<Conversation>('conversations', conv.id, {
+      messages: [...conv.messages, { id: randomUUID(), from: conv.sellerId, text: `${ar.text} (Работаем с ${ar.from} до ${ar.to})`, at, auto: true }].slice(-MAX_MESSAGES),
+      lastAt: at,
+    });
+  } catch (err) {
+    console.warn('[AutoReply] failed:', err);
+    return null;
+  }
+}
+
+// --- Price list by link (Google Sheets), updated every night ---
+function feedCsvUrl(raw: string): string | null {
+  const m = raw.match(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/(e\/)?([A-Za-z0-9_-]{20,})/);
+  if (!m) return null;
+  const gid = raw.match(/[#&?]gid=(\d+)/)?.[1];
+  return m[1]
+    ? `https://docs.google.com/spreadsheets/d/e/${m[2]}/pub?output=csv${gid ? `&gid=${gid}` : ''}`
+    : `https://docs.google.com/spreadsheets/d/${m[2]}/export?format=csv${gid ? `&gid=${gid}` : ''}`;
+}
+
+// Same CSV rules as src/utils/csv.ts (the browser import); keep the two in sync
+const FEED_HEADERS: Record<string, string> = {
+  sku: 'sku', 'артикул продавца': 'sku', 'код': 'sku', 'код товара': 'sku', title: 'title', 'название': 'title', 'наименование': 'title',
+  category: 'category', 'категория': 'category', brand: 'brand', 'марка': 'brand', 'марка авто': 'brand', model: 'model', 'модель': 'model',
+  generation: 'generation', 'поколение': 'generation', 'кузов': 'generation', partnumber: 'partNumber', oem: 'partNumber', 'oem номер': 'partNumber',
+  'oem-номер': 'partNumber', 'номер': 'partNumber', 'артикул': 'partNumber', crossnumbers: 'crossNumbers', 'кросс-номера': 'crossNumbers',
+  'кросс номера': 'crossNumbers', 'аналоги': 'crossNumbers', manufacturer: 'manufacturer', 'производитель': 'manufacturer', 'бренд': 'manufacturer',
+  condition: 'condition', 'состояние': 'condition', pricekgs: 'priceKgs', 'цена': 'priceKgs', 'цена сом': 'priceKgs', 'цена, сом': 'priceKgs',
+  oldpricekgs: 'oldPriceKgs', 'старая цена': 'oldPriceKgs', 'цена до скидки': 'oldPriceKgs', stockcount: 'stockCount', 'количество': 'stockCount',
+  'остаток': 'stockCount', 'кол-во': 'stockCount', warehouseid: 'warehouseId', 'склад': 'warehouseId', description: 'description', 'описание': 'description',
+  images: 'images', 'фото': 'images', 'фото (ссылки)': 'images', 'оптовая цена': 'wholesalePriceKgs', 'опт': 'wholesalePriceKgs', 'опт от': 'wholesaleMinQty',
+};
+const FEED_CONDITIONS: Record<string, string> = {
+  'новая': 'Новый', 'новый': 'Новый', new: 'Новый', 'оригинал': 'Новый (Оригинал)', 'новая оригинал': 'Новый (Оригинал)', 'б/у': 'Б/У с разбора', 'бу': 'Б/У с разбора',
+  used: 'Б/У с разбора', 'контрактная': 'Б/у (Контрактный)', 'контракт': 'Б/у (Контрактный)', 'дубликат': 'Дубликат (OEM)', 'аналог': 'Дубликат (OEM)', 'восстановленная': 'Восстановленная',
+};
+function parseFeedCsv(text: string): string[][] {
+  const src = text.replace(/^\uFEFF/, '');
+  const first = src.split(/\r?\n/, 1)[0] || '';
+  const delim = [';', '\t', ','].map((d) => [d, first.split(d).length] as const).sort((a, b) => b[1] - a[1])[0][0];
+  const rows: string[][] = [];
+  let row: string[] = [], cell = '', quoted = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (quoted) { if (ch === '"') { if (src[i + 1] === '"') { cell += '"'; i++; } else quoted = false; } else cell += ch; }
+    else if (ch === '"') quoted = true;
+    else if (ch === delim) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && src[i + 1] === '\n') i++; row.push(cell); cell = ''; if (row.some((c) => c.trim())) rows.push(row); row = []; }
+    else cell += ch;
+  }
+  row.push(cell);
+  if (row.some((c) => c.trim())) rows.push(row);
+  return rows;
+}
+function feedRows(table: string[][], warehouses: { id: string; name: string }[]) {
+  const [header, ...body] = table;
+  const keys = (header || []).map((h) => { const k = h.trim().toLowerCase().replace(/\s+/g, ' '); return FEED_HEADERS[k] || FEED_HEADERS[k.replace(/\s/g, '')] || ''; });
+  const missing = ['title', 'brand', 'partNumber', 'priceKgs'].filter((k) => !keys.includes(k));
+  const rows = body.map((cells) => {
+    const r: Record<string, unknown> = {};
+    keys.forEach((k, i) => {
+      if (!k) return;
+      let v: unknown = (cells[i] ?? '').trim();
+      if (['priceKgs', 'oldPriceKgs', 'stockCount', 'wholesalePriceKgs', 'wholesaleMinQty'].includes(k)) v = String(v).replace(/\s/g, '').replace(',', '.');
+      if (k === 'condition') v = FEED_CONDITIONS[String(v).toLowerCase()] || v;
+      if (k === 'images') v = String(v).split(/[\s,;]+/).filter(Boolean);
+      if (k === 'warehouseId' && v) v = warehouses.find((w) => w.id === v || w.name.toLowerCase() === String(v).toLowerCase())?.id || '';
+      r[k] = v;
+    });
+    return r;
+  });
+  return { rows, missing };
+}
+
+async function syncPriceFeed(owner: UserRecord): Promise<string> {
+  const settings = companySettingsOf(owner);
+  if (!settings.priceFeedUrl) return 'Ссылка не указана';
+  const ctx = await companyContext(owner);
+  if (!ctx) return 'Нет доступа к компании';
+  let result: string;
+  try {
+    const r = await fetch(settings.priceFeedUrl, { signal: AbortSignal.timeout(20000), redirect: 'follow' });
+    if (!r.ok) throw new Error(r.status === 404 || r.status === 401 || r.status === 403 ? 'таблица закрыта — откройте доступ «Всем, у кого есть ссылка»' : `ошибка ${r.status}`);
+    const len = Number(r.headers.get('content-length') || 0);
+    if (len > 5_000_000) throw new Error('файл больше 5 МБ');
+    const text = (await r.text()).slice(0, 5_000_000);
+    if (/^\s*<(!doctype|html)/i.test(text)) throw new Error('таблица закрыта — откройте доступ «Всем, у кого есть ссылка»');
+    const { rows, missing } = feedRows(parseFeedCsv(text), (owner.company as any)?.warehouses || []);
+    if (missing.length) throw new Error(`нет колонок: ${missing.join(', ')}`);
+    if (rows.length > 3000) throw new Error('больше 3000 строк');
+    const out = await importCompanyRows(ctx, owner, rows, 'price-feed');
+    result = `Обновлено ${new Date().toLocaleString('ru-RU', { timeZone: 'Asia/Bishkek' })}: новых ${out.created}, обновлено ${out.updated}${out.errors.length ? `, ошибок ${out.errors.length}` : ''}`;
+  } catch (err: any) {
+    result = `Не удалось обновить: ${err?.message || 'ошибка'}`;
+  }
+  await updateRecord<UserRecord>('users', owner.id, { companySettings: { ...settings, priceFeedAt: new Date().toISOString(), priceFeedResult: result } });
+  return result;
+}
+async function syncAllPriceFeeds() {
+  const owners = (await listRecords<UserRecord>('users')).filter((u) => !u.blocked && u.accountType === 'legal' && u.companySettings?.priceFeedUrl);
+  for (const o of owners.slice(0, 50)) await syncPriceFeed(o);
+  return owners.length;
+}
+app.post('/api/company/price-feed/sync', requireCompany('import'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  if (tooMany(`feed:${ctx.companyId}`, 6, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком часто. Попробуйте через час.' });
+  const result = await syncPriceFeed(ctx.owner);
+  res.json({ success: !result.startsWith('Не удалось'), result, error: result.startsWith('Не удалось') ? result : undefined });
+}));
+
+// --- Reports for the director ---
+app.get('/api/company/reports', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  if (!ctx.can('finance') && !ctx.can('orders.view')) return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к отчётам' });
+  const [parts, crm, orders] = await Promise.all([companyParts(ctx.companyId), crmOf(ctx.companyId), companyOrders(ctx.companyId)]);
+  const monthAgo = new Date(Date.now() - 30 * 86400_000).toISOString();
+  const byManager = new Map<string, { name: string; won: number; wonSum: number; open: number; lost: number }>();
+  for (const c of crm) {
+    const key = c.managerName || 'Без ответственного';
+    const m = byManager.get(key) || { name: key, won: 0, wonSum: 0, open: 0, lost: 0 };
+    if (c.stage === 'won' && c.updatedAt >= monthAgo) { m.won++; m.wonSum += c.amountKgs; }
+    else if (c.stage === 'lost' && c.updatedAt >= monthAgo) m.lost++;
+    else if (c.stage !== 'won' && c.stage !== 'lost') m.open++;
+    byManager.set(key, m);
+  }
+  const live = parts.filter((p: any) => isLive(p) && Number(p.stockCount) > 0);
+  const old = new Date(Date.now() - 90 * 86400_000).toISOString();
+  const brief = (p: any) => ({ id: p.id, title: p.title, partNumber: p.partNumber, priceKgs: p.priceKgs, stockCount: p.stockCount, views: p.views || 0, contacts: p.contactsCount || 0, since: p.updatedAt || p.createdAt });
+  const offline = orders.filter((o) => o.source === 'offline' && (o.createdAt || '') >= monthAgo);
+  res.json({
+    success: true,
+    managers: [...byManager.values()].sort((a, b) => b.wonSum - a.wonSum),
+    viewedNotBought: live.filter((p: any) => (p.views || 0) >= 15 && !(p.contactsCount || 0)).sort((a: any, b: any) => (b.views || 0) - (a.views || 0)).slice(0, 20).map(brief),
+    stale: live.filter((p: any) => (p.updatedAt || p.createdAt || '') < old).sort((a: any, b: any) => String(a.updatedAt || a.createdAt).localeCompare(String(b.updatedAt || b.createdAt))).slice(0, 30).map(brief),
+    staleValueKgs: live.filter((p: any) => (p.updatedAt || p.createdAt || '') < old).reduce((n: number, p: any) => n + p.priceKgs * p.stockCount, 0),
+    stockValueKgs: ctx.can('finance') ? live.reduce((n: number, p: any) => n + p.priceKgs * p.stockCount, 0) : undefined,
+    offlineMonth: { count: offline.length, sumKgs: offline.reduce((n, o) => n + (o.priceKgs || 0), 0) },
+  });
+}));
+
+// --- Broadcast to regular clients (bell + Telegram), once a day ---
+async function broadcastRecipients(ctx: CompanyContext) {
+  const convIds = new Set((await crmOf(ctx.companyId)).filter((c) => c.conversationId && c.stage !== 'lost').map((c) => c.conversationId!));
+  const ids = new Set<string>();
+  for (const c of await listRecords<Conversation>('conversations')) if (convIds.has(c.id) && c.sellerId === ctx.companyId) ids.add(c.buyerId);
+  return [...ids].slice(0, 500);
+}
+app.get('/api/company/broadcast', requireCompany('messages'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  res.json({ success: true, recipients: (await broadcastRecipients(ctx)).length, lastAt: companySettingsOf(ctx.owner).lastBroadcastAt || null });
+}));
+app.post('/api/company/broadcast', requireCompany('messages'), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const text = str(req.body?.text, 500);
+  if (text.length < 10) return res.status(400).json({ success: false, error: 'Напишите текст рассылки (от 10 символов)' });
+  const settings = companySettingsOf(ctx.owner);
+  if (settings.lastBroadcastAt && Date.now() - Date.parse(settings.lastBroadcastAt) < 24 * 3600_000) {
+    return res.status(429).json({ success: false, error: 'Рассылку можно отправлять не чаще раза в сутки' });
+  }
+  const ids = await broadcastRecipients(ctx);
+  if (!ids.length) return res.status(400).json({ success: false, error: 'Пока некому отправить: клиенты появляются, когда пишут вам на сайте' });
+  for (const id of ids) await notifyUser(id, `📣 ${ctx.owner.company!.name}: ${text}\n\nМагазин: ${SITE_URL}/magazin/${encodeURIComponent(ctx.companyId)}`);
+  await updateRecord<UserRecord>('users', ctx.owner.id, { companySettings: { ...settings, lastBroadcastAt: new Date().toISOString() } });
+  await companyAudit(ctx, (req as any).user, 'broadcast', ctx.companyId, { recipients: ids.length });
+  res.json({ success: true, sent: ids.length });
+}));
+
+// --- Cash desk: sales at the market go into statistics and take items off the stock ---
+app.get('/api/company/sales', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  if (!ctx.can('orders') && !ctx.can('stock.edit') && !ctx.can('finance')) return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к кассе' });
+  const sales = (await companyOrders(ctx.companyId)).filter((o) => o.source === 'offline').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 300);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, sales });
+}));
+app.post('/api/company/sales', requireCompany(), asyncRoute(async (req: Request, res: Response) => {
+  const ctx: CompanyContext = (req as any).company;
+  const user: UserRecord = (req as any).user;
+  if (!ctx.can('orders') && !ctx.can('stock.edit')) return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к кассе' });
+  const part: any = await getRecord('parts', String(req.body?.partId || ''));
+  if (!part || part.ownerId !== ctx.companyId) return res.status(404).json({ success: false, error: 'Товар не найден' });
+  const qty = Math.max(1, Math.min(10000, Math.round(Number(req.body?.qty) || 1)));
+  if (qty > (part.stockCount || 0)) return res.status(400).json({ success: false, error: `На остатке только ${part.stockCount || 0} шт` });
+  const unit = Math.max(1, Math.round(Number(req.body?.priceKgs) || part.priceKgs));
+  const now = new Date().toISOString();
+  const order: OrderRecord = {
+    id: `ord-${randomUUID()}`, orderNumber: `KASSA-${Date.now().toString(36).toUpperCase()}`, createdAt: now,
+    customerName: str(req.body?.customerName, 80) || 'Продажа на рынке', customerPhone: str(req.body?.customerPhone, 30),
+    partId: part.id, partTitle: part.title, partNumber: part.partNumber, storeName: part.storeName, storeLocation: part.storeLocation || '',
+    priceKgs: unit * qty, deliveryType: 'pickup', deliveryAddress: '', status: 'Выполнен', comment: `${qty} шт × ${unit} сом`,
+    source: 'offline', qty, soldBy: user.name,
+  };
+  await insertRecord('orders', order);
+  const count = Math.max(0, (part.stockCount || 0) - qty);
+  await updateRecord('parts', part.id, { stockCount: count, inStock: count > 0, stockStatus: count > 1 ? 'В наличии' : count === 1 ? 'Осталось мало' : 'Нет в наличии', updatedAt: now });
+  await companyAudit(ctx, user, 'cash-sale', part.id, { qty, sum: unit * qty });
+  res.status(201).json({ success: true, sale: order, stockLeft: count });
 }));
 
 app.get('/api/company/audit', requireCompany('audit'), asyncRoute(async (req: Request, res: Response) => {
@@ -3825,7 +4143,9 @@ app.get('/api/cron/backup', asyncRoute(async (req: Request, res: Response) => {
   if (secret && req.get('authorization') !== `Bearer ${secret}`) return res.status(401).json({ success: false });
   if (tooMany('cron:backup', 2, 60 * 60_000)) return res.status(429).json({ success: false });
   const sent = await sendBackupToTelegram();
-  res.json({ success: true, sent });
+  // Companies' price lists by link are refreshed every night too
+  const feeds = await syncAllPriceFeeds().catch((err) => { console.warn('[PriceFeed] failed:', err); return 0; });
+  res.json({ success: true, sent, feeds });
 }));
 
 // AI Auto-Consultant Chatbot Route (KGzone Автоэксперт)

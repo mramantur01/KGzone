@@ -1,5 +1,5 @@
 import React from 'react';
-import { Crown } from 'lucide-react';
+import { Crown, BadgeCheck } from 'lucide-react';
 
 // Crown for sellers checked by KGzone (in person, or a company with verified documents)
 export const VERIFIED_SELLER_HINT = 'Проверенный продавец: администрация KGzone проверила этого продавца — документы и место продажи.';
@@ -18,3 +18,13 @@ export const VerifiedSellerBadge: React.FC<{ withLabel?: boolean; size?: number;
       <Crown size={size} className="text-amber-400 fill-amber-400/30" aria-label="Проверенный продавец" />
     </span>
   );
+
+export const OFFICIAL_COMPANY_HINT = 'Официальная компания: юридическое лицо, документы проверены администрацией KGzone.';
+
+/** Blue badge for companies (legal entities) with checked documents */
+export const OfficialCompanyBadge: React.FC<{ className?: string; compact?: boolean }> = ({ className = '', compact = false }) => (
+  <span title={OFFICIAL_COMPANY_HINT} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-600 text-white text-[10px] font-black shadow-sm ${className}`}>
+    <BadgeCheck size={11} />
+    <span>{compact ? 'Компания' : 'Официальная компания'}</span>
+  </span>
+);

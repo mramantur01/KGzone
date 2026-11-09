@@ -13,7 +13,7 @@ import { useParts } from '../../api/parts';
 import { decodeVin, type VinInfo } from '../../utils/vin';
 import { isDemoListing, DEMO_NOTICE, isVip } from '../../utils/demo';
 import { PhotoPartButton } from '../catalog/PhotoPartButton';
-import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
+import { VerifiedSellerBadge, OfficialCompanyBadge } from '../common/VerifiedSellerBadge';
 import { findCatalogVehicles, getCatalogStatus, looksLikeFrame, type CatalogVehicle } from '../../api/catalog';
 import { CatalogBrowser } from '../catalog/CatalogBrowser';
 import { decodeFrame } from '../../data/frameCodes';
@@ -626,7 +626,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     const q = searchQuery.toLowerCase().trim();
     const relevance = (p: AutoPartItem) =>
       !q ? 0 : (p.partNumber.toLowerCase() === q ? 4 : 0) + (p.partNumber.toLowerCase().includes(q) ? 2 : 0) +
-        (p.crossNumbers?.some((c) => c.toLowerCase() === q) ? 3 : 0) + (p.title.toLowerCase().includes(q) ? 1 : 0);
+        (p.crossNumbers?.some((c) => c.toLowerCase() === q) ? 3 : 0) + (p.title.toLowerCase().includes(q) ? 1 : 0) + (p.sellerOfficial ? 0.5 : 0);
 
     // Sorting
     result.sort((a, b) => {
@@ -634,7 +634,11 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
       if (sortBy === 'price_desc') return b.priceKgs - a.priceKgs;
       if (sortBy === 'popular') return (b.views || 0) - (a.views || 0);
       if (sortBy === 'relevance') return relevance(b) - relevance(a);
-      // Newest first: database listings carry a date, built-in demo listings keep their order
+      // Newest first: database listings carry a date, built-in demo listings keep their order;
+      // within the same day official companies go first
+      const day = (b.createdAt || '').slice(0, 10).localeCompare((a.createdAt || '').slice(0, 10));
+      if (day !== 0) return day;
+      if (Boolean(b.sellerOfficial) !== Boolean(a.sellerOfficial)) return b.sellerOfficial ? 1 : -1;
       return (b.createdAt || '').localeCompare(a.createdAt || '');
     });
 
@@ -1431,7 +1435,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-lg bg-neutral-950/85 backdrop-blur-md text-[10px] font-bold text-amber-400 border border-neutral-700">
                             {part.condition}
                           </span>
-                          {part.sellerVerified && <VerifiedSellerBadge withLabel size={11} className="absolute top-9 left-2.5 z-10" />}
+                          {part.sellerOfficial
+                            ? <OfficialCompanyBadge className="absolute top-9 left-2.5 z-10" />
+                            : part.sellerVerified && <VerifiedSellerBadge withLabel size={11} className="absolute top-9 left-2.5 z-10" />}
 
                           {/* Compression video badge */}
                           {part.hasCompressionVideo && (
@@ -1516,6 +1522,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                             </div>
                             {part.oldPriceKgs ? (
                               <div className="text-[11px] text-neutral-500 line-through mt-0.5">{part.oldPriceKgs.toLocaleString()} сом</div>
+                            ) : null}
+                            {part.wholesalePriceKgs ? (
+                              <div className="text-[11px] text-sky-300 font-bold mt-0.5">Опт от {part.wholesaleMinQty || 2} шт: {part.wholesalePriceKgs.toLocaleString()} сом</div>
                             ) : null}
                             <div className="text-[10px] text-neutral-400 mt-1">
                               ~ ${priceUsd.toLocaleString()} USD

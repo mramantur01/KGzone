@@ -137,3 +137,37 @@ export const addCrmClient = (c: Partial<CrmClient>) =>
 export const updateCrmClient = (id: string, patch: Partial<CrmClient> & { comment?: string }) =>
   call<{ client: CrmClient }>(`/api/company/crm/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) }).then((r) => r.client);
 export const deleteCrmClient = (id: string) => call(`/api/company/crm/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+// ---- Company settings, price feed, reports, broadcast, cash desk ----
+export interface CompanySettings {
+  wholesale: { discountPct: number; fromKgs: number };
+  priceFeedUrl: string;
+  priceFeedAt?: string;
+  priceFeedResult?: string;
+  replyTemplates: string[];
+  autoReply: { enabled: boolean; text: string; from: string; to: string };
+  lastBroadcastAt?: string;
+}
+export const getCompanySettings = () => call<{ settings: CompanySettings }>('/api/company/settings').then((r) => r.settings);
+export const saveCompanySettings = (patch: Partial<CompanySettings>) =>
+  call<{ settings: CompanySettings }>('/api/company/settings', { method: 'PUT', body: JSON.stringify(patch) }).then((r) => r.settings);
+export const syncPriceFeed = () => after(call<{ result: string }>('/api/company/price-feed/sync', { method: 'POST' }));
+
+export interface ReportItem { id: string; title: string; partNumber: string; priceKgs: number; stockCount: number; views: number; contacts: number; since: string }
+export interface CompanyReports {
+  managers: { name: string; won: number; wonSum: number; open: number; lost: number }[];
+  viewedNotBought: ReportItem[];
+  stale: ReportItem[];
+  staleValueKgs: number;
+  stockValueKgs?: number;
+  offlineMonth: { count: number; sumKgs: number };
+}
+export const getCompanyReports = () => call<CompanyReports>('/api/company/reports');
+
+export const getBroadcastInfo = () => call<{ recipients: number; lastAt: string | null }>('/api/company/broadcast');
+export const sendBroadcast = (text: string) => call<{ sent: number }>('/api/company/broadcast', { method: 'POST', body: JSON.stringify({ text }) });
+
+export interface CashSale { id: string; orderNumber: string; createdAt: string; customerName: string; partId: string; partTitle: string; partNumber: string; priceKgs: number; qty?: number; soldBy?: string; comment?: string }
+export const listCashSales = () => call<{ sales: CashSale[] }>('/api/company/sales').then((r) => r.sales);
+export const addCashSale = (sale: { partId: string; qty: number; priceKgs: number; customerName?: string }) =>
+  after(call<{ sale: CashSale; stockLeft: number }>('/api/company/sales', { method: 'POST', body: JSON.stringify(sale) }));

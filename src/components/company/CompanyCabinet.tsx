@@ -8,8 +8,9 @@ import {
 import { formatPhone } from '../../api/auth';
 import { IMPORT_TEMPLATE, parseCsv, readCsvFile, rowsToParts } from '../../utils/csv';
 import { CompanyCatalog } from './CompanyCatalog';
+import { CashDesk, CompanyReportsPanel, CompanySettingsPanel } from './CompanyTools';
 
-type Tab = 'overview' | 'catalog' | 'import' | 'warehouses' | 'orders' | 'staff' | 'audit';
+type Tab = 'overview' | 'catalog' | 'cash' | 'reports' | 'import' | 'warehouses' | 'orders' | 'staff' | 'settings' | 'audit';
 
 const card = 'p-4 rounded-2xl bg-white border border-slate-200';
 const ACTION_LABELS: Record<string, string> = {
@@ -25,10 +26,13 @@ export const CompanyCabinet: React.FC<{ info: CompanyInfo; onChanged: () => void
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: 'overview', label: 'Обзор', show: true },
     { id: 'catalog', label: 'Каталог товаров', show: true },
+    { id: 'cash', label: 'Касса', show: can('orders') || can('stock.edit') },
+    { id: 'reports', label: 'Отчёты', show: can('finance') || can('orders.view') },
     { id: 'import', label: 'Импорт и экспорт', show: can('import') || can('export') },
     { id: 'warehouses', label: 'Склады', show: can('warehouses') },
     { id: 'orders', label: 'Заказы', show: can('orders.view') },
     { id: 'staff', label: 'Сотрудники', show: can('staff') },
+    { id: 'settings', label: 'Настройки и рассылка', show: true },
     { id: 'audit', label: 'Журнал действий', show: can('audit') },
   ];
   const [tab, setTab] = useState<Tab>('overview');
@@ -67,6 +71,9 @@ export const CompanyCabinet: React.FC<{ info: CompanyInfo; onChanged: () => void
       {tab === 'warehouses' && <Warehouses info={info} onChanged={onChanged} />}
       {tab === 'orders' && <Orders canEdit={can('orders')} />}
       {tab === 'staff' && <Staff />}
+      {tab === 'cash' && <CashDesk />}
+      {tab === 'reports' && <CompanyReportsPanel />}
+      {tab === 'settings' && <CompanySettingsPanel info={info} />}
       {tab === 'audit' && <Audit />}
     </div>
   );

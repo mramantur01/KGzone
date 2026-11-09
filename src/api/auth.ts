@@ -37,7 +37,12 @@ export interface GarageCar {
   inspectionUntil?: string; // YYYY-MM-DD
 }
 
-export interface ShopInfo { about: string; market: string; container: string; address: string; hours: string; mapUrl: string }
+export interface ShopBranch { name: string; address: string; phone: string }
+export interface ShopInfo {
+  about: string; market: string; container: string; address: string; hours: string; mapUrl: string;
+  /** Companies: logo, banner and extra points of sale */
+  logoUrl?: string; bannerUrl?: string; branches?: ShopBranch[];
+}
 
 export interface Account {
   id: string;

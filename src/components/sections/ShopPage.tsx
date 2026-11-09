@@ -3,17 +3,19 @@ import { MapPin, Clock, Phone, Search, Star, Share2, Loader2, Store, Navigation 
 import { call } from '../../api/admin';
 import { useParts } from '../../api/parts';
 import type { AutoPartItem } from '../../types/car';
-import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
+import { VerifiedSellerBadge, OfficialCompanyBadge } from '../common/VerifiedSellerBadge';
+import type { ShopInfo } from '../../api/auth';
 import { lastSeenText, seenRecently } from '../../utils/lastSeen';
 import { isDemoCabinet } from '../../api/demo';
 import { partHaystack, smartMatch } from '../../utils/smartSearch';
 
-interface ShopInfo { about: string; market: string; container: string; address: string; hours: string; mapUrl: string }
 interface SellerProfile {
   id: string;
   name: string;
   accountType: 'individual' | 'legal';
   verified: boolean;
+  official?: boolean;
+  wholesale?: { discountPct: number; fromKgs: number } | null;
   city: string;
   since: string;
   lastSeenAt?: string;
@@ -75,13 +77,17 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 py-5 space-y-4">
       {/* Shop header */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        {seller.shop?.bannerUrl && <img src={seller.shop.bannerUrl} alt="" className="w-full h-32 sm:h-48 object-cover" />}
+        <div className="p-4 sm:p-6">
         <div className="flex flex-wrap items-start gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-[#C8102E] text-white flex items-center justify-center shrink-0"><Store size={26} /></div>
+          {seller.shop?.logoUrl
+            ? <img src={seller.shop.logoUrl} alt="" className={`w-16 h-16 rounded-2xl object-cover bg-white border border-slate-200 shrink-0 ${seller.shop?.bannerUrl ? '-mt-12 sm:-mt-14 shadow-lg' : ''}`} />
+            : <div className="w-14 h-14 rounded-2xl bg-[#C8102E] text-white flex items-center justify-center shrink-0"><Store size={26} /></div>}
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 flex flex-wrap items-center gap-2" data-no-i18n>
               {seller.name}
-              {seller.verified && <VerifiedSellerBadge withLabel size={12} />}
+              {seller.official ? <OfficialCompanyBadge /> : seller.verified && <VerifiedSellerBadge withLabel size={12} />}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
               <span>{seller.accountType === 'legal' ? 'Магазин / компания' : 'Частный продавец'}</span>
@@ -90,6 +96,11 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
               {seen && <span className={seenRecently(seller.lastSeenAt) ? 'text-emerald-600 font-semibold' : ''}>{seen}</span>}
             </div>
             {seller.shop?.about && <p className="mt-3 text-sm text-slate-700 whitespace-pre-wrap" data-no-i18n>{seller.shop.about}</p>}
+            {seller.wholesale && seller.wholesale.discountPct > 0 && (
+              <p className="mt-3 inline-block px-3 py-1.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 text-sm font-bold">
+                Оптом дешевле: скидка {seller.wholesale.discountPct}%{seller.wholesale.fromKgs ? ` при заказе от ${seller.wholesale.fromKgs.toLocaleString('ru-RU')} сом` : ''}
+              </p>
+            )}
           </div>
           <button type="button" onClick={share} className="order-last sm:order-none w-full sm:w-auto justify-center px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer">
             <Share2 size={15} /><span>{copied ? 'Ссылка скопирована' : 'Поделиться'}</span>
@@ -120,6 +131,24 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
               </a>
             )}
           </div>
+        </div>
+        {(seller.shop?.branches?.length || 0) > 0 && (
+          <div className="mt-4">
+            <div className="text-xs font-bold text-slate-500 uppercase mb-2">Филиалы и точки продаж</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
+              {seller.shop!.branches!.map((b, i) => (
+                <div key={i} className="p-3 rounded-xl border border-slate-200 flex items-start gap-2" data-no-i18n>
+                  <MapPin size={15} className="text-[#C8102E] shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900">{b.name || b.address}</div>
+                    {b.name && b.address && <div className="text-slate-600">{b.address}</div>}
+                    {b.phone && <a href={`tel:${b.phone.replace(/[^\d+]/g, '')}`} className="text-[#1d6fb8] font-semibold">{b.phone}</a>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         </div>
       </div>
 

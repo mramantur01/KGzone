@@ -3,7 +3,7 @@ import { recordView, recordContact } from '../../utils/viewHistory';
 import { ReportListingButton } from '../common/ReportListingButton';
 import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import { SellerContactBlock } from '../chat/SellerContactBlock';
-import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
+import { VerifiedSellerBadge, OfficialCompanyBadge } from '../common/VerifiedSellerBadge';
 import { sameOemOffers } from '../../utils/oemOffers';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
@@ -399,6 +399,9 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                     <div className="text-2xl sm:text-3xl font-black text-emerald-400">
                       {priceSom.toLocaleString()} сом
                     </div>
+                    {part.wholesalePriceKgs ? (
+                      <div className="text-xs font-bold text-sky-300 mt-0.5">Оптом от {part.wholesaleMinQty || 2} шт: {part.wholesalePriceKgs.toLocaleString('ru-RU')} сом/шт</div>
+                    ) : null}
                   </div>
                   <div className="text-right">
                     <span className="text-xs font-bold text-neutral-400">~ ${priceUsd.toLocaleString()} USD</span>
@@ -453,7 +456,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                       </h4>
                       <span className="text-[10px] text-neutral-400 font-semibold flex flex-wrap items-center gap-1.5 mt-0.5">
                         <span>{part.sellerType === 'legal' ? 'Компания / ИП' : 'Частный продавец'}</span>
-                        {part.sellerVerified && <VerifiedSellerBadge withLabel />}
+                        {part.sellerOfficial ? <OfficialCompanyBadge /> : part.sellerVerified && <VerifiedSellerBadge withLabel />}
                       </span>
                     </div>
                   </div>

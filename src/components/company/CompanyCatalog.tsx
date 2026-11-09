@@ -48,6 +48,7 @@ export const CompanyCatalog: React.FC<{ info: CompanyInfo }> = ({ info }) => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState('');
   const [bulkValue, setBulkValue] = useState('');
+  const [bulkMinQty, setBulkMinQty] = useState('5');
   const [bulkWarehouse, setBulkWarehouse] = useState('');
   const [drafts, setDrafts] = useState<Record<string, { price?: string; stock?: string }>>({});
   const [showAdd, setShowAdd] = useState(false);
@@ -90,6 +91,7 @@ export const CompanyCatalog: React.FC<{ info: CompanyInfo }> = ({ info }) => {
       bulkAction === 'pricePercent' ? { value: v, mode: 'percent' }
       : bulkAction === 'priceFixed' ? { value: v }
       : bulkAction === 'discount' || bulkAction === 'stock' ? { value: v }
+      : bulkAction === 'wholesale' ? { value: v || 0, minQty: Number(bulkMinQty) || 2 }
       : bulkAction === 'warehouse' ? { warehouseId: bulkWarehouse }
       : {};
     const action = bulkAction.startsWith('price') ? 'price' : bulkAction;
@@ -161,6 +163,7 @@ export const CompanyCatalog: React.FC<{ info: CompanyInfo }> = ({ info }) => {
             {can('catalog.edit') && <option value="priceFixed">Установить цену</option>}
             {can('catalog.edit') && <option value="discount">Скидка %</option>}
             {can('catalog.edit') && <option value="clearDiscount">Убрать скидку</option>}
+            {can('catalog.edit') && <option value="wholesale">Оптовая цена (опт от N шт)</option>}
             {can('stock.edit') && <option value="stock">Установить остаток</option>}
             {can('stock.edit') && warehouses.length > 0 && <option value="warehouse">Переместить на склад</option>}
             {can('catalog.edit') && <option value="archive">В архив (снять)</option>}
@@ -168,13 +171,18 @@ export const CompanyCatalog: React.FC<{ info: CompanyInfo }> = ({ info }) => {
             {can('catalog.edit') && <option value="sold">Отметить проданными</option>}
             {can('catalog.edit') && <option value="delete">Удалить</option>}
           </select>
-          {['pricePercent', 'priceFixed', 'discount', 'stock'].includes(bulkAction) && (
+          {['pricePercent', 'priceFixed', 'discount', 'stock', 'wholesale'].includes(bulkAction) && (
             <input
               value={bulkValue}
               onChange={(e) => setBulkValue(e.target.value)}
-              placeholder={bulkAction === 'pricePercent' ? 'напр. 10 или -5' : bulkAction === 'discount' ? '% скидки' : bulkAction === 'stock' ? 'шт.' : 'сом'}
+              placeholder={bulkAction === 'pricePercent' ? 'напр. 10 или -5' : bulkAction === 'discount' ? '% скидки' : bulkAction === 'wholesale' ? '% опт (0 — убрать)' : bulkAction === 'stock' ? 'шт.' : 'сом'}
               className="w-28 px-2 py-1.5 border border-slate-300 rounded-lg"
             />
+          )}
+          {bulkAction === 'wholesale' && (
+            <label className="flex items-center gap-1">от
+              <input value={bulkMinQty} onChange={(e) => setBulkMinQty(e.target.value)} inputMode="numeric" className="w-14 px-2 py-1.5 border border-slate-300 rounded-lg" />шт
+            </label>
           )}
           {bulkAction === 'warehouse' && (
             <select value={bulkWarehouse} onChange={(e) => setBulkWarehouse(e.target.value)} className="px-2 py-1.5 border border-slate-300 rounded-lg bg-white">

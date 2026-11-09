@@ -47,9 +47,10 @@ const HEADER_MAP: Record<string, string> = {
   warehouseid: 'warehouseId', 'склад': 'warehouseId',
   description: 'description', 'описание': 'description',
   images: 'images', 'фото': 'images', 'фото (ссылки)': 'images',
+  'оптовая цена': 'wholesalePriceKgs', 'опт': 'wholesalePriceKgs', 'опт от': 'wholesaleMinQty',
 };
 
-const NUMBER_FIELDS = ['priceKgs', 'oldPriceKgs', 'stockCount'];
+const NUMBER_FIELDS = ['priceKgs', 'oldPriceKgs', 'stockCount', 'wholesalePriceKgs', 'wholesaleMinQty'];
 
 const CONDITION_MAP: Record<string, string> = {
   'новая': 'Новый', 'новый': 'Новый', 'new': 'Новый', 'оригинал': 'Новый (Оригинал)', 'новая оригинал': 'Новый (Оригинал)',

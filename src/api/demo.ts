@@ -252,7 +252,13 @@ export function demoResponse(url: string, method: string): unknown {
   if (path === '/api/sellers/demo-seller/reviews') {
     return { success: true, seller: { id: 'demo-seller', name: demoSellerProfile.name, accountType: 'individual', verified: true, since: day(40), lastSeenAt: day(0.02) }, rating: 4.8, reviews: [], canReview: buyer };
   }
-  if (path === '/api/sellers/demo-seller') return { success: true, seller: { ...demoSellerProfile, shop: demoUser.shop } };
+  if (path === '/api/sellers/demo-seller') {
+    if (mode === 'company') {
+      return { success: true, seller: { ...demoSellerProfile, name: demoCompanyUser.company.name, accountType: 'legal', official: true, wholesale: { discountPct: 7, fromKgs: 20000 },
+        shop: { ...demoUser.shop, branches: [{ name: 'Дордой Моторс', address: 'Ряд 7, контейнер 41', phone: '+996 700 111 222' }, { name: 'Склад Аламедин', address: 'ул. Примерная, 15', phone: '+996 700 333 444' }] } } };
+    }
+    return { success: true, seller: { ...demoSellerProfile, shop: demoUser.shop } };
+  }
   if (path === '/api/part-requests/for-me') return { success: true, ...(buyer ? { brands: [], requests: [] } : demoRequests) };
   if (mode === 'company' && (path === '/api/company' || path.startsWith('/api/company/'))) {
     const answer = demoCompanyResponse(path);
@@ -332,6 +338,41 @@ function demoCompanyResponse(path: string): unknown {
       { id: 'da2', at: day(1), actorName: 'Айбек Токтогулов', action: 'import', target: '', details: { created: 34, updated: 8 } },
       { id: 'da3', at: day(2), actorName: 'Бекзат (склад)', action: 'bulk-stock', target: '', details: { count: 12 } },
     ] };
+  }
+  if (path === '/api/company/settings') {
+    return { success: true, settings: {
+      wholesale: { discountPct: 7, fromKgs: 20000 },
+      priceFeedUrl: 'https://docs.google.com/spreadsheets/d/DEMO-price-list-1234567890/export?format=csv',
+      priceFeedAt: day(0.3), priceFeedResult: 'Обновлено сегодня в 04:00: новых 3, обновлено 38',
+      replyTemplates: ['Есть в наличии, приезжайте: Кудайберген, ряд 3, контейнер 12.', 'Для СТО скидка 7% от 20 000 сом.', 'Пришлите VIN — подберём точно.'],
+      autoReply: { enabled: true, text: 'Здравствуйте! Сейчас мы не работаем. Ответим утром в рабочее время.', from: '09:00', to: '18:00' },
+      lastBroadcastAt: day(3),
+    } };
+  }
+  if (path === '/api/company/broadcast') return { success: true, recipients: 6, lastAt: day(3) };
+  if (path === '/api/company/sales') {
+    return { success: true, sales: [
+      { id: 'ds1', orderNumber: 'KASSA-1', createdAt: day(0.05), customerName: 'Продажа на рынке', partId: 'demo-p1', partTitle: 'Колодки тормозные передние Camry 70', partNumber: '04465-33471', priceKgs: 5600, qty: 2, comment: '2 шт × 2800 сом', soldBy: 'Нурлан (продажи)' },
+      { id: 'ds2', orderNumber: 'KASSA-2', createdAt: day(0.2), customerName: 'СТО «Мастер Авто»', partId: 'demo-p4', partTitle: 'Генератор 90A Camry 2.5', partNumber: '27060-36070', priceKgs: 12500, qty: 1, comment: '1 шт × 12500 сом', soldBy: 'Айбек Токтогулов' },
+      { id: 'ds3', orderNumber: 'KASSA-3', createdAt: day(2), customerName: 'Продажа на рынке', partId: 'demo-p2', partTitle: 'Фара левая LED Camry 70', partNumber: '81150-33K10', priceKgs: 18500, qty: 1, comment: '1 шт × 18500 сом', soldBy: 'Элиза (продажи)' },
+    ] };
+  }
+  if (path === '/api/company/reports') {
+    const parts = demoListings.parts as any[];
+    const brief = (p: any, since: number) => ({ id: p.id, title: p.title, partNumber: p.partNumber, priceKgs: p.priceKgs, stockCount: p.stockCount || 1, views: p.views || 0, contacts: p.contactsCount || 0, since: day(since) });
+    return {
+      success: true,
+      managers: [
+        { name: 'Айбек Токтогулов', won: 1, wonSum: 118000, open: 2, lost: 0 },
+        { name: 'Элиза (продажи)', won: 1, wonSum: 11500, open: 1, lost: 0 },
+        { name: 'Нурлан (продажи)', won: 0, wonSum: 0, open: 2, lost: 1 },
+      ],
+      viewedNotBought: parts.filter((p) => (p.views || 0) > 20).slice(0, 4).map((p) => brief(p, 20)),
+      stale: parts.slice(5, 9).map((p, i) => brief(p, 95 + i * 12)),
+      staleValueKgs: 86400,
+      stockValueKgs: parts.reduce((n, p) => n + p.priceKgs * (p.stockCount || 1), 0),
+      offlineMonth: { count: 3, sumKgs: 36600 },
+    };
   }
   if (path === '/api/company/stats') {
     const live = parts.filter((p) => (p.moderation?.status || 'approved') === 'approved');
