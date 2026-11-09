@@ -302,10 +302,12 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
-          <button type="button" onClick={onSellPart} aria-label="Подать объявление" className="w-11 h-11 sm:w-auto sm:h-auto sm:px-4 sm:py-2.5 rounded-full sm:rounded-lg bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-            <Plus size={20} /><span className="hidden sm:inline">Подать объявление</span>
+          <button type="button" onClick={onSellPart} aria-label="Продать запчасть" className="w-11 h-11 sm:w-auto sm:h-auto sm:px-4 sm:py-2.5 rounded-full sm:rounded-lg bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+            <Plus size={20} /><span className="hidden sm:inline">Продать запчасть</span>
           </button>
-          <button type="button" onClick={onSellCar} className="hidden sm:block px-3 py-2.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-bold cursor-pointer">Продать авто</button>
+          <button type="button" onClick={onSellCar} className="hidden sm:flex px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold items-center gap-1.5 cursor-pointer">
+            <Plus size={18} /><span>Продать авто</span>
+          </button>
         </div>
       </div>
 
@@ -408,7 +410,7 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
           <p className="font-bold text-slate-800 text-base">Здесь будут ваши товары</p>
           <p className="text-sm text-slate-500 mt-1">Подайте объявление или загрузите прайс из Excel — сразу много товаров.</p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <button type="button" onClick={onSellPart} className="px-5 py-2.5 rounded-lg bg-[#C8102E] text-white font-bold cursor-pointer">Подать объявление</button>
+            <button type="button" onClick={onSellPart} className="px-5 py-2.5 rounded-lg bg-[#C8102E] text-white font-bold cursor-pointer">Продать запчасть</button>
             {onOpenImport && <button type="button" onClick={onOpenImport} className="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-bold cursor-pointer">Загрузить прайс</button>}
           </div>
         </div>
