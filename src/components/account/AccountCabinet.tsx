@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  LayoutDashboard, ListChecks, Heart, History, CarFront, Wrench, ShoppingBag, Building2, UserCog, ShieldCheck, Users,
-  LogOut, Loader2, Trash2, Search, Bell, MessageSquare, Upload, Settings, Crown, Menu, X,
+  ListChecks, Heart, History, Building2, UserCog, ShieldCheck, Users,
+  LogOut, Loader2, Trash2, Search, MessageSquare, Upload, Settings, Crown, Menu, X,
 } from 'lucide-react';
 import { call } from '../../api/admin';
 import { MyImportPanel } from './MyImportPanel';
@@ -11,14 +11,13 @@ import { useCompany } from '../../api/company';
 import { useUnreadMessages } from '../../api/chat';
 import type { AutoPartItem, Car } from '../../types/car';
 import {
-  useAuth, logout, updateProfile, changePassword, submitCompanyForReview, saveGarage, claimAdmin,
-  isStaff, formatPhone, COMPANY_STATUS_LABELS, type GarageCar,
+  useAuth, logout, updateProfile, changePassword, submitCompanyForReview, claimAdmin,
+  isStaff, formatPhone, COMPANY_STATUS_LABELS,
 } from '../../api/auth';
 import { useParts } from '../../api/parts';
-import { listMyOrders, listMyListings } from '../../api/myListings';
+import { listMyListings } from '../../api/myListings';
 import { usePartFavorites, togglePartFavorite } from '../../utils/partFavorites';
 import { useViewHistory, clearViewHistory } from '../../utils/viewHistory';
-import { partFitsModel } from '../../utils/partMatching';
 import { ALL_CAR_BRANDS, getModelsForBrand, useCarCatalog } from '../../data/mockData';
 import { KG_CITIES } from '../auth/AuthModal';
 import { MyListingsPanel } from './MyListingsPanel';
@@ -32,10 +31,6 @@ import { AdminToolsPanel } from '../cabinet/AdminToolsPanel';
 import { SellerRequestsPanel } from '../catalog/SellerRequestsPanel';
 import { TelegramCard } from './TelegramCard';
 import { DeleteAccountCard } from './DeleteAccountCard';
-import { GarageService, garageReminders } from './GarageService';
-import { ServiceKitModal } from '../catalog/ServiceKitModal';
-import { RateSellersCard } from './BuyerBlocks';
-import { BuyerHome } from './BuyerHome';
 import { SearchMissesPanel } from '../catalog/SearchMissesPanel';
 import { ShopSettingsCard } from './ShopSettingsCard';
 
@@ -58,20 +53,11 @@ interface Props {
   onFindParts: (preset: PartsSearchPreset) => void;
 }
 
-type Section = 'overview' | 'business' | 'messages' | 'listings' | 'requests' | 'import' | 'favorites' | 'history' | 'garage' | 'orders' | 'company' | 'profile' | 'moderation' | 'users';
+type Section = 'business' | 'messages' | 'listings' | 'requests' | 'import' | 'favorites' | 'history' | 'company' | 'profile' | 'moderation' | 'users';
 
 const card = 'p-4 sm:p-5 rounded-2xl bg-white border border-slate-200';
 const inputCls = 'w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#C8102E] focus:outline-hidden';
 const labelCls = 'block text-xs font-bold text-slate-700 mb-1';
-
-// Remembers how many fitting parts the buyer has already seen for each garage car
-const SEEN_KEY = 'kgzone-garage-seen';
-const readSeen = (): Record<string, string[]> => {
-  try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}'); } catch { return {}; }
-};
-const writeSeen = (v: Record<string, string[]>) => {
-  try { localStorage.setItem(SEEN_KEY, JSON.stringify(v)); } catch { /* storage unavailable */ }
-};
 
 export const AccountCabinet: React.FC<Props> = (props) => {
   const { cars, favoriteCarIds, onToggleCarFavorite, onSelectCar, onOpenAuth, onSellPart, onSellCar, onFindParts } = props;
@@ -80,11 +66,10 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const parts = useParts();
   const partFavIds = usePartFavorites();
   const history = useViewHistory();
-  const [section, setSection] = useState<Section>(props.openSection?.section || 'overview');
+  const [section, setSection] = useState<Section>(props.openSection?.section || 'listings');
   useEffect(() => { if (props.openSection) setSection(props.openSection.section); }, [props.openSection]);
   const unreadMessages = useUnreadMessages(Boolean(user));
   const biz = useCompany(user?.id);
-  const [seen, setSeen] = useState<Record<string, string[]>>(readSeen);
 
   // Profile form
   const [name, setName] = useState('');
@@ -102,16 +87,6 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const [company, setCompany] = useState({ name: '', inn: '', legalAddress: '', actualAddress: '', contactPerson: '', contactPhone: '', contactEmail: '', bankDetails: '' });
   const [companyMsg, setCompanyMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // Garage form
-  const [gBrand, setGBrand] = useState('Toyota');
-  const [gModel, setGModel] = useState('');
-  const [gYear, setGYear] = useState('');
-  const [gVin, setGVin] = useState('');
-  const [garageMsg, setGarageMsg] = useState<string | null>(null);
-  const [kitCar, setKitCar] = useState<{ brand: string; model: string } | null>(null);
-
-  const [orders, setOrders] = useState<any[] | null>(null);
-  // Seller mode: has listings, or is a company. Decides the menu and the start page.
   const [myCount, setMyCount] = useState<number | null>(null);
   const [requestsCount, setRequestsCount] = useState(0);
   const [startChosen, setStartChosen] = useState(false);
@@ -138,25 +113,14 @@ export const AccountCabinet: React.FC<Props> = (props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  useEffect(() => {
-    if (section === 'orders' && user) listMyOrders().then(setOrders).catch(() => setOrders([]));
-  }, [section, user]);
-
-  const sellerMode = Boolean(user && ((myCount ?? 0) > 0 || user.accountType === 'legal' || biz.info));
-  // Start page: sellers see their listings first (like drom.ru), buyers the overview
+  // One cabinet for everyone (the seller cabinet); it opens on "Мои объявления" like drom.ru
   useEffect(() => {
     if (startChosen || !user || myCount === null) return;
     setStartChosen(true);
     if (props.openSection) return;
-    setSection(sellerMode ? 'listings' : 'overview');
+    setSection('listings');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myCount, user?.id, startChosen]);
-
-  // Fitting parts per garage car (live catalog)
-  const garageMatches = useMemo(
-    () => (user?.garage || []).map((g) => ({ car: g, ids: parts.filter((p) => partFitsModel(p, g.brand, g.model)).map((p) => p.id) })),
-    [user?.garage, parts]
-  );
 
   if (loading) {
     return <div className="py-24 text-center text-slate-400"><Loader2 className="animate-spin mx-auto" /></div>;
@@ -169,7 +133,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
           <UserCog size={40} className="mx-auto text-[#C8102E]" />
           <h1 className="text-xl font-black text-slate-900">Личный кабинет KGzone</h1>
           <p className="text-sm text-slate-600">
-            Войдите или зарегистрируйтесь, чтобы продавать запчасти и автомобили, управлять объявлениями, сохранять свои машины для быстрого подбора деталей и следить за заказами.
+            Войдите или зарегистрируйтесь, чтобы продавать запчасти и автомобили и управлять своими объявлениями.
           </p>
           <div className="flex flex-col sm:flex-row gap-2 justify-center">
             <button type="button" onClick={() => onOpenAuth('login')} className="px-6 py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white font-bold text-sm cursor-pointer">Войти</button>
@@ -183,41 +147,26 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
   const staff = isStaff(user);
   const isLegal = user.accountType === 'legal';
-  const newMatches = garageMatches.reduce((n, m) => n + m.ids.filter((id) => !(seen[m.car.id] || []).includes(id)).length, 0);
 
   type NavItem = { id: Section; label: string; icon: React.ElementType; badge?: number; muted?: boolean };
   const staffNav: NavItem[] = [
     ...(staff ? [{ id: 'moderation' as Section, label: 'Модерация', icon: ShieldCheck }] : []),
     ...(user.role === 'admin' ? [{ id: 'users' as Section, label: 'Пользователи', icon: Users }] : []),
   ];
-  const nav: NavItem[] = sellerMode
-    ? [
-        { id: 'listings', label: 'Мои объявления', icon: ListChecks, badge: myCount || undefined, muted: true },
-        { id: 'messages', label: 'Сообщения', icon: MessageSquare, badge: unreadMessages || undefined },
-        { id: 'requests', label: 'Заявки покупателей', icon: Search, badge: requestsCount || undefined },
-        biz.info ? { id: 'business', label: 'Бизнес-кабинет', icon: Building2 } : { id: 'import', label: 'Загрузить прайс', icon: Upload },
-        ...(isLegal ? [{ id: 'company' as Section, label: 'Данные компании', icon: Building2 }] : []),
-        { id: 'profile', label: 'Настройки', icon: Settings },
-        ...staffNav,
-      ]
-    : [
-        { id: 'overview', label: 'Главная', icon: LayoutDashboard },
-        { id: 'messages', label: 'Сообщения', icon: MessageSquare, badge: unreadMessages || undefined },
-        { id: 'favorites', label: 'Избранное', icon: Heart, badge: partFavIds.length + favoriteCarIds.length || undefined, muted: true },
-        { id: 'history', label: 'История просмотров', icon: History },
-        { id: 'garage', label: 'Мои автомобили', icon: CarFront, badge: newMatches || undefined },
-        { id: 'orders', label: 'Мои заказы', icon: ShoppingBag },
-        { id: 'listings', label: 'Мои объявления', icon: ListChecks },
-        { id: 'profile', label: 'Настройки', icon: Settings },
-        ...staffNav,
-      ];
-  // Buyer links kept for sellers too, in a quiet second group
-  const buyerExtras: NavItem[] = sellerMode
-    ? [
-        { id: 'favorites', label: 'Избранное', icon: Heart, badge: partFavIds.length + favoriteCarIds.length || undefined, muted: true },
-        { id: 'history', label: 'История просмотров', icon: History },
-      ]
-    : [];
+  const nav: NavItem[] = [
+    { id: 'listings', label: 'Мои объявления', icon: ListChecks, badge: myCount || undefined, muted: true },
+    { id: 'messages', label: 'Сообщения', icon: MessageSquare, badge: unreadMessages || undefined },
+    { id: 'requests', label: 'Заявки покупателей', icon: Search, badge: requestsCount || undefined },
+    biz.info ? { id: 'business', label: 'Бизнес-кабинет', icon: Building2 } : { id: 'import', label: 'Загрузить прайс', icon: Upload },
+    ...(isLegal ? [{ id: 'company' as Section, label: 'Данные компании', icon: Building2 }] : []),
+    { id: 'profile', label: 'Настройки', icon: Settings },
+    ...staffNav,
+  ];
+  // Favorites and viewed items, in a quiet second group
+  const buyerExtras: NavItem[] = [
+    { id: 'favorites', label: 'Избранное', icon: Heart, badge: partFavIds.length + favoriteCarIds.length || undefined, muted: true },
+    { id: 'history', label: 'История просмотров', icon: History },
+  ];
 
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,28 +193,6 @@ export const AccountCabinet: React.FC<Props> = (props) => {
     setCompanyMsg(null);
     try { await updateProfile({ company }); await submitCompanyForReview(); setCompanyMsg({ ok: true, text: 'Заявка отправлена на проверку' }); }
     catch (err: any) { setCompanyMsg({ ok: false, text: err.message }); }
-  };
-
-  const addGarageCar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setGarageMsg(null);
-    if (!gModel.trim()) { setGarageMsg('Укажите модель'); return; }
-    const car: GarageCar = { id: `g-${Date.now()}`, brand: gBrand, model: gModel.trim(), year: gYear ? Number(gYear) : undefined, vin: gVin.trim() || undefined };
-    try {
-      await saveGarage([...(user.garage || []), car]);
-      // Parts that already exist are not "new" for a car that was just added
-      const ids = parts.filter((p) => partFitsModel(p, car.brand, car.model)).map((p) => p.id);
-      const next = { ...seen, [car.id]: ids };
-      setSeen(next); writeSeen(next);
-      setGModel(''); setGYear(''); setGVin('');
-    } catch (err: any) { setGarageMsg(err.message); }
-  };
-
-  const findForCar = (g: GarageCar, ids: string[]) => {
-    const next = { ...seen, [g.id]: ids };
-    setSeen(next); writeSeen(next);
-    // Same rule as the match counter: by make and model (the year filter would hide parts listed for a year range)
-    onFindParts({ brand: g.brand, model: g.model });
   };
 
   const favParts: AutoPartItem[] = parts.filter((p) => partFavIds.includes(p.id));
@@ -308,62 +235,9 @@ export const AccountCabinet: React.FC<Props> = (props) => {
               <LogOut size={16} /><span>Выйти</span>
             </button>
           </nav>
-          {!sellerMode && (
-            <button type="button" onClick={onSellPart} className="hidden lg:block w-full px-4 py-3 rounded-2xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold cursor-pointer">
-              Начать продавать запчасти
-            </button>
-          )}
         </aside>
 
         <main className="lg:col-span-9 space-y-4 min-w-0">
-          {section === 'overview' && (
-            <>
-              <BuyerHome
-                user={user}
-                parts={parts}
-                cars={cars}
-                favPartIds={partFavIds}
-                favCarIds={favoriteCarIds}
-                history={history}
-                garageMatches={garageMatches}
-                seen={seen}
-                onMarkSeen={(carId, ids) => { const next = { ...seen, [carId]: ids }; setSeen(next); writeSeen(next); }}
-                onFindParts={onFindParts}
-                onSelectCar={onSelectCar}
-                onToggleCarFavorite={onToggleCarFavorite}
-                onOpenGarage={() => setSection('garage')}
-                onOpenKit={(g) => setKitCar({ brand: g.brand, model: g.model })}
-              />
-              {kitCar && section === 'overview' && <ServiceKitModal brand={kitCar.brand} model={kitCar.model} onClose={() => setKitCar(null)} />}
-
-              <RateSellersCard />
-
-              {!user.telegramLinked && <TelegramCard user={user} audience="buyer" />}
-
-              {isLegal && user.company && user.company.status !== 'verified' && (
-                <div className={`${card} border-amber-300 bg-amber-50`}>
-                  <div className="text-sm font-bold text-amber-900">Компания: {COMPANY_STATUS_LABELS[user.company.status]}</div>
-                  <p className="text-xs text-amber-800 mt-1">
-                    {user.company.status === 'pending'
-                      ? 'Администратор проверяет данные компании.'
-                      : 'Заполните данные компании и отправьте на проверку, чтобы получить отметку «Проверенная компания».'}
-                  </p>
-                  {user.company.statusComment && <p className="text-xs text-amber-800 mt-1">Комментарий администратора: {user.company.statusComment}</p>}
-                  <button type="button" onClick={() => setSection('company')} className="mt-2 text-xs font-bold underline text-amber-900 cursor-pointer">Открыть данные компании</button>
-                </div>
-              )}
-
-              <div className={`${card} flex flex-wrap items-center gap-3`}>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-slate-900">Продаёте запчасти или машину?</div>
-                  <p className="text-xs text-slate-500">Размещение бесплатное. Покупатели напишут вам прямо на сайте.</p>
-                </div>
-                <button type="button" onClick={onSellPart} className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer">Продать запчасть</button>
-                <button type="button" onClick={onSellCar} className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-bold cursor-pointer">Продать авто</button>
-              </div>
-            </>
-          )}
-
           {section === 'messages' && <MessagesPanel />}
 
           {section === 'business' && biz.info && (
@@ -456,98 +330,6 @@ export const AccountCabinet: React.FC<Props> = (props) => {
             </div>
           )}
 
-          {section === 'garage' && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-black text-slate-900">Мои автомобили</h2>
-              <p className="text-sm text-slate-600">Сохраните свои машины — подбор запчастей будет в один клик, а в «Обзоре» появятся новые подходящие объявления.</p>
-              {garageMatches.map(({ car, ids }) => {
-                const fresh = ids.filter((id) => !(seen[car.id] || []).includes(id)).length;
-                return (
-                  <div key={car.id} className={`${card} !p-3 flex flex-wrap items-center gap-3`}>
-                    <CarFront size={22} className="text-slate-400 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm text-slate-900" data-no-i18n>{car.brand} {car.model}{car.year ? `, ${car.year}` : ''}</div>
-                      <div className="text-xs text-slate-500">
-                        {car.vin ? <span className="font-mono" data-no-i18n>VIN {car.vin} · </span> : null}Подходящих объявлений: {ids.length}{fresh ? ` (новых: ${fresh})` : ''}
-                      </div>
-                    </div>
-                    <button type="button" onClick={() => findForCar(car, ids)} className="px-3 py-1.5 rounded-lg bg-[#C8102E] text-white text-xs font-bold flex items-center gap-1 cursor-pointer">
-                      <Search size={12} /><span>Подобрать запчасти</span>
-                    </button>
-                    <button type="button" onClick={() => setKitCar({ brand: car.brand, model: car.model })} className="px-3 py-1.5 rounded-lg bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1 cursor-pointer">
-                      <Wrench size={12} /><span>Набор для ТО</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => saveGarage(user.garage.filter((g) => g.id !== car.id)).catch((e) => setGarageMsg(e.message))}
-                      className="p-2 rounded-lg text-red-600 hover:bg-red-50 cursor-pointer"
-                      aria-label="Удалить автомобиль"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                    <GarageService
-                      car={car}
-                      onSave={(updated) => saveGarage(user.garage.map((g) => (g.id === updated.id ? updated : g)))}
-                      onFindOil={(g) => onFindParts({ brand: g.brand, model: g.model, search: 'масляный фильтр' })}
-                    />
-                  </div>
-                );
-              })}
-              {kitCar && <ServiceKitModal brand={kitCar.brand} model={kitCar.model} onClose={() => setKitCar(null)} />}
-              {user.garage.length < 10 && (
-                <form onSubmit={addGarageCar} className={`${card} grid grid-cols-1 sm:grid-cols-5 gap-3 items-end`}>
-                  <div>
-                    <label className={labelCls}>Марка</label>
-                    <select value={gBrand} onChange={(e) => { setGBrand(e.target.value); setGModel(''); }} className={inputCls} data-no-i18n>
-                      {ALL_CAR_BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelCls}>Модель</label>
-                    <input list="garage-models" value={gModel} onChange={(e) => setGModel(e.target.value)} placeholder="Camry" className={inputCls} />
-                    <datalist id="garage-models">
-                      {getModelsForBrand(gBrand).filter((m) => m !== 'Все модели').map((m) => <option key={m} value={m} />)}
-                    </datalist>
-                  </div>
-                  <div>
-                    <label className={labelCls}>Год</label>
-                    <input type="number" min="1950" max={new Date().getFullYear() + 1} value={gYear} onChange={(e) => setGYear(e.target.value)} className={inputCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>VIN (необязательно)</label>
-                    <input value={gVin} onChange={(e) => setGVin(e.target.value.toUpperCase())} maxLength={17} className={`${inputCls} font-mono`} />
-                  </div>
-                  <button type="submit" className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer">Добавить</button>
-                  {garageMsg && <p className="sm:col-span-5 text-xs text-red-600">{garageMsg}</p>}
-                </form>
-              )}
-            </div>
-          )}
-
-          {section === 'orders' && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-black text-slate-900">Мои заказы</h2>
-              {orders === null ? (
-                <div className="py-10 text-center text-slate-400"><Loader2 className="animate-spin mx-auto" /></div>
-              ) : orders.length === 0 ? (
-                <p className={`${card} text-sm text-slate-500 text-center`}>Заказов пока нет. Заказы, оформленные после входа в аккаунт, появятся здесь.</p>
-              ) : (
-                orders.map((o) => (
-                  <div key={o.id} className={`${card} !p-3 flex flex-wrap items-center justify-between gap-2`}>
-                    <div className="min-w-0">
-                      <div className="font-bold text-sm text-slate-900" data-no-i18n>{o.partTitle}</div>
-                      <div className="text-xs text-slate-500"><span data-no-i18n>{o.orderNumber} · {o.storeName}</span> · {o.createdAt}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-black text-[#C8102E]">{Number(o.priceKgs || 0).toLocaleString('ru-RU')} сом</div>
-                      <div className="text-xs font-bold text-slate-600">{o.status}</div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
           {section === 'company' && isLegal && user.company && (
             <form onSubmit={saveCompany} className={`${card} space-y-4`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -622,9 +404,9 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                 <button type="submit" className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer">Сохранить</button>
               </form>
 
-              {sellerMode && <ShopSettingsCard user={user} />}
+              <ShopSettingsCard user={user} />
 
-              <TelegramCard user={user} audience={sellerMode ? 'seller' : 'buyer'} />
+              <TelegramCard user={user} audience="seller" />
 
               <form onSubmit={savePassword} className={`${card} space-y-3`}>
                 <h2 className="text-lg font-black text-slate-900">Смена пароля</h2>
@@ -688,12 +470,10 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
       {/* Phone: bottom tab bar (like an app) + "Ещё" sheet with the rest of the menu */}
       {(() => {
-        const primaryIds: Section[] = sellerMode
-          ? ['listings', 'messages', 'requests', biz.info ? 'business' : 'import']
-          : ['overview', 'messages', 'favorites', 'garage'];
+        const primaryIds: Section[] = ['listings', 'messages', 'requests', biz.info ? 'business' : 'import'];
         const short: Partial<Record<Section, string>> = {
           listings: 'Товары', messages: 'Сообщения', requests: 'Заявки', import: 'Прайс', business: 'Бизнес',
-          overview: 'Главная', favorites: 'Избранное', garage: 'Мои авто',
+          favorites: 'Избранное',
         };
         const all = [...nav, ...buyerExtras];
         const primary = primaryIds.map((id) => all.find((n) => n.id === id)).filter(Boolean) as typeof nav;

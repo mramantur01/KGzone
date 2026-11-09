@@ -10,7 +10,7 @@ type DemoMode = 'seller' | 'buyer';
 const read = (): DemoMode | null => {
   try {
     const v = sessionStorage.getItem(KEY);
-    return v === 'buyer' ? 'buyer' : v === '1' || v === 'seller' ? 'seller' : null;
+    return v === '1' || v === 'seller' || v === 'buyer' ? 'seller' : null;
   } catch { return null; }
 };
 let mode: DemoMode | null = read();
@@ -19,9 +19,10 @@ let mode: DemoMode | null = read();
 if (typeof window !== 'undefined') {
   const params = new URLSearchParams(window.location.search);
   const asked = params.get('demo');
+  // Only the seller cabinet exists now; old ?demo=buyer links open it too
   if (asked === 'seller' || asked === 'buyer') {
-    mode = asked;
-    try { sessionStorage.setItem(KEY, asked); } catch { /* private mode: demo lasts until reload */ }
+    mode = 'seller';
+    try { sessionStorage.setItem(KEY, 'seller'); } catch { /* private mode: demo lasts until reload */ }
     params.delete('demo');
     const qs = params.toString();
     window.history.replaceState(null, '', '/kabinet' + (qs ? `?${qs}` : ''));
