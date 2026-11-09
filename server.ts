@@ -1095,6 +1095,7 @@ interface UserRecord {
   garage: GarageCar[];
   termsAcceptedAt?: string;
   verifiedSeller?: boolean; // crown badge: an admin checked this seller in person
+  isOwner?: boolean; // the site owner's account, signed in with the admin password
   shop?: ShopInfo; // public shop page: /magazin/<user id>
   lastSeenAt?: string;
   verifiedSellerAt?: string;
@@ -1470,6 +1471,46 @@ app.post('/api/auth/claim-admin', requireUser, asyncRoute(async (req: Request, r
   const updated = await updateRecord<UserRecord>('users', user.id, { role: 'admin' });
   await audit(user, 'claim-admin', user.id);
   res.json({ success: true, user: publicUser(updated!) });
+}));
+
+// Owner sign-in: only the admin password (ADMIN_TOKEN), no registration. Signs into the owner
+// account, creating it on first use. Other admins and moderators keep their own accounts.
+app.post('/api/auth/owner-login', asyncRoute(async (req: Request, res: Response) => {
+  if (tooMany(`owner:${clientIp(req)}`, 5, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много попыток. Попробуйте через час.' });
+  const token = process.env.ADMIN_TOKEN;
+  const given = Buffer.from(String(req.body?.adminToken || ''));
+  if (!token || given.length !== Buffer.byteLength(token) || !timingSafeEqual(given, Buffer.from(token))) {
+    return res.status(401).json({ success: false, error: 'Неверный пароль администратора' });
+  }
+  const now = new Date().toISOString();
+  let owner = (await listRecords<UserRecord>('users')).find((u) => u.isOwner);
+  if (!owner) {
+    owner = {
+      id: `usr-${randomUUID()}`,
+      accountType: 'individual',
+      name: 'Владелец KGzone',
+      phone: '',
+      email: '',
+      city: 'Бишкек',
+      passwordHash: await hashPassword(randomBytes(24).toString('hex')), // no password sign-in for this account
+      role: 'admin',
+      blocked: false,
+      tokenVersion: 1,
+      phoneVerified: false,
+      createdAt: now,
+      lastLoginAt: now,
+      garage: [],
+      termsAcceptedAt: now,
+      isOwner: true,
+    };
+    await insertRecord('users', owner);
+  } else {
+    owner = (await updateRecord<UserRecord>('users', owner.id, { lastLoginAt: now, role: 'admin', blocked: false })) || owner;
+  }
+  setSessionCookie(res, owner);
+  await audit(owner, 'owner-login', owner.id);
+  await notifyAdmin(`🔐 Вход владельца KGzone (${clientIp(req)})`);
+  res.json({ success: true, user: publicUser(owner) });
 }));
 
 // --- Seller's own listings -------------------------------------------------

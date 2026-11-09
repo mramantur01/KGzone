@@ -3628,5 +3628,11 @@
  "Подписка не найдена": "Subscription not found",
  "г. Ош, ул. Касымбекова 45 / Авторынок Жапалак": "Osh, Kasymbekov St. 45 / Zhapalak car market",
  "Владелец KGzone": "KGzone owner",
- "Войти или зарегистрироваться": "Sign in or register"
+ "Войти или зарегистрироваться": "Sign in or register",
+ "Вход владельца сайта": "Site owner sign-in",
+ "Я владелец сайта": "I own this site",
+ "Только для владельца KGzone. Введите пароль администратора — тот, что задан в Vercel как ADMIN_TOKEN. Регистрация не нужна.": "For the KGzone owner only. Enter the admin password set in Vercel as ADMIN_TOKEN. No registration needed.",
+ "Войти как владелец": "Sign in as owner",
+ "Обычный вход": "Regular sign-in",
+ "Слишком много попыток. Попробуйте через час.": "Too many attempts. Try again in an hour."
 }

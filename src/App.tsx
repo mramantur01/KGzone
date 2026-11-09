@@ -242,7 +242,7 @@ export default function App() {
   const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
   const [isCabinetAuthModalOpen, setIsCabinetAuthModalOpen] = useState(false);
   const [authModalNotice, setAuthModalNotice] = useState<string | null>(null);
-  const [authModalInitialTab, setAuthModalInitialTab] = useState<'login' | 'register'>('login');
+  const [authModalInitialTab, setAuthModalInitialTab] = useState<'login' | 'register' | 'owner'>('login');
   const [pendingPostAfterAuth, setPendingPostAfterAuth] = useState(false);
   const [chatReady, setChatReady] = useState(false);
   React.useEffect(() => {
@@ -290,6 +290,19 @@ export default function App() {
       return updated;
     });
   };
+
+  // /kabinet?vladelec opens the owner sign-in (admin password only)
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('vladelec')) return;
+    params.delete('vladelec');
+    const qs = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    setAuthModalInitialTab('owner');
+    setAuthModalNotice(null);
+    setIsCabinetAuthModalOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openAuth = (tab: 'login' | 'register', notice?: string) => {
     setAuthModalInitialTab(tab);

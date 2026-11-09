@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { X, Loader2, User, Building2, Eye, EyeOff } from 'lucide-react';
-import { forgotPassword, login, register, type AccountType } from '../../api/auth';
+import { X, Loader2, User, Building2, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { forgotPassword, login, ownerLogin, register, type AccountType } from '../../api/auth';
 
 export const KG_CITIES = ['Бишкек', 'Ош', 'Джалал-Абад', 'Каракол', 'Токмок', 'Нарын', 'Талас', 'Баткен', 'Кара-Балта', 'Кант', 'Балыкчы', 'Узген', 'Кызыл-Кия', 'Чолпон-Ата'];
 
@@ -9,7 +9,7 @@ interface Props {
   onClose: () => void;
   /** Shown above the form, e.g. "Чтобы подать объявление, войдите" */
   notice?: string | null;
-  initialTab?: 'login' | 'register';
+  initialTab?: 'login' | 'register' | 'owner';
   onSuccess?: () => void;
 }
 
@@ -17,7 +17,8 @@ const inputCls = 'w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded
 const labelCls = 'block text-xs font-bold text-slate-700 mb-1';
 
 export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab = 'login', onSuccess }) => {
-  const [tab, setTab] = useState<'login' | 'register' | 'forgot'>(initialTab);
+  const [tab, setTab] = useState<'login' | 'register' | 'forgot' | 'owner'>(initialTab);
+  const [ownerKey, setOwnerKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -65,6 +66,11 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
   const submitLogin = (e: React.FormEvent) => {
     e.preventDefault();
     run(() => login(loginValue.trim(), password));
+  };
+
+  const submitOwner = (e: React.FormEvent) => {
+    e.preventDefault();
+    run(async () => { await ownerLogin(ownerKey.trim()); setOwnerKey(''); });
   };
 
   const submitRegister = (e: React.FormEvent) => {
@@ -121,14 +127,14 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
       <div className="relative w-full max-w-md bg-white text-slate-900 rounded-2xl shadow-2xl overflow-hidden my-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 bg-[#C8102E] text-white">
           <span className="font-extrabold text-base">
-            {tab === 'register' ? 'Регистрация на KGzone' : tab === 'forgot' ? 'Восстановление пароля' : 'Вход в KGzone'}
+            {tab === 'register' ? 'Регистрация на KGzone' : tab === 'forgot' ? 'Восстановление пароля' : tab === 'owner' ? 'Вход владельца сайта' : 'Вход в KGzone'}
           </span>
           <button type="button" onClick={onClose} className="p-1.5 rounded-md hover:bg-white/10 cursor-pointer" aria-label="Закрыть">
             <X size={20} />
           </button>
         </div>
 
-        {tab !== 'forgot' && (
+        {tab !== 'forgot' && tab !== 'owner' && (
           <div className="grid grid-cols-2 border-b border-slate-200 text-sm font-bold">
             {(['login', 'register'] as const).map((t) => (
               <button
@@ -163,6 +169,27 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
               </button>
               <button type="button" onClick={() => { setTab('forgot'); setError(null); setInfo(null); }} className="w-full text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer">
                 Забыли пароль?
+              </button>
+              <button type="button" onClick={() => { setTab('owner'); setError(null); }} className="w-full text-xs text-slate-400 hover:text-slate-700 cursor-pointer flex items-center justify-center gap-1">
+                <KeyRound size={12} /><span>Я владелец сайта</span>
+              </button>
+            </form>
+          )}
+
+          {tab === 'owner' && (
+            <form onSubmit={submitOwner} className="space-y-3">
+              <p className="text-sm text-slate-600">Только для владельца KGzone. Введите пароль администратора — тот, что задан в Vercel как ADMIN_TOKEN. Регистрация не нужна.</p>
+              <div>
+                <label className={labelCls}>Пароль администратора</label>
+                {passwordInput(ownerKey, setOwnerKey, 'Пароль администратора', 'current-password')}
+              </div>
+              {error && <p className="text-xs text-red-600 font-semibold">{error}</p>}
+              <button type="submit" disabled={busy || !ownerKey.trim()} className="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer">
+                {busy && <Loader2 size={16} className="animate-spin" />}
+                <span>Войти как владелец</span>
+              </button>
+              <button type="button" onClick={() => { setTab('login'); setError(null); }} className="w-full text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer">
+                Обычный вход
               </button>
             </form>
           )}

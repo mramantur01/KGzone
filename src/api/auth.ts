@@ -148,6 +148,10 @@ export const submitCompanyForReview = () => withUser(call('/api/auth/company/sub
 export const saveGarage = (garage: GarageCar[]) =>
   withUser(call('/api/auth/garage', { method: 'PUT', body: JSON.stringify({ garage }) }));
 
+/** Site owner: sign in with the admin password only */
+export const ownerLogin = (adminToken: string) =>
+  withUser(call('/api/auth/owner-login', { method: 'POST', body: JSON.stringify({ adminToken }) }));
+
 export const claimAdmin = (adminToken: string) =>
   withUser(call('/api/auth/claim-admin', { method: 'POST', body: JSON.stringify({ adminToken }) }));
 
