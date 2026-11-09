@@ -34,7 +34,8 @@ import { TelegramCard } from './TelegramCard';
 import { DeleteAccountCard } from './DeleteAccountCard';
 import { GarageService, garageReminders } from './GarageService';
 import { ServiceKitModal } from '../catalog/ServiceKitModal';
-import { WatchesCard, RateSellersCard } from './BuyerBlocks';
+import { RateSellersCard } from './BuyerBlocks';
+import { BuyerHome } from './BuyerHome';
 import { SearchMissesPanel } from '../catalog/SearchMissesPanel';
 import { ShopSettingsCard } from './ShopSettingsCard';
 
@@ -317,56 +318,23 @@ export const AccountCabinet: React.FC<Props> = (props) => {
         <main className="lg:col-span-9 space-y-4 min-w-0">
           {section === 'overview' && (
             <>
-              <div className={card}>
-                <h1 className="text-xl font-black text-slate-900">Здравствуйте, {user.name.split(' ')[0]}!</h1>
-                <p className="text-sm text-slate-600 mt-1">Подберём запчасти для ваших машин и подскажем, когда появится нужная деталь.</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => onFindParts({})} className="px-4 py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold flex items-center gap-2 cursor-pointer"><Search size={16} />Найти запчасть</button>
-                  <button type="button" onClick={() => setSection('garage')} className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-bold flex items-center gap-2 cursor-pointer"><CarFront size={16} />Мои автомобили</button>
-                </div>
-              </div>
-
-              <div className={card}>
-                <div className="flex items-center gap-2 font-bold text-slate-900"><Bell size={16} className="text-[#C8102E]" />Запчасти для ваших автомобилей</div>
-                {garageMatches.length === 0 ? (
-                  <div className="mt-2">
-                    <p className="text-sm text-slate-500">Добавьте свою машину — здесь появятся подходящие запчасти и напоминания о замене масла.</p>
-                    <button type="button" onClick={() => setSection('garage')} className="mt-2 text-sm font-bold text-[#1d6fb8] hover:underline cursor-pointer">+ Добавить автомобиль</button>
-                  </div>
-                ) : (
-                  <div className="mt-3 space-y-2">
-                    {garageMatches.map(({ car, ids }) => {
-                      const fresh = ids.filter((id) => !(seen[car.id] || []).includes(id)).length;
-                      return (
-                        <div key={car.id} className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                          <div className="text-sm" data-no-i18n>
-                            <b>{car.brand} {car.model}</b>{car.year ? `, ${car.year}` : ''}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-slate-500">Подходит: {ids.length}</span>
-                            {fresh > 0 && <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold">Новых: {fresh}</span>}
-                            <button type="button" onClick={() => findForCar(car, ids)} className="px-3 py-1.5 rounded-lg bg-[#C8102E] text-white font-bold cursor-pointer">Смотреть</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {user.garage.flatMap(garageReminders).length > 0 && (
-                <div className={`${card} border-amber-300 bg-amber-50`}>
-                  <div className="text-sm font-bold text-amber-900 mb-1">Напоминания по обслуживанию</div>
-                  {user.garage.map((g) => garageReminders(g).map((r) => (
-                    <div key={g.id + r.text} className={`text-xs font-semibold ${r.urgent ? 'text-red-700' : 'text-amber-800'}`}>
-                      <span data-no-i18n>{g.brand} {g.model}</span>: {r.text}
-                    </div>
-                  )))}
-                  <button type="button" onClick={() => setSection('garage')} className="mt-1 text-xs font-bold underline text-amber-900 cursor-pointer">Мои автомобили</button>
-                </div>
-              )}
-
-              <WatchesCard onSearch={(w) => onFindParts({ search: w.q, brand: w.brand, model: w.model })} />
+              <BuyerHome
+                user={user}
+                parts={parts}
+                cars={cars}
+                favPartIds={partFavIds}
+                favCarIds={favoriteCarIds}
+                history={history}
+                garageMatches={garageMatches}
+                seen={seen}
+                onMarkSeen={(carId, ids) => { const next = { ...seen, [carId]: ids }; setSeen(next); writeSeen(next); }}
+                onFindParts={onFindParts}
+                onSelectCar={onSelectCar}
+                onToggleCarFavorite={onToggleCarFavorite}
+                onOpenGarage={() => setSection('garage')}
+                onOpenKit={(g) => setKitCar({ brand: g.brand, model: g.model })}
+              />
+              {kitCar && section === 'overview' && <ServiceKitModal brand={kitCar.brand} model={kitCar.model} onClose={() => setKitCar(null)} />}
 
               <RateSellersCard />
 
