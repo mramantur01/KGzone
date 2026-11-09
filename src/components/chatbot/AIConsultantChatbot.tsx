@@ -1,13 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Bot, Sparkles, User, RefreshCw, ChevronRight } from 'lucide-react';
 import { KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
-import { Language } from '../../types/car';
+import { AutoPartItem, Language } from '../../types/car';
+import { useParts } from '../../api/parts';
+import { isDemoListing } from '../../utils/demo';
+import { partHaystack, smartScore } from '../../utils/smartSearch';
+import { partPath } from '../../seo/routes';
 
 interface Message {
   id: string;
   sender: 'user' | 'bot';
   text: string;
   time: string;
+  parts?: AutoPartItem[];
+}
+
+// Real listings on the site that fit a chat question (best first, at most 5)
+function findListings(parts: AutoPartItem[], question: string): AutoPartItem[] {
+  return parts
+    .filter((p) => !isDemoListing(p.id))
+    .map((p) => ({ p, ...smartScore(partHaystack(p), question) }))
+    .filter((x) => x.hits >= 1 && x.score >= 0.6)
+    .sort((a, b) => b.score - a.score || b.hits - a.hits || a.p.priceKgs - b.p.priceKgs)
+    .slice(0, 5)
+    .map((x) => x.p);
 }
 
 interface AIConsultantChatbotProps {
@@ -44,6 +60,7 @@ export const AIConsultantChatbot: React.FC<AIConsultantChatbotProps> = ({
     },
   ]);
 
+  const allParts = useParts();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -77,12 +94,17 @@ export const AIConsultantChatbot: React.FC<AIConsultantChatbotProps> = ({
         text: m.text,
       }));
 
+      const found = findListings(allParts, query);
       const response = await fetch('/api/ai/consultant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: query,
           history: historyPayload,
+          listings: found.map((p) => ({
+            title: p.title, car: `${p.brand} ${p.model}`.trim(), price: p.priceKgs, oem: p.partNumber,
+            condition: p.condition, place: p.storeLocation || p.city || '',
+          })),
         }),
       });
 
@@ -94,6 +116,7 @@ export const AIConsultantChatbot: React.FC<AIConsultantChatbotProps> = ({
         sender: 'bot',
         text: botReply,
         time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        parts: found.length ? found : undefined,
       };
 
       setMessages((prev) => [...prev, botMessage]);
@@ -214,6 +237,22 @@ export const AIConsultantChatbot: React.FC<AIConsultantChatbotProps> = ({
                   }`}
                 >
                   <div className="whitespace-pre-wrap">{m.text}</div>
+                  {m.parts && (
+                    <div className="mt-2 space-y-1.5">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase">Есть на KGzone</div>
+                      {m.parts.map((p) => (
+                        <a key={p.id} href={partPath(p)} className="flex items-center gap-2 p-1.5 rounded-lg border border-slate-200 hover:border-[#C8102E] hover:bg-red-50 no-underline">
+                          {p.images?.[0] && <img src={p.images[0]} alt="" loading="lazy" className="w-10 h-10 rounded object-cover shrink-0" />}
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-semibold text-slate-800 truncate">{p.title}</span>
+                            <span className="block text-[10px] text-slate-500 truncate">{p.brand} {p.model}</span>
+                          </span>
+                          <span className="font-black text-[#C8102E] whitespace-nowrap">{p.priceKgs.toLocaleString('ru-RU')} с</span>
+                          <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                   <div
                     className={`text-[9px] mt-1 text-right ${
                       m.sender === 'user' ? 'text-red-200' : 'text-slate-400'

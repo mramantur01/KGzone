@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  LayoutDashboard, ListChecks, Heart, History, CarFront, ShoppingBag, Building2, UserCog, ShieldCheck, Users,
+  LayoutDashboard, ListChecks, Heart, History, CarFront, Wrench, ShoppingBag, Building2, UserCog, ShieldCheck, Users,
   LogOut, Loader2, Trash2, Search, Bell, MessageSquare, Upload, Settings, Crown, Menu, X,
 } from 'lucide-react';
 import { call } from '../../api/admin';
@@ -33,6 +33,7 @@ import { SellerRequestsPanel } from '../catalog/SellerRequestsPanel';
 import { TelegramCard } from './TelegramCard';
 import { DeleteAccountCard } from './DeleteAccountCard';
 import { GarageService, garageReminders } from './GarageService';
+import { ServiceKitModal } from '../catalog/ServiceKitModal';
 import { WatchesCard, RateSellersCard } from './BuyerBlocks';
 import { SearchMissesPanel } from '../catalog/SearchMissesPanel';
 import { ShopSettingsCard } from './ShopSettingsCard';
@@ -106,6 +107,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const [gYear, setGYear] = useState('');
   const [gVin, setGVin] = useState('');
   const [garageMsg, setGarageMsg] = useState<string | null>(null);
+  const [kitCar, setKitCar] = useState<{ brand: string; model: string } | null>(null);
 
   const [orders, setOrders] = useState<any[] | null>(null);
   // Seller mode: has listings, or is a company. Decides the menu and the start page.
@@ -504,6 +506,9 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                     <button type="button" onClick={() => findForCar(car, ids)} className="px-3 py-1.5 rounded-lg bg-[#C8102E] text-white text-xs font-bold flex items-center gap-1 cursor-pointer">
                       <Search size={12} /><span>Подобрать запчасти</span>
                     </button>
+                    <button type="button" onClick={() => setKitCar({ brand: car.brand, model: car.model })} className="px-3 py-1.5 rounded-lg bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1 cursor-pointer">
+                      <Wrench size={12} /><span>Набор для ТО</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => saveGarage(user.garage.filter((g) => g.id !== car.id)).catch((e) => setGarageMsg(e.message))}
@@ -520,6 +525,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                   </div>
                 );
               })}
+              {kitCar && <ServiceKitModal brand={kitCar.brand} model={kitCar.model} onClose={() => setKitCar(null)} />}
               {user.garage.length < 10 && (
                 <form onSubmit={addGarageCar} className={`${card} grid grid-cols-1 sm:grid-cols-5 gap-3 items-end`}>
                   <div>

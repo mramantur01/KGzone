@@ -19,6 +19,8 @@ const labelCls = 'block text-xs font-bold text-slate-700 mb-1';
 export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab = 'login', onSuccess }) => {
   const [tab, setTab] = useState<'login' | 'register' | 'forgot' | 'owner'>(initialTab);
   const [ownerKey, setOwnerKey] = useState('');
+  const [ownerCode, setOwnerCode] = useState('');
+  const [ownerNeedCode, setOwnerNeedCode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -68,9 +70,26 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
     run(() => login(loginValue.trim(), password));
   };
 
+  const sendOwner = async (code: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const user = await ownerLogin(ownerKey.trim(), code);
+      if (!user) { setOwnerNeedCode(true); setOwnerCode(''); return; }
+      setOwnerKey('');
+      setOwnerCode('');
+      setOwnerNeedCode(false);
+      onSuccess?.();
+      onClose();
+    } catch (e: any) {
+      setError(e?.message || 'Ошибка. Попробуйте ещё раз.');
+    } finally {
+      setBusy(false);
+    }
+  };
   const submitOwner = (e: React.FormEvent) => {
     e.preventDefault();
-    run(async () => { await ownerLogin(ownerKey.trim()); setOwnerKey(''); });
+    sendOwner(ownerNeedCode ? ownerCode.trim() : '');
   };
 
   const submitRegister = (e: React.FormEvent) => {
@@ -183,8 +202,26 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
                 <label className={labelCls}>Пароль администратора</label>
                 {passwordInput(ownerKey, setOwnerKey, 'Пароль администратора', 'current-password')}
               </div>
+              {ownerNeedCode && (
+                <div>
+                  <label className={labelCls}>Код из Telegram</label>
+                  <input
+                    value={ownerCode}
+                    onChange={(e) => setOwnerCode(e.target.value.replace(/D/g, '').slice(0, 6))}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="6 цифр"
+                    autoFocus
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-lg tracking-[0.4em] font-bold text-center focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Мы отправили код вашему Telegram-боту KGzone. Он действует 5 минут.</p>
+                  <button type="button" disabled={busy} onClick={() => sendOwner('')} className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer mt-1">
+                    Прислать новый код
+                  </button>
+                </div>
+              )}
               {error && <p className="text-xs text-red-600 font-semibold">{error}</p>}
-              <button type="submit" disabled={busy || !ownerKey.trim()} className="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer">
+              <button type="submit" disabled={busy || !ownerKey.trim() || (ownerNeedCode && ownerCode.length !== 6)} className="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer">
                 {busy && <Loader2 size={16} className="animate-spin" />}
                 <span>Войти как владелец</span>
               </button>

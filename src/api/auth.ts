@@ -149,8 +149,13 @@ export const saveGarage = (garage: GarageCar[]) =>
   withUser(call('/api/auth/garage', { method: 'PUT', body: JSON.stringify({ garage }) }));
 
 /** Site owner: sign in with the admin password only */
-export const ownerLogin = (adminToken: string) =>
-  withUser(call('/api/auth/owner-login', { method: 'POST', body: JSON.stringify({ adminToken }) }));
+/** Owner sign-in. Returns null when a Telegram code was sent and has to be entered (second step). */
+export const ownerLogin = async (adminToken: string, code = ''): Promise<Account | null> => {
+  const r = await call<{ user?: Account; needCode?: boolean }>('/api/auth/owner-login', { method: 'POST', body: JSON.stringify({ adminToken, code }) });
+  if (r.needCode || !r.user) return null;
+  set({ user: r.user });
+  return r.user;
+};
 
 export const claimAdmin = (adminToken: string) =>
   withUser(call('/api/auth/claim-admin', { method: 'POST', body: JSON.stringify({ adminToken }) }));

@@ -20,7 +20,9 @@ import { decodeFrame } from '../../data/frameCodes';
 import { CrossesPanel } from '../catalog/CrossesPanel';
 import { PartRequestForm } from '../catalog/PartRequestForm';
 import { NotifyWhenAvailable } from '../catalog/NotifyWhenAvailable';
-import { reportSearchMiss } from '../../api/watches';
+import { ServiceKitModal } from '../catalog/ServiceKitModal';
+import { pulse, reportSearchMiss } from '../../api/watches';
+import { partHaystack, smartMatch } from '../../utils/smartSearch';
 import { brandPath, categoryPath, partPath, setPath, setTitle, slugify, type Route } from '../../seo/routes';
 import { togglePartFavorite, usePartFavorites } from '../../utils/partFavorites';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
@@ -128,6 +130,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
+  const [kitOpen, setKitOpen] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [selectedGeneration, setSelectedGeneration] = useState<string>('');
@@ -543,7 +546,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
           (part.manufacturer && part.manufacturer.toLowerCase().includes(q)) ||
           !!part.crossNumbers?.some((c) => c.toLowerCase().includes(q)) ||
           // Part numbers match regardless of dashes and spaces ("90915-YZZE1" = "90915YZZE1")
-          (qNum.length >= 4 && /\d/.test(qNum) &&[part.partNumber, ...(part.crossNumbers || [])].some((n) => normNum(n).includes(qNum)));
+          (qNum.length >= 4 && /\d/.test(qNum) &&[part.partNumber, ...(part.crossNumbers || [])].some((n) => normNum(n).includes(qNum))) ||
+          // Russian car names, market slang, word endings and one-letter typos ("камри стойка", "амартизатор")
+          smartMatch(partHaystack(part), q);
         if (!matchesQuery) return false;
       }
 
@@ -658,6 +663,14 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     onlyFavorites,
     favoriteIds,
   ]);
+
+  // Every typed search is counted for the owner's statistics
+  React.useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 3) return;
+    const t = setTimeout(() => pulse('search', q), 2000);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   // Searches that find nothing are counted, so sellers see what buyers need
   React.useEffect(() => {
@@ -1308,6 +1321,16 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
           {/* LISTINGS CONTAINER (9 cols on desktop) */}
           <div className="lg:col-span-9">
+            {selectedBrand && selectedModel && (
+              <button
+                type="button"
+                onClick={() => setKitOpen(true)}
+                className="mb-3 w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>🛠</span><span>Собрать набор для ТО на <span data-no-i18n>{selectedBrand} {selectedModel}</span></span>
+              </button>
+            )}
+            {kitOpen && selectedBrand && selectedModel && <ServiceKitModal brand={selectedBrand} model={selectedModel} onClose={() => setKitOpen(false)} />}
             {selectedBrand && selectedModel && !isModelTreeHidden && (
               <ModelPartsTree
                 brand={selectedBrand}

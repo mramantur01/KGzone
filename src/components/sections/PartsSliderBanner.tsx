@@ -66,7 +66,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
       secondaryText: isKg ? 'OEM боюнча издөө' : 'Поиск по OEM',
       secondaryAction: onFocusSearch,
       accentColor: 'from-red-950 via-neutral-950 to-neutral-900',
-      bgImage: '/parts/wm-03.jpg',
+      bgImage: '/parts/wm-03.webp',
       icon: <Wrench className="text-red-400" size={20} />,
     },
     {
@@ -91,7 +91,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
       secondaryText: undefined,
       secondaryAction: undefined,
       accentColor: 'from-emerald-950 via-neutral-950 to-neutral-900',
-      bgImage: '/parts/wm-10.jpg',
+      bgImage: '/parts/wm-10.webp',
       icon: <Layers className="text-emerald-400" size={20} />,
     },
     {

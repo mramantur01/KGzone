@@ -2,9 +2,13 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import {startTranslator} from './i18n/domTranslator';
 import './index.css';
+import { pulse } from './api/watches';
 
 startTranslator();
 createRoot(document.getElementById('root')!).render(<App />);
+
+// Count the visit for the owner's statistics (anonymous, once a day per browser)
+window.addEventListener('load', () => setTimeout(() => pulse('visit'), 2000));
 
 if (import.meta.env.PROD && !/^(localhost|127.0.0.1)$/.test(location.hostname)) {
   // Installable app + offline copy

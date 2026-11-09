@@ -87,14 +87,14 @@ const part = (id: string, title: string, partNumber: string, priceKgs: number, s
 // A made-up stock for the demo. Each item uses a photo of that kind of part (the same photos the
 // site's example listings use); items marked null have no photo, to show the "Нет фото" state.
 const PH = {
-  pads: '/parts/wm-02.jpg',
-  engine2ar: '/parts/wm-03.jpg',
-  engineV6: '/parts/wm-04.jpg',
-  engineBmw: '/parts/wm-08.jpg',
-  cvt: '/parts/wm-10.jpg',
-  turbo: '/parts/wm-12.jpg',
-  alternator: '/parts/wm-14.jpg',
-  starter: '/parts/wm-16.jpg',
+  pads: '/parts/wm-02.webp',
+  engine2ar: '/parts/wm-03.webp',
+  engineV6: '/parts/wm-04.webp',
+  engineBmw: '/parts/wm-08.webp',
+  cvt: '/parts/wm-10.webp',
+  turbo: '/parts/wm-12.webp',
+  alternator: '/parts/wm-14.webp',
+  starter: '/parts/wm-16.webp',
   shock: 'https://images.unsplash.com/photo-1760836395763-25ea44ae8145?auto=format&fit=crop&w=600&q=80',
   airSpring: 'https://images.unsplash.com/photo-1760317890283-540a468b86f6?auto=format&fit=crop&w=600&q=80',
   radiator: 'https://images.unsplash.com/photo-1760804462190-82832c8eb582?auto=format&fit=crop&w=600&q=80',
@@ -151,10 +151,10 @@ const MORE_PARTS = STOCK.map(([title, oem, brand, model, price, photo, category,
 
 const demoListings = {
   parts: [
-    part('demo-p1', 'Колодки тормозные передние Camry 70', '04465-33471', 2800, 6, '/parts/wm-02.jpg', { views: 112, contactsCount: 9 }),
-    part('demo-p2', 'Фара левая LED Camry 70', '81150-33K10', 18500, 1, '/parts/demo/projector.jpg', { category: 'Оптика', views: 64 }),
+    part('demo-p1', 'Колодки тормозные передние Camry 70', '04465-33471', 2800, 6, '/parts/wm-02.webp', { views: 112, contactsCount: 9 }),
+    part('demo-p2', 'Фара левая LED Camry 70', '81150-33K10', 18500, 1, '/parts/demo/projector.webp', { category: 'Оптика', views: 64 }),
     part('demo-p3', 'Амортизатор передний правый', '48510-80000', 3200, 4, null, { category: 'Подвеска', views: 0, contactsCount: 0 }),
-    part('demo-p4', 'Генератор 90A Camry 2.5', '27060-36070', 12500, 0, '/parts/wm-14.jpg', { category: 'Электрика', views: 23 }),
+    part('demo-p4', 'Генератор 90A Camry 2.5', '27060-36070', 12500, 0, '/parts/wm-14.webp', { category: 'Электрика', views: 23 }),
     part('demo-p5', 'Радиатор охлаждения Camry 70', '16400-F0010', 11500, 2, 'https://images.unsplash.com/photo-1760804462190-82832c8eb582?auto=format&fit=crop&w=600&q=80', { category: 'Система охлаждения', moderation: { status: 'pending' }, views: 0, contactsCount: 0 }),
     ...MORE_PARTS,
   ],
@@ -162,7 +162,7 @@ const demoListings = {
 };
 
 const demoConversation = {
-  id: 'demo-c1', kind: 'parts', listingId: 'demo-p1', listingTitle: 'Колодки тормозные передние Camry 70', listingImage: '/parts/wm-02.jpg',
+  id: 'demo-c1', kind: 'parts', listingId: 'demo-p1', listingTitle: 'Колодки тормозные передние Camry 70', listingImage: '/parts/wm-02.webp',
   role: 'seller', otherName: 'Нурлан',
   lastMessage: { text: 'Скиньте номер карты для предоплаты, отправлю такси.', at: day(0.02), from: 'buyer' },
   lastAt: day(0.02), unread: 1,
@@ -201,7 +201,7 @@ const demoBuyer = {
   termsAcceptedAt: day(20),
 };
 const buyerConversation = {
-  id: 'demo-bc1', kind: 'parts', listingId: 'demo-p1', listingTitle: 'Колодки тормозные передние Camry 70', listingImage: '/parts/wm-02.jpg',
+  id: 'demo-bc1', kind: 'parts', listingId: 'demo-p1', listingTitle: 'Колодки тормозные передние Camry 70', listingImage: '/parts/wm-02.webp',
   role: 'buyer', otherName: 'Бакыт, Кудайберген', otherId: 'demo-seller',
   lastMessage: { text: 'Да, есть. Подъезжайте, контейнер 12, до 17:00.', at: day(1.5), from: 'seller' },
   lastAt: day(1.5), unread: 1,
@@ -234,6 +234,19 @@ export function demoResponse(url: string, method: string): unknown {
     return buyer ? { success: true, conversation: buyerConversation, messages: buyerMessages } : { success: true, conversation: demoConversation, messages: demoMessages };
   }
   if (path === '/api/watches') return { success: true, watches: buyer ? demoWatches : [] };
+  if (path === '/api/notifications') {
+    const items = buyer
+      ? [
+          { id: 'dn1', text: '🔔 Появилось то, что вы искали: Колодки тормозные передние Toyota Camry 70 — 3 200 сом', at: day(0.05) },
+          { id: 'dn2', text: '💬 Новое сообщение от продавца «Авто-Деталь Кудайберген»: Да, в наличии, приезжайте.', at: day(0.4) },
+        ]
+      : [
+          { id: 'dn1', text: '💬 Новое сообщение по «Амортизатор передний Toyota Camry 70»\nАйбек: Здравствуйте, ещё в наличии?', at: day(0.03) },
+          { id: 'dn2', text: '✅ Объявление «Фара левая Lexus RX 350» одобрено и опубликовано.', at: day(1) },
+          { id: 'dn3', text: '👑 Поздравляем! KGzone отметил вас как проверенного продавца.', at: day(5) },
+        ];
+    return { success: true, items, unread: 1, readAt: day(0.2) };
+  }
   if (path === '/api/search-misses/for-me') return { success: true, misses: buyer ? [] : demoMisses, brands: buyer ? [] : ['toyota', 'lexus'] };
   if (path === '/api/sellers/demo-seller/reviews') {
     return { success: true, seller: { id: 'demo-seller', name: demoSellerProfile.name, accountType: 'individual', verified: true, since: day(40), lastSeenAt: day(0.02) }, rating: 4.8, reviews: [], canReview: buyer };

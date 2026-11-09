@@ -130,7 +130,9 @@ export default function App() {
   const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>(INITIAL_REGISTERED_USERS);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(INITIAL_SITE_SETTINGS);
   const [currency, setCurrency] = useState<Currency>('USD');
-  const [language, setLanguage] = useState<Language>('ru');
+  // ?lang=kg (Kyrgyz pages for Google) opens the site in Kyrgyz
+  const [language, setLanguage] = useState<Language>(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('lang') === 'kg' ? 'kg' : 'ru');
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [selectedCity, setSelectedCity] = useState<string>('Все регионы');
   const [activeTab, setActiveTab] = useState<string>(INITIAL_ROUTE.tab);
@@ -294,12 +296,15 @@ export default function App() {
   // /kabinet?vladelec opens the owner sign-in (admin password only)
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (!params.has('vladelec')) return;
+    // ?register (QR code on the paper flyer for sellers) opens the sign-up form
+    const tab = params.has('vladelec') ? 'owner' : params.has('register') ? 'register' : null;
+    if (!tab) return;
     params.delete('vladelec');
+    params.delete('register');
     const qs = params.toString();
     window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
-    setAuthModalInitialTab('owner');
-    setAuthModalNotice(null);
+    setAuthModalInitialTab(tab);
+    setAuthModalNotice(tab === 'register' ? 'Регистрация бесплатная. После неё добавьте свои запчасти — покупатели будут писать вам напрямую.' : null);
     setIsCabinetAuthModalOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

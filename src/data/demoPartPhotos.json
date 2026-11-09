@@ -1,36 +1,36 @@
 {
   "pads": {
-    "src": "/parts/demo/pads.jpg",
+    "src": "/parts/demo/pads.webp",
     "author": "A7N8X",
     "license": "CC BY-SA 3.0",
     "url": "https://commons.wikimedia.org/wiki/File:Brake_pad.jpg"
   },
   "foglight": {
-    "src": "/parts/demo/foglight.jpg",
+    "src": "/parts/demo/foglight.webp",
     "author": "Frettie",
     "license": "CC BY 3.0",
     "url": "https://commons.wikimedia.org/wiki/File:Front_fog_lights_of_Ford_Focus_Mk_I.jpg"
   },
   "mirror": {
-    "src": "/parts/demo/mirror.jpg",
+    "src": "/parts/demo/mirror.webp",
     "author": "Sally Meyer",
     "license": "CC BY-SA 4.0",
     "url": "https://commons.wikimedia.org/wiki/File:Aussenspiegel_McLaren_650S.JPG"
   },
   "stabilizer": {
-    "src": "/parts/demo/stabilizer.jpg",
+    "src": "/parts/demo/stabilizer.webp",
     "author": "Hans Haase",
     "license": "CC BY-SA 4.0",
     "url": "https://commons.wikimedia.org/wiki/File:Stabilisatorkoppelstange_mit_Kugelgelenken_BWCM_IMG_20160202_1602.jpg"
   },
   "hub": {
-    "src": "/parts/demo/hub.jpg",
+    "src": "/parts/demo/hub.webp",
     "author": "Cschirp",
     "license": "CC BY 3.0",
     "url": "https://commons.wikimedia.org/wiki/File:Wheel_hub_assembly.jpg"
   },
   "sparkplug": {
-    "src": "/parts/demo/sparkplug.jpg",
+    "src": "/parts/demo/sparkplug.webp",
     "author": "Claus Ableiter",
     "license": "CC BY-SA 4.0",
     "url": "https://commons.wikimedia.org/wiki/File:Z%C3%BCndkerzen_1.jpg"
@@ -48,67 +48,67 @@
     "url": "https://commons.wikimedia.org/wiki/File:Track_control_arm_for_a_Kia_Ceed_01.jpg"
   },
   "cvboot": {
-    "src": "/parts/demo/cvboot.jpg",
+    "src": "/parts/demo/cvboot.webp",
     "author": "btr",
     "license": "CC BY-SA 2.5",
     "url": "https://commons.wikimedia.org/wiki/File:Achsmanschette.jpg"
   },
   "cvjoint": {
-    "src": "/parts/demo/cvjoint.jpg",
+    "src": "/parts/demo/cvjoint.webp",
     "author": "BiH",
     "license": "Public domain",
     "url": "https://commons.wikimedia.org/wiki/File:CV_joint_half_axle.jpg"
   },
   "tierod": {
-    "src": "/parts/demo/tierod.jpg",
+    "src": "/parts/demo/tierod.webp",
     "author": "Craig Howell",
     "license": "CC BY 2.0",
     "url": "https://commons.wikimedia.org/wiki/File:Tie_rod_end.jpeg"
   },
   "pump": {
-    "src": "/parts/demo/pump.jpg",
+    "src": "/parts/demo/pump.webp",
     "author": "Thilo Parg",
     "license": "CC BY-SA 3.0",
     "url": "https://commons.wikimedia.org/wiki/File:Kuehlmittelpumpe_Suzuki_G10A.jpg"
   },
   "belt": {
-    "src": "/parts/demo/belt.jpg",
+    "src": "/parts/demo/belt.webp",
     "author": "Hans Haase",
     "license": "CC BY-SA 4.0",
     "url": "https://commons.wikimedia.org/wiki/File:Keilrippenriemen_Servopumpe_Spannrollen_VW_T4_IMG_20160922_135213.jpg"
   },
   "coil": {
-    "src": "/parts/demo/coil.jpg",
+    "src": "/parts/demo/coil.webp",
     "author": "Nick Ares from Auburn, CA, United States",
     "license": "CC BY-SA 2.0",
     "url": "https://commons.wikimedia.org/wiki/File:Ignition_coil.jpg"
   },
   "alternator": {
-    "src": "/parts/demo/alternator.jpg",
+    "src": "/parts/demo/alternator.webp",
     "author": "Zinnsoldat",
     "license": "CC BY-SA 3.0",
     "url": "https://commons.wikimedia.org/wiki/File:Automotive_alternator._Terminals.jpg"
   },
   "starter": {
-    "src": "/parts/demo/starter.jpg",
+    "src": "/parts/demo/starter.webp",
     "author": "Willdre 00:20, 8 February 2007 (UTC)",
     "license": "CC BY-SA 3.0",
     "url": "https://commons.wikimedia.org/wiki/File:Automobile_starter.JPG"
   },
   "battery": {
-    "src": "/parts/demo/battery.jpg",
+    "src": "/parts/demo/battery.webp",
     "author": "Cjp24",
     "license": "CC BY-SA 4.0",
     "url": "https://commons.wikimedia.org/wiki/File:Lead-acid_automotive_battery,_55_Ah.jpg"
   },
   "headlight": {
-    "src": "/parts/demo/headlight.jpg",
+    "src": "/parts/demo/headlight.webp",
     "author": "Pava",
     "license": "CC BY-SA 3.0 it",
     "url": "https://commons.wikimedia.org/wiki/File:%22_13_-_ITALY_-_Alfa_Romeo_headlight_assembly_-_projector_black_headlamp_xenon_-_Giulietta_2013.jpg"
   },
   "projector": {
-    "src": "/parts/demo/projector.jpg",
+    "src": "/parts/demo/projector.webp",
     "author": "Wikimedia Commons",
     "license": "CC BY-SA 3.0",
     "url": "https://commons.wikimedia.org/wiki/File:Headlight_projector_optics.jpg"

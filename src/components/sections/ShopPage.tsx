@@ -6,6 +6,7 @@ import type { AutoPartItem } from '../../types/car';
 import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
 import { lastSeenText, seenRecently } from '../../utils/lastSeen';
 import { isDemoCabinet } from '../../api/demo';
+import { partHaystack, smartMatch } from '../../utils/smartSearch';
 
 interface ShopInfo { about: string; market: string; container: string; address: string; hours: string; mapUrl: string }
 interface SellerProfile {
@@ -46,7 +47,7 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/[\s-]/g, '');
     if (!q) return parts;
-    return parts.filter((p) => [p.title, p.brand, p.model, p.partNumber, ...(p.crossNumbers || [])].join(' ').toLowerCase().replace(/[\s-]/g, '').includes(q));
+    return parts.filter((p) => [p.title, p.brand, p.model, p.partNumber, ...(p.crossNumbers || [])].join(' ').toLowerCase().replace(/[\s-]/g, '').includes(q) || smartMatch(partHaystack(p), query));
   }, [parts, query]);
   const phone = parts.find((p) => p.sellerPhone)?.sellerPhone;
 

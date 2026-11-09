@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Листовка KGzone для продавцов</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e2e8f0; font-family: Arial, Helvetica, sans-serif; color: #0f172a; }
+  .bar { position: sticky; top: 0; background: #0f172a; color: #fff; padding: 12px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 14px; z-index: 1; }
+  .bar button { background: #fbbf24; color: #0f172a; border: 0; border-radius: 10px; padding: 10px 18px; font-weight: 800; font-size: 15px; cursor: pointer; }
+  .sheet { width: 210mm; height: 297mm; margin: 16px auto; background: #fff; display: flex; flex-direction: column; box-shadow: 0 4px 24px rgba(0,0,0,.15); }
+  .flyer { height: 148.5mm; padding: 9mm 11mm; display: flex; flex-direction: column; border-bottom: 1px dashed #94a3b8; overflow: hidden; }
+  .flyer:last-child { border-bottom: 0; }
+  header { display: flex; justify-content: space-between; align-items: center; }
+  .logo { font-size: 30px; font-weight: 900; letter-spacing: -1px; color: #C8102E; }
+  .logo span { color: #0f172a; }
+  .tag { font-size: 12px; color: #475569; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+  h1 { margin: 4mm 0 1mm; font-size: 27px; line-height: 1.1; }
+  h1 em { font-style: normal; color: #C8102E; }
+  .kg { margin: 0 0 3mm; font-size: 13px; color: #475569; }
+  .body { display: flex; gap: 7mm; align-items: center; flex: 1; }
+  ul { margin: 0; padding: 0; list-style: none; flex: 1; font-size: 14.5px; line-height: 1.45; }
+  ul li { padding-left: 20px; position: relative; }
+  ul li::before { content: '✓'; position: absolute; left: 0; color: #16a34a; font-weight: 900; }
+  .qr { width: 44mm; text-align: center; flex-shrink: 0; }
+  .qr svg { width: 44mm; height: 44mm; display: block; }
+  .scan { font-size: 11px; font-weight: 700; margin-top: 2mm; color: #475569; }
+  .steps { display: flex; gap: 3mm; margin: 3mm 0; padding: 0; list-style: none; counter-reset: s; }
+  .steps li { flex: 1; background: #fef3c7; border-radius: 8px; padding: 2.5mm 3mm; font-size: 12.5px; font-weight: 700; counter-increment: s; }
+  .steps li::before { content: counter(s); display: inline-flex; width: 18px; height: 18px; border-radius: 50%; background: #0f172a; color: #fff; font-size: 11px; align-items: center; justify-content: center; margin-right: 5px; }
+  footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b; border-top: 2px solid #C8102E; padding-top: 2mm; }
+  .url { font-size: 17px; font-weight: 900; color: #0f172a; }
+  @media print { body { background: #fff; } .bar { display: none; } .sheet { margin: 0; box-shadow: none; } }
+  @media screen and (max-width: 820px) { .sheet { transform: scale(.45); transform-origin: top left; margin: 8px; } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <button onclick="window.print()">🖨 Распечатать</button>
+  <span>На одном листе A4 — две листовки. Разрежьте по пунктиру. QR-код ведёт на регистрацию: https://k-gzone.vercel.app/kabinet?register</span>
+</div>
+<div class="sheet">
+<section class="flyer">
+  <header>
+    <div class="logo">KG<span>zone</span></div>
+    <div class="tag">Авторынок Кыргызстана онлайн</div>
+  </header>
+  <h1>Продаёте запчасти?<br><em>Разместите бесплатно</em></h1>
+  <p class="kg">Запчаст сатасызбы? KGzone'го акысыз жайгаштырыңыз</p>
+  <div class="body">
+    <ul>
+      <li><b>0 сом</b> — без оплаты и комиссии</li>
+      <li>Покупатели пишут и звонят <b>напрямую вам</b></li>
+      <li>Весь склад сразу — одним файлом из Excel (CSV)</li>
+      <li>Свой магазин со ссылкой, адресом и контейнером</li>
+      <li>Видно, какие запчасти <b>ищут, но не находят</b></li>
+      <li>Значок «Проверенный продавец» 👑</li>
+    </ul>
+    <div class="qr">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 33 33" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h33v33H0z"/><path stroke="#0f172a" d="M0 0.5h7m2 0h1m1 0h1m4 0h1m1 0h4m1 0h1m2 0h7M0 1.5h1m5 0h1m8 0h2m1 0h1m1 0h2m4 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m1 0h1m1 0h2m2 0h2m4 0h4m2 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m1 0h1m2 0h1m3 0h1m2 0h1m2 0h1m1 0h2m1 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m1 0h2m2 0h1m1 0h4m2 0h1m1 0h1m3 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m1 0h1m2 0h1m1 0h1m5 0h1m2 0h3m1 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M8 7.5h5m3 0h1m1 0h4m1 0h1M0 8.5h1m1 0h5m2 0h2m2 0h2m2 0h3m2 0h3m1 0h5M2 9.5h1m2 0h1m2 0h2m3 0h1m2 0h5m2 0h1m2 0h2m1 0h4M0 10.5h1m1 0h1m1 0h1m1 0h2m1 0h1m1 0h7m2 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h2M0 11.5h1m3 0h1m2 0h1m5 0h1m3 0h3m3 0h3m2 0h4M1 12.5h1m1 0h4m4 0h1m2 0h1m1 0h1m3 0h6m1 0h3m1 0h1M3 13.5h3m4 0h1m2 0h1m1 0h1m1 0h2m2 0h1m2 0h3m2 0h4M1 14.5h1m4 0h1m3 0h3m1 0h4m2 0h3m1 0h3m1 0h1m1 0h2M1 15.5h3m3 0h1m7 0h1m2 0h1m2 0h6m3 0h1M0 16.5h3m3 0h1m3 0h3m2 0h1m1 0h1m7 0h1m1 0h3m2 0h1M0 17.5h5m2 0h1m4 0h1m1 0h1m1 0h1m1 0h4m1 0h1m2 0h2m1 0h2m1 0h1M1 18.5h1m1 0h5m2 0h1m1 0h2m1 0h2m1 0h1m2 0h1m5 0h2m1 0h2M0 19.5h1m2 0h1m3 0h1m1 0h2m2 0h1m2 0h1m2 0h1m1 0h3m1 0h6m1 0h1M1 20.5h6m2 0h4m5 0h1m2 0h1m3 0h1m1 0h3m1 0h2M0 21.5h1m1 0h2m1 0h1m1 0h3m4 0h3m3 0h1m1 0h2m1 0h2m2 0h1m2 0h1M0 22.5h1m1 0h1m1 0h1m1 0h1m1 0h3m1 0h1m1 0h1m3 0h2m2 0h1m3 0h1m2 0h1m1 0h1M0 23.5h1m1 0h1m1 0h2m1 0h1m1 0h3m2 0h1m1 0h1m2 0h3m3 0h2m2 0h4M0 24.5h1m5 0h2m1 0h3m1 0h1m3 0h1m1 0h2m1 0h1m1 0h6m2 0h1M8 25.5h2m1 0h1m1 0h1m3 0h1m1 0h2m1 0h1m1 0h1m3 0h1m1 0h1m1 0h1M0 26.5h7m4 0h2m2 0h1m1 0h1m2 0h1m1 0h3m1 0h1m1 0h1m1 0h2M0 27.5h1m5 0h1m1 0h1m1 0h1m1 0h1m2 0h1m1 0h2m1 0h1m2 0h2m3 0h4M0 28.5h1m1 0h3m1 0h1m1 0h3m4 0h2m3 0h3m1 0h6m2 0h1M0 29.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m1 0h2m2 0h1m2 0h1m1 0h2m3 0h1m1 0h1m1 0h1M0 30.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h2m2 0h2M0 31.5h1m5 0h1m3 0h4m1 0h1m2 0h1m2 0h1m3 0h1m2 0h3M0 32.5h7m1 0h2m3 0h5m4 0h3m2 0h1m3 0h1"/></svg>
+
+      <div class="scan">Наведите камеру телефона</div>
+    </div>
+  </div>
+  <ol class="steps">
+    <li>Сканируйте QR-код</li>
+    <li>Зарегистрируйтесь за 1 минуту</li>
+    <li>Добавьте запчасти с фото</li>
+  </ol>
+  <footer>
+    <span class="url">k-gzone.vercel.app</span>
+    <span>Кудайберген · Дордой Моторс · Ош · Каракол</span>
+  </footer>
+</section>
+<section class="flyer">
+  <header>
+    <div class="logo">KG<span>zone</span></div>
+    <div class="tag">Авторынок Кыргызстана онлайн</div>
+  </header>
+  <h1>Продаёте запчасти?<br><em>Разместите бесплатно</em></h1>
+  <p class="kg">Запчаст сатасызбы? KGzone'го акысыз жайгаштырыңыз</p>
+  <div class="body">
+    <ul>
+      <li><b>0 сом</b> — без оплаты и комиссии</li>
+      <li>Покупатели пишут и звонят <b>напрямую вам</b></li>
+      <li>Весь склад сразу — одним файлом из Excel (CSV)</li>
+      <li>Свой магазин со ссылкой, адресом и контейнером</li>
+      <li>Видно, какие запчасти <b>ищут, но не находят</b></li>
+      <li>Значок «Проверенный продавец» 👑</li>
+    </ul>
+    <div class="qr">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 33 33" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h33v33H0z"/><path stroke="#0f172a" d="M0 0.5h7m2 0h1m1 0h1m4 0h1m1 0h4m1 0h1m2 0h7M0 1.5h1m5 0h1m8 0h2m1 0h1m1 0h2m4 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m1 0h1m1 0h2m2 0h2m4 0h4m2 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m1 0h1m2 0h1m3 0h1m2 0h1m2 0h1m1 0h2m1 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m1 0h2m2 0h1m1 0h4m2 0h1m1 0h1m3 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m1 0h1m2 0h1m1 0h1m5 0h1m2 0h3m1 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M8 7.5h5m3 0h1m1 0h4m1 0h1M0 8.5h1m1 0h5m2 0h2m2 0h2m2 0h3m2 0h3m1 0h5M2 9.5h1m2 0h1m2 0h2m3 0h1m2 0h5m2 0h1m2 0h2m1 0h4M0 10.5h1m1 0h1m1 0h1m1 0h2m1 0h1m1 0h7m2 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h2M0 11.5h1m3 0h1m2 0h1m5 0h1m3 0h3m3 0h3m2 0h4M1 12.5h1m1 0h4m4 0h1m2 0h1m1 0h1m3 0h6m1 0h3m1 0h1M3 13.5h3m4 0h1m2 0h1m1 0h1m1 0h2m2 0h1m2 0h3m2 0h4M1 14.5h1m4 0h1m3 0h3m1 0h4m2 0h3m1 0h3m1 0h1m1 0h2M1 15.5h3m3 0h1m7 0h1m2 0h1m2 0h6m3 0h1M0 16.5h3m3 0h1m3 0h3m2 0h1m1 0h1m7 0h1m1 0h3m2 0h1M0 17.5h5m2 0h1m4 0h1m1 0h1m1 0h1m1 0h4m1 0h1m2 0h2m1 0h2m1 0h1M1 18.5h1m1 0h5m2 0h1m1 0h2m1 0h2m1 0h1m2 0h1m5 0h2m1 0h2M0 19.5h1m2 0h1m3 0h1m1 0h2m2 0h1m2 0h1m2 0h1m1 0h3m1 0h6m1 0h1M1 20.5h6m2 0h4m5 0h1m2 0h1m3 0h1m1 0h3m1 0h2M0 21.5h1m1 0h2m1 0h1m1 0h3m4 0h3m3 0h1m1 0h2m1 0h2m2 0h1m2 0h1M0 22.5h1m1 0h1m1 0h1m1 0h1m1 0h3m1 0h1m1 0h1m3 0h2m2 0h1m3 0h1m2 0h1m1 0h1M0 23.5h1m1 0h1m1 0h2m1 0h1m1 0h3m2 0h1m1 0h1m2 0h3m3 0h2m2 0h4M0 24.5h1m5 0h2m1 0h3m1 0h1m3 0h1m1 0h2m1 0h1m1 0h6m2 0h1M8 25.5h2m1 0h1m1 0h1m3 0h1m1 0h2m1 0h1m1 0h1m3 0h1m1 0h1m1 0h1M0 26.5h7m4 0h2m2 0h1m1 0h1m2 0h1m1 0h3m1 0h1m1 0h1m1 0h2M0 27.5h1m5 0h1m1 0h1m1 0h1m1 0h1m2 0h1m1 0h2m1 0h1m2 0h2m3 0h4M0 28.5h1m1 0h3m1 0h1m1 0h3m4 0h2m3 0h3m1 0h6m2 0h1M0 29.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m1 0h2m2 0h1m2 0h1m1 0h2m3 0h1m1 0h1m1 0h1M0 30.5h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h2m2 0h2M0 31.5h1m5 0h1m3 0h4m1 0h1m2 0h1m2 0h1m3 0h1m2 0h3M0 32.5h7m1 0h2m3 0h5m4 0h3m2 0h1m3 0h1"/></svg>
+
+      <div class="scan">Наведите камеру телефона</div>
+    </div>
+  </div>
+  <ol class="steps">
+    <li>Сканируйте QR-код</li>
+    <li>Зарегистрируйтесь за 1 минуту</li>
+    <li>Добавьте запчасти с фото</li>
+  </ol>
+  <footer>
+    <span class="url">k-gzone.vercel.app</span>
+    <span>Кудайберген · Дордой Моторс · Ош · Каракол</span>
+  </footer>
+</section></div>
+</body>
+</html>

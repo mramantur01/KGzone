@@ -2479,8 +2479,8 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 14,
     description: 'Оригинальная фара Toyota Koito. Все крепления целые, стекло без микротрещин, блок розжига в комплекте.',
-    image: '/parts/demo/projector.jpg',
-    images: ['/parts/demo/projector.jpg'],
+    image: '/parts/demo/projector.webp',
+    images: ['/parts/demo/projector.webp'],
     photoCredit: { author: "Wikimedia Commons", license: "CC BY-SA 3.0", url: "https://commons.wikimedia.org/wiki/File:Headlight_projector_optics.jpg" },
     compatibility: [
       { brand: 'Toyota', model: 'Camry', bodyCode: 'XV70', years: '2018-2023', engine: '2.5L / 3.5L' },
@@ -2515,9 +2515,9 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 30,
     description: 'Японские керамические колодки Advics / Toyota genuine. Без скрипа и пыли, не перегревают тормозной диск.',
-    image: '/parts/wm-02.jpg',
+    image: '/parts/wm-02.webp',
     images: [
-      '/parts/wm-02.jpg',
+      '/parts/wm-02.webp',
       'https://images.unsplash.com/photo-1760317890322-364a810cd4da?auto=format&fit=crop&w=1200&q=80',
     ],
     photoCredit: { author: 'A7N8X', license: 'CC BY-SA 3.0', url: 'https://commons.wikimedia.org/wiki/File:Brake_pads_fitted_with_spring_anchor.jpg' },
@@ -2558,9 +2558,9 @@ export const AUTO_PARTS: AutoPartItem[] = [
     compressionBar: 12.9,
     videoTitle: 'Замер компрессии цилиндров 2AR-FE: 12.8 - 13.0 bar',
     description: 'Двигатель без пробега по СНГ, снят с распила в Японии с пробегом 48 000 км. ГТД и таможенные документы на номер двигателя имеются. Даем 30 дней на проверку.',
-    image: '/parts/wm-03.jpg',
+    image: '/parts/wm-03.webp',
     images: [
-      '/parts/wm-03.jpg',
+      '/parts/wm-03.webp',
     ],
     compatibility: [
       { brand: 'Toyota', model: 'Camry', bodyCode: 'ASV50, ASV70', years: '2011-2023', engine: '2.5L 2AR-FE' },
@@ -2600,9 +2600,9 @@ export const AUTO_PARTS: AutoPartItem[] = [
     compressionBar: 12.8,
     videoTitle: 'Замер компрессии V6 2GR-FE на стенде: 12.8 bar ровно во всех 6 цилиндрах',
     description: 'Оригинальный японский мотор с распила Lexus Harrier / RX350. Муфты VVT-i без стука, цепь в заводских допусках.',
-    image: '/parts/wm-04.jpg',
+    image: '/parts/wm-04.webp',
     images: [
-      '/parts/wm-04.jpg',
+      '/parts/wm-04.webp',
     ],
     photoCredit: { author: 'Altair78', license: 'CC BY-SA 4.0', url: 'https://commons.wikimedia.org/wiki/File:V6_2GR-FE_RX_350_engine.jpg' },
     compatibility: [
@@ -2640,8 +2640,8 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 14,
     description: 'Оригинальная фара Hella Mercedes W211 с европейского авторазбора. Стекло отполировано, отражатели чистые, корректор работает.',
-    image: '/parts/demo/headlight.jpg',
-    images: ['/parts/demo/headlight.jpg'],
+    image: '/parts/demo/headlight.webp',
+    images: ['/parts/demo/headlight.webp'],
     photoCredit: { author: "Pava", license: "CC BY-SA 3.0 it", url: "https://commons.wikimedia.org/wiki/File:%22_13_-_ITALY_-_Alfa_Romeo_headlight_assembly_-_projector_black_headlamp_xenon_-_Giulietta_2013.jpg" },
     compatibility: [
       { brand: 'Mercedes-Benz', model: 'E-Class W211', bodyCode: 'W211', years: '2002-2009', engine: 'Все моторы' },
@@ -2679,9 +2679,9 @@ export const AUTO_PARTS: AutoPartItem[] = [
     compressionBar: 12.7,
     videoTitle: 'Замер компрессии мотора M54B30: 12.6 - 12.8 bar на холодную и горячую',
     description: 'Легендарная шестерка M54 3.0 л без расхода масла. Привезен из Японии. Эндоскопия цилиндров выполнена — задиров нет.',
-    image: '/parts/wm-08.jpg',
+    image: '/parts/wm-08.webp',
     images: [
-      '/parts/wm-08.jpg',
+      '/parts/wm-08.webp',
     ],
     photoCredit: { author: 'Aconcagua', license: 'CC BY-SA 3.0', url: 'https://commons.wikimedia.org/wiki/File:BMW_M54B25_002.jpg' },
     compatibility: [
@@ -2772,10 +2772,10 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 14,
     description: 'Коробка с японского распила, проверенная на стенде. Масло чистое, без стружки. 14 дней на установку.',
-    image: '/parts/wm-10.jpg',
+    image: '/parts/wm-10.webp',
     images: [
-      '/parts/wm-10.jpg',
-      '/parts/wm-11.jpg',
+      '/parts/wm-10.webp',
+      '/parts/wm-11.webp',
     ],
   },
   {
@@ -2919,9 +2919,9 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 90,
     description: 'Оригинальный турбокомпрессор Garrett для дизелей D4HB 2.2 л. Прокладки и шпильки в комплекте.',
-    image: '/parts/wm-12.jpg',
+    image: '/parts/wm-12.webp',
     images: [
-      '/parts/wm-12.jpg',
+      '/parts/wm-12.webp',
     ],
   },
   {
@@ -2948,8 +2948,8 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 14,
     description: 'Оригинальная фара Lexus из Дубая. Стекло в бронепленке, адаптивное освещение AFS работает без ошибок.',
-    image: '/parts/demo/projector.jpg',
-    images: ['/parts/demo/projector.jpg'],
+    image: '/parts/demo/projector.webp',
+    images: ['/parts/demo/projector.webp'],
     photoCredit: { author: "Wikimedia Commons", license: "CC BY-SA 3.0", url: "https://commons.wikimedia.org/wiki/File:Headlight_projector_optics.jpg" },
   },
   {
@@ -2976,9 +2976,9 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 90,
     description: 'Заводской генератор Mando / GM Daewoo. Высокая надежность и стабильное напряжение 14.2V.',
-    image: '/parts/wm-14.jpg',
+    image: '/parts/wm-14.webp',
     images: [
-      '/parts/wm-14.jpg',
+      '/parts/wm-14.webp',
     ],
     photoCredit: { author: 'Shixart1985', license: 'CC BY 2.0', url: 'https://commons.wikimedia.org/wiki/File:Car_alternator_on_a_workbench_surrounded_by_various_auto_parts_in_a_garage_setting.jpg' },
   },
@@ -3006,9 +3006,9 @@ export const AUTO_PARTS: AutoPartItem[] = [
     deliveryAvailable: true,
     warrantyDays: 180,
     description: 'Оригинальный заводской стартер КЗАТЭ. Легкий запуск в мороз -30°C на высокогорье Нарына и Суусамыра.',
-    image: '/parts/wm-16.jpg',
+    image: '/parts/wm-16.webp',
     images: [
-      '/parts/wm-16.jpg',
+      '/parts/wm-16.webp',
     ],
     photoCredit: { author: 'Willdre', license: 'CC BY-SA 3.0', url: 'https://commons.wikimedia.org/wiki/File:Automobile_starter.JPG' },
   },

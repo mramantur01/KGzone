@@ -26,3 +26,17 @@ export function reportSearchMiss(q: string, brand = '', model = '') {
   reported.add(key);
   call('/api/search-misses', { method: 'POST', body: JSON.stringify({ q, brand, model }) }).catch(() => undefined);
 }
+
+// Anonymous daily counters for the owner's statistics: one visit per browser per day, searches by phrase
+const pulsed = new Set<string>();
+export function pulse(type: 'visit' | 'search', q = '') {
+  if (type === 'visit') {
+    const today = new Date().toISOString().slice(0, 10);
+    try { if (localStorage.getItem('kgz-visit') === today) return; localStorage.setItem('kgz-visit', today); } catch { /* private mode */ }
+  } else {
+    const key = q.trim().toLowerCase();
+    if (key.length < 3 || pulsed.has(key)) return;
+    pulsed.add(key);
+  }
+  fetch('/api/pulse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type }), keepalive: true }).catch(() => undefined);
+}
