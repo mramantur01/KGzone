@@ -12,7 +12,7 @@ const flyer = `
 <section class="flyer">
   <header>
     <div class="logo">KG<span>zone</span></div>
-    <div class="tag">Авторынок Кыргызстана онлайн</div>
+    <div class="tag">Автозапчасти Кыргызстана</div>
   </header>
   <h1>Продаёте запчасти?<br><em>Разместите бесплатно</em></h1>
   <p class="kg">Запчаст сатасызбы? KGzone'го акысыз жайгаштырыңыз</p>
