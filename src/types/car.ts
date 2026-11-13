@@ -136,6 +136,13 @@ export interface AutoPartItem {
   manufacturer?: string;
   warehouseId?: string;
   oldPriceKgs?: number;
+  /** Left / right and front / rear (also read from the title) */
+  side?: 'left' | 'right';
+  axle?: 'front' | 'rear';
+  /** Delivery price in som (0 = free); undefined = not stated */
+  deliveryPriceKgs?: number;
+  /** Days to check or return the part (0 = no returns) */
+  returnDays?: number;
   /** Wholesale price from N pieces (companies) */
   wholesalePriceKgs?: number;
   wholesaleMinQty?: number;

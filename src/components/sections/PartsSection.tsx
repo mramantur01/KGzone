@@ -23,6 +23,8 @@ import { NotifyWhenAvailable } from '../catalog/NotifyWhenAvailable';
 import { ServiceKitModal } from '../catalog/ServiceKitModal';
 import { pulse, reportSearchMiss } from '../../api/watches';
 import { partHaystack, smartMatch } from '../../utils/smartSearch';
+import { partSide, partAxle, SIDE_LABEL, AXLE_LABEL, brandInfo, usePartNotes, type Side, type Axle } from '../../utils/partExtras';
+import { addToCart, openCart, useCart } from '../../utils/cart';
 import { brandPath, categoryPath, partPath, setPath, setTitle, slugify, type Route } from '../../seo/routes';
 import { togglePartFavorite, usePartFavorites } from '../../utils/partFavorites';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
@@ -141,6 +143,11 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   const [selectedCityOrMarket, setSelectedCityOrMarket] = useState<string>('Все');
   const [selectedCondition, setSelectedCondition] = useState<string>('Все');
   const [selectedOriginalType, setSelectedOriginalType] = useState<string>('Все');
+  const [sideFilter, setSideFilter] = useState<Side | ''>('');
+  const [axleFilter, setAxleFilter] = useState<Axle | ''>('');
+  const [makerFilter, setMakerFilter] = useState('');
+  const cartLines = useCart();
+  const partNotes = usePartNotes();
   const [priceMin, setPriceMin] = useState<string>('');
   const [priceMax, setPriceMax] = useState<string>('');
   const [sortBy, setSortBy] = useState<'relevance' | 'newest' | 'price_asc' | 'price_desc' | 'popular'>('newest');
@@ -525,6 +532,19 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   // Selected Category Object
   const currentCategoryObj = categoriesData.find((c) => c.id === selectedCategory);
 
+  // Part makers present on the site, most listings first
+  const makerOptions = useMemo(() => {
+    const m = new Map<string, [string, number]>();
+    for (const p of partsList) {
+      const name = (p.manufacturer || '').trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      const cur = m.get(key);
+      m.set(key, [cur?.[0] || name, (cur?.[1] || 0) + 1]);
+    }
+    return [...m.entries()].sort((a, b) => b[1][1] - a[1][1]).slice(0, 40).map(([key, [name, count]]) => [key, name, count] as [string, string, number]);
+  }, [partsList]);
+
   // Filtering & Sorting
   const filteredParts = useMemo(() => {
     let result = partsList.filter((part) => {
@@ -618,6 +638,10 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
       if (deliveryFilter === 'pickup' && part.pickupAvailable === false) return false;
       if (onlyWithPhoto && !part.image) return false;
       if (onlyFavorites && !favoriteIds.includes(part.id)) return false;
+      // Left / right, front / rear (seller's choice or the title), and the part maker
+      if (sideFilter && partSide(part) !== sideFilter) return false;
+      if (axleFilter && partAxle(part) !== axleFilter) return false;
+      if (makerFilter && (part.manufacturer || '').trim().toLowerCase() !== makerFilter) return false;
 
       return true;
     });
@@ -655,6 +679,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     selectedCityOrMarket,
     selectedCondition,
     selectedOriginalType,
+    sideFilter,
+    axleFilter,
+    makerFilter,
     priceMin,
     priceMax,
     sortBy,
@@ -767,6 +794,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   }, [partsList, selectedBrand, selectedModel, currentGeneration]);
 
   const handleResetFilters = () => {
+    setSideFilter('');
+    setAxleFilter('');
+    setMakerFilter('');
     setSearchQuery('');
     setSelectedBrand('');
     setSelectedModel('');
@@ -938,7 +968,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
             </div>
 
             {/* Reset Filters */}
-            {(searchQuery || selectedBrand || selectedModel || selectedYear || selectedCategory !== 'Все' || selectedSubPart !== 'Все' || selectedCityOrMarket !== 'Все' || selectedCondition !== 'Все' || selectedOriginalType !== 'Все' || priceMin || priceMax || onlyInStock || onlyWithVideo || onlyVerified || sellerTypeFilter !== 'Все' || deliveryFilter !== 'Все' || onlyWithPhoto || onlyFavorites) && (
+            {(searchQuery || selectedBrand || selectedModel || selectedYear || selectedCategory !== 'Все' || selectedSubPart !== 'Все' || selectedCityOrMarket !== 'Все' || selectedCondition !== 'Все' || selectedOriginalType !== 'Все' || sideFilter || axleFilter || makerFilter || priceMin || priceMax || onlyInStock || onlyWithVideo || onlyVerified || sellerTypeFilter !== 'Все' || deliveryFilter !== 'Все' || onlyWithPhoto || onlyFavorites) && (
               <button
                 onClick={handleResetFilters}
                 className="px-4 py-3.5 bg-neutral-800 hover:bg-neutral-700 text-xs font-bold text-red-400 rounded-2xl flex items-center gap-1.5 shrink-0 cursor-pointer transition-colors"
@@ -1068,6 +1098,30 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                 <option value="Аналог">{isKg ? 'OEM дубликат / аналог' : 'Качественный аналог'}</option>
               </select>
             </div>
+
+            {/* Left / right, front / rear */}
+            <div>
+              <span className="block text-neutral-400 font-semibold mb-1">Сторона и ось:</span>
+              <div className="grid grid-cols-2 gap-1">
+                {(['left', 'right'] as Side[]).map((v) => (
+                  <button key={v} type="button" onClick={() => setSideFilter(sideFilter === v ? '' : v)} className={`py-1.5 rounded-lg border text-[11px] font-bold cursor-pointer ${sideFilter === v ? 'bg-amber-400 text-neutral-950 border-amber-400' : 'bg-neutral-950 border-neutral-700 text-neutral-300'}`}>{SIDE_LABEL[v]}</button>
+                ))}
+                {(['front', 'rear'] as Axle[]).map((v) => (
+                  <button key={v} type="button" onClick={() => setAxleFilter(axleFilter === v ? '' : v)} className={`py-1.5 rounded-lg border text-[11px] font-bold cursor-pointer ${axleFilter === v ? 'bg-amber-400 text-neutral-950 border-amber-400' : 'bg-neutral-950 border-neutral-700 text-neutral-300'}`}>{AXLE_LABEL[v]}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Part maker: KYB, Denso, original Toyota ... */}
+            {makerOptions.length > 0 && (
+              <div>
+                <span className="block text-neutral-400 font-semibold mb-1">Производитель:</span>
+                <select value={makerFilter} onChange={(e) => setMakerFilter(e.target.value)} className="w-full px-2.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white font-medium" data-no-i18n>
+                  <option value="">Любой</option>
+                  {makerOptions.map(([key, name, count]) => <option key={key} value={key}>{name} ({count}){brandInfo(name) ? ` · ${brandInfo(name)!.country}` : ''}</option>)}
+                </select>
+              </div>
+            )}
 
             {/* Price Range (От - До в сомах) */}
             <div>
@@ -1502,7 +1556,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           <div className="flex items-center gap-1">
                             <Truck size={11} className="shrink-0" />
                             <span>
-                              {part.deliveryAvailable ? (isKg ? 'Жеткирүү бар' : 'Есть доставка') : (isKg ? 'Жеткирүү жок' : 'Без доставки')}
+                              {part.deliveryAvailable
+                                ? (part.deliveryPriceKgs === 0 ? 'Доставка бесплатно' : part.deliveryPriceKgs ? `Доставка ${part.deliveryPriceKgs.toLocaleString('ru-RU')} сом` : (isKg ? 'Жеткирүү бар' : 'Есть доставка'))
+                                : (isKg ? 'Жеткирүү жок' : 'Без доставки')}
                               {part.pickupAvailable !== false ? (isKg ? ' · өзү алып кетүү' : ' · самовывоз') : ''}
                             </span>
                           </div>
@@ -1541,6 +1597,13 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           </div>
                         </div>
 
+                        {(partSide(part) || partAxle(part) || partNotes[part.id]) && (
+                          <div className="flex flex-wrap items-center gap-1.5 mb-2 text-[10px]">
+                            {partAxle(part) && <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-200 font-bold">{AXLE_LABEL[partAxle(part)!]}</span>}
+                            {partSide(part) && <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-200 font-bold">{SIDE_LABEL[partSide(part)!]}</span>}
+                            {partNotes[part.id] && <span className="px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-300 truncate max-w-full" title={partNotes[part.id]} data-no-i18n>📝 {partNotes[part.id]}</span>}
+                          </div>
+                        )}
                         {/* Action buttons */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           <button
@@ -1551,13 +1614,23 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                             <span>Паспорт</span>
                           </button>
 
-                          <button
-                            onClick={() => orderPart(part)}
-                            className="py-2.5 px-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <ShoppingBag size={13} />
-                            <span>Купить</span>
-                          </button>
+                          {cartLines.some((l) => l.partId === part.id) ? (
+                            <button
+                              onClick={openCart}
+                              className="py-2.5 px-2 bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <ShoppingBag size={13} />
+                              <span>В корзине</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => { if (!demoBlocked(part)) addToCart(part.id); }}
+                              className="py-2.5 px-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <ShoppingBag size={13} />
+                              <span>В корзину</span>
+                            </button>
+                          )}
 
                           <button
                             onClick={() => handleWhatsAppOrder(part)}

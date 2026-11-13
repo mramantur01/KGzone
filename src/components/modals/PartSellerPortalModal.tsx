@@ -91,7 +91,12 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
   const [stockStatus, setStockStatus] = useState<any>('В наличии');
   const [stockCount, setStockCount] = useState<number>(1);
   const [warrantyDays, setWarrantyDays] = useState<number>(0);
-  const [countryOfImport, setCountryOfImport] = useState('Япония (Контракт)');
+  const [countryOfImport, setCountryOfImport] = useState('');
+  const [returnDays, setReturnDays] = useState<string>('');
+  const [deliveryPrice, setDeliveryPrice] = useState<string>('');
+  const [side, setSide] = useState<'' | 'left' | 'right'>('');
+  const [axle, setAxle] = useState<'' | 'front' | 'rear'>('');
+  const [payments, setPayments] = useState<string[]>(['Наличные']);
   const [description, setDescription] = useState('');
   const [hasCompressionVideo, setHasCompressionVideo] = useState(false);
   const [compressionBar, setCompressionBar] = useState(0);
@@ -268,9 +273,13 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
       inn: inn,
       containerInfo: containerInfo,
       directionsGuide: directionsGuide,
-      paymentMethods: [],
-      countryOfImport: countryOfImport,
+      paymentMethods: payments,
+      countryOfImport: countryOfImport || undefined,
       warrantyDays: Number(warrantyDays),
+      returnDays: returnDays === '' ? undefined : Number(returnDays),
+      deliveryPriceKgs: deliveryAvailable && deliveryPrice !== '' ? Number(deliveryPrice) : undefined,
+      side: side || undefined,
+      axle: axle || undefined,
       description: description.trim(),
       deliveryAvailable,
       pickupAvailable,
@@ -533,6 +542,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                     onChange={(e) => setCountryOfImport(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-neutral-900 border border-neutral-700 rounded-xl text-white"
                   >
+                    <option value="">Не указывать</option>
                     <option value="Япония (Контракт)">Япония (Контрактный распил)</option>
                     <option value="Южная Корея">Южная Корея (Оригинал)</option>
                     <option value="ОАЭ (Дубай)">ОАЭ / Дубай</option>
@@ -679,6 +689,52 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                     <input type="checkbox" checked={pickupAvailable} onChange={(e) => setPickupAvailable(e.target.checked)} className="accent-red-600" />
                     <span>{isKg ? 'Өзү алып кетүү' : 'Самовывоз'}</span>
                   </label>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {deliveryAvailable && (
+                    <div>
+                      <label className="block text-neutral-300 font-semibold mb-1">Цена доставки, сом</label>
+                      <input type="number" min="0" value={deliveryPrice} onChange={(e) => setDeliveryPrice(e.target.value)} placeholder="0 — бесплатно" className="w-full px-3 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white" />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-neutral-300 font-semibold mb-1">Гарантия, дней</label>
+                    <input type="number" min="0" max="3650" value={warrantyDays || ''} onChange={(e) => setWarrantyDays(Number(e.target.value) || 0)} placeholder="нет" className="w-full px-3 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-neutral-300 font-semibold mb-1">Проверка и возврат</label>
+                    <select value={returnDays} onChange={(e) => setReturnDays(e.target.value)} className="w-full px-3 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white">
+                      <option value="">Не указывать</option>
+                      <option value="0">Без возврата</option>
+                      <option value="1">1 день</option>
+                      <option value="3">3 дня</option>
+                      <option value="7">7 дней</option>
+                      <option value="14">14 дней</option>
+                      <option value="30">30 дней</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-neutral-300 font-semibold mb-1">Сторона / ось</label>
+                    <div className="flex gap-1">
+                      <select value={side} onChange={(e) => setSide(e.target.value as typeof side)} className="flex-1 min-w-0 px-2 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white">
+                        <option value="">—</option><option value="left">Левая</option><option value="right">Правая</option>
+                      </select>
+                      <select value={axle} onChange={(e) => setAxle(e.target.value as typeof axle)} className="flex-1 min-w-0 px-2 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white">
+                        <option value="">—</option><option value="front">Перед</option><option value="rear">Зад</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <span className="block text-neutral-300 font-semibold mb-1">Способы оплаты</span>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-neutral-200">
+                    {['Наличные', 'MBANK', 'О!Деньги', 'Элсом', 'Перевод по счёту (для компаний)'].map((m) => (
+                      <label key={m} className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" checked={payments.includes(m)} onChange={(e) => setPayments((v) => (e.target.checked ? [...v, m] : v.filter((x) => x !== m)))} className="accent-red-600" />
+                        <span>{m}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
 

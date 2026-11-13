@@ -398,6 +398,49 @@ app.post('/api/orders', asyncRoute(async (req: Request, res: Response) => {
   });
 }));
 
+// Cart: one order with several parts of the same seller; the seller gets one notice with the buyer's phone
+app.post('/api/cart/checkout', asyncRoute(async (req: Request, res: Response) => {
+  if (tooMany(`cart:${clientIp(req)}`, 10, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много заказов. Попробуйте позже.' });
+  const buyer = await getSessionUser(req);
+  const b = req.body || {};
+  const customerName = str(b.customerName, 80);
+  const customerPhone = str(b.customerPhone, 30);
+  if (!customerName || customerPhone.replace(/\D/g, '').length < 9) return res.status(400).json({ success: false, error: 'Укажите имя и телефон' });
+  const items: { partId: string; qty: number }[] = (Array.isArray(b.items) ? b.items : []).slice(0, 50)
+    .map((x: any) => ({ partId: str(x?.partId, 80), qty: Math.max(1, Math.min(999, Math.round(Number(x?.qty) || 1))) }))
+    .filter((x: any) => x.partId);
+  if (!items.length) return res.status(400).json({ success: false, error: 'Корзина пустая' });
+  const parts: any[] = await Promise.all(items.map((i) => getRecord('parts', i.partId)));
+  if (parts.some((p) => !p || !isPublicPart(p))) return res.status(400).json({ success: false, error: 'Некоторые товары уже сняты с продажи. Обновите корзину.' });
+  const owners = new Set(parts.map((p) => p.ownerId));
+  if (owners.size !== 1 || !parts[0].ownerId) return res.status(400).json({ success: false, error: 'В одном заказе — товары одного продавца' });
+  for (let i = 0; i < parts.length; i++) {
+    if (items[i].qty > (parts[i].stockCount || 0)) return res.status(400).json({ success: false, error: `«${parts[i].title}»: в наличии только ${parts[i].stockCount} шт` });
+  }
+  const delivery = b.deliveryType === 'delivery';
+  const address = delivery ? str(b.deliveryAddress, 200) : '';
+  if (delivery && !address) return res.status(400).json({ success: false, error: 'Укажите адрес доставки' });
+  const comment = str(b.comment, 500);
+  const group = `KGZ-${Math.floor(10000 + Math.random() * 90000)}`;
+  const now = new Date().toISOString();
+  const unit = (p: any, qty: number) => (p.wholesalePriceKgs && qty >= (p.wholesaleMinQty || 2) ? p.wholesalePriceKgs : p.priceKgs);
+  const lines = parts.map((p, i) => ({ p, qty: items[i].qty, sum: unit(p, items[i].qty) * items[i].qty }));
+  const total = lines.reduce((n, l) => n + l.sum, 0);
+  for (const l of lines) {
+    await insertRecord('orders', {
+      id: `ord-${randomUUID()}`, orderNumber: group, createdAt: now, customerName, customerPhone,
+      partId: l.p.id, partTitle: l.p.title, partNumber: l.p.partNumber, storeName: l.p.storeName, storeLocation: l.p.storeLocation || '',
+      priceKgs: l.sum, qty: l.qty, deliveryType: delivery ? 'delivery' : 'pickup', deliveryAddress: delivery ? address : 'Самовывоз',
+      status: 'Новый', comment: [`${l.qty} шт`, comment].filter(Boolean).join(' · '), ...(buyer ? { userId: buyer.id } : {}),
+    } as OrderRecord);
+  }
+  const text = `🛒 Новый заказ ${group} на KGzone\n` + lines.map((l) => `• ${l.p.title} (${l.p.partNumber}) × ${l.qty} = ${l.sum.toLocaleString('ru-RU')} сом`).join('\n') +
+    `\nИтого: ${total.toLocaleString('ru-RU')} сом\nПокупатель: ${customerName}, ${customerPhone}\n${delivery ? `Доставка: ${address}` : 'Самовывоз'}${comment ? `\nКомментарий: ${comment}` : ''}\nПозвоните покупателю, чтобы подтвердить заказ.`;
+  await notifyUser(parts[0].ownerId, text);
+  await notifyAdmin(text);
+  res.status(201).json({ success: true, orderNumber: group, total });
+}));
+
 // Update order status
 app.patch('/api/orders/:id/status', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -736,6 +779,11 @@ function sanitizePart(body: any) {
     paymentMethods: (Array.isArray(body.paymentMethods) ? body.paymentMethods : []).map((p: unknown) => str(p, 40)).filter(Boolean).slice(0, 8),
     countryOfImport: str(body.countryOfImport, 60) || undefined,
     warrantyDays: Math.round(num(body.warrantyDays, 0, 3650)),
+    // Days to check / return the part (0 = no returns), delivery price in som (0 = free)
+    returnDays: body.returnDays === undefined || body.returnDays === '' ? undefined : Math.round(num(body.returnDays, 0, 365)),
+    deliveryPriceKgs: body.deliveryPriceKgs === undefined || body.deliveryPriceKgs === '' ? undefined : Math.round(num(body.deliveryPriceKgs, 0, 100_000)),
+    side: /^(left|лев)/i.test(String(body.side || '')) ? 'left' : /^(right|прав)/i.test(String(body.side || '')) ? 'right' : undefined,
+    axle: /^(front|перед)/i.test(String(body.axle || '')) ? 'front' : /^(rear|зад)/i.test(String(body.axle || '')) ? 'rear' : undefined,
     description: str(body.description, 2000) || undefined,
     deliveryAvailable: body.deliveryAvailable !== false,
     pickupAvailable: body.pickupAvailable !== false,
@@ -2739,6 +2787,8 @@ const FEED_HEADERS: Record<string, string> = {
   oldpricekgs: 'oldPriceKgs', 'старая цена': 'oldPriceKgs', 'цена до скидки': 'oldPriceKgs', stockcount: 'stockCount', 'количество': 'stockCount',
   'остаток': 'stockCount', 'кол-во': 'stockCount', warehouseid: 'warehouseId', 'склад': 'warehouseId', description: 'description', 'описание': 'description',
   images: 'images', 'фото': 'images', 'фото (ссылки)': 'images', 'оптовая цена': 'wholesalePriceKgs', 'опт': 'wholesalePriceKgs', 'опт от': 'wholesaleMinQty',
+  'сторона': 'side', 'ось': 'axle', 'расположение': 'axle', 'доставка': 'deliveryPriceKgs', 'цена доставки': 'deliveryPriceKgs',
+  'возврат': 'returnDays', 'возврат, дней': 'returnDays', 'гарантия': 'warrantyDays', 'гарантия, дней': 'warrantyDays',
 };
 const FEED_CONDITIONS: Record<string, string> = {
   'новая': 'Новый', 'новый': 'Новый', new: 'Новый', 'оригинал': 'Новый (Оригинал)', 'новая оригинал': 'Новый (Оригинал)', 'б/у': 'Б/У с разбора', 'бу': 'Б/У с разбора',
@@ -2771,7 +2821,7 @@ function feedRows(table: string[][], warehouses: { id: string; name: string }[])
     keys.forEach((k, i) => {
       if (!k) return;
       let v: unknown = (cells[i] ?? '').trim();
-      if (['priceKgs', 'oldPriceKgs', 'stockCount', 'wholesalePriceKgs', 'wholesaleMinQty'].includes(k)) v = String(v).replace(/\s/g, '').replace(',', '.');
+      if (['priceKgs', 'oldPriceKgs', 'stockCount', 'wholesalePriceKgs', 'wholesaleMinQty', 'deliveryPriceKgs', 'returnDays', 'warrantyDays'].includes(k)) v = String(v).replace(/\s/g, '').replace(',', '.');
       if (k === 'condition') v = FEED_CONDITIONS[String(v).toLowerCase()] || v;
       if (k === 'images') v = String(v).split(/[\s,;]+/).filter(Boolean);
       if (k === 'warehouseId' && v) v = warehouses.find((w) => w.id === v || w.name.toLowerCase() === String(v).toLowerCase())?.id || '';

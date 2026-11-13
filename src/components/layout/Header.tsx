@@ -3,6 +3,7 @@ import { ShyrdakRibbon, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { Currency, Language } from '../../types/car';
 import { siteWhatsApp, SITE_PHONE_DISPLAY } from '../../config/site';
 import { NotificationBell } from './NotificationBell';
+import { CartButton } from '../cart/CartDrawer';
 import { 
   Heart, Plus, Search, ShieldCheck, User, Menu, X, Wrench, 
   Calculator, MessageSquare, Newspaper, Tag, HelpCircle, Sun, Moon,
@@ -331,6 +332,9 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Уведомления (only for signed-in users) */}
           {userName && <NotificationBell />}
+
+          {/* Корзина */}
+          <CartButton />
 
           {/* Избранное */}
           <button

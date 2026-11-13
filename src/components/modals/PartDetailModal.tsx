@@ -5,6 +5,10 @@ import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import { SellerContactBlock } from '../chat/SellerContactBlock';
 import { VerifiedSellerBadge, OfficialCompanyBadge } from '../common/VerifiedSellerBadge';
 import { sameOemOffers } from '../../utils/oemOffers';
+import { partSide, partAxle, SIDE_LABEL, AXLE_LABEL, brandInfo, relatedQueries, setPartNote, usePartNotes } from '../../utils/partExtras';
+import { partHaystack, smartMatch } from '../../utils/smartSearch';
+import { partFitsModel } from '../../utils/partMatching';
+import { addToCart, openCart, useCart } from '../../utils/cart';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
@@ -105,6 +109,28 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
 
   // The same number at other sellers, cheapest first
   const offers = sameOemOffers(part, allParts);
+
+  // What fits: the seller's own car and the compatibility table
+  const fits = [
+    { car: [part.brand, part.model].filter(Boolean).join(' '), years: part.yearRange || '', body: [part.generation, part.bodyCode].filter(Boolean).join(', '), engine: '' },
+    ...(part.compatibility || []).map((c) => ({ car: `${c.brand} ${c.model}`, years: c.years || '', body: c.bodyCode || '', engine: c.engine || '' })),
+  ].filter((x, i, arr) => x.car && arr.findIndex((y) => y.car === x.car && y.body === x.body && y.years === x.years) === i);
+  const maker = brandInfo(part.manufacturer);
+  const side = partSide(part);
+  const axle = partAxle(part);
+  const cart = useCart();
+  const inCartNow = cart.some((l) => l.partId === part.id);
+  const notes = usePartNotes();
+  const [noteDraft, setNoteDraft] = useState(notes[part.id] || '');
+  useEffect(() => setNoteDraft(notes[part.id] || ''), [part.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Usually replaced together: matching listings for the same car
+  const related = relatedQueries(part).map((q) => ({
+    q,
+    items: allParts.filter((p) => p.id !== part.id && smartMatch(partHaystack(p), q) && (!part.brand || partFitsModel(p, part.brand, part.model))).sort((a, b) => a.priceKgs - b.priceKgs).slice(0, 2),
+  }));
+  const deliveryText = !part.deliveryAvailable
+    ? 'Только самовывоз'
+    : part.deliveryPriceKgs === 0 ? 'Доставка бесплатно' : part.deliveryPriceKgs ? `Доставка ${part.deliveryPriceKgs.toLocaleString('ru-RU')} сом` : 'Есть доставка, цену уточните у продавца';
 
   // Similar parts: same category for the same car first, then same category, then same car
   const score = (p: AutoPartItem) =>
@@ -328,15 +354,15 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                 </div>
                 <div className="p-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
                   <span className="text-[10px] text-neutral-400 block">{isKg ? 'Кепилдик' : 'Гарантия'}</span>
-                  <span className="font-bold text-emerald-400">{part.warrantyDays || 14} {isKg ? 'күн' : 'дней'}</span>
+                  <span className="font-bold text-emerald-400">{part.warrantyDays ? `${part.warrantyDays} ${isKg ? 'күн' : 'дн.'}` : (isKg ? 'Көрсөтүлгөн эмес' : 'Не указана')}</span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
                   <span className="text-[10px] text-neutral-400 block">{isKg ? 'Алып келинген' : 'Страна ввоза'}</span>
-                  <span className="font-bold text-neutral-200">{part.countryOfImport || 'Япония (Контракт)'}</span>
+                  <span className="font-bold text-neutral-200">{part.countryOfImport || (isKg ? 'Көрсөтүлгөн эмес' : 'Не указана')}</span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
                   <span className="text-[10px] text-neutral-400 block">{isKg ? 'Жеткирип берүү' : 'Доставка'}</span>
-                  <span className="font-bold text-sky-400">{isKg ? '1 саатта / Аймактарга' : 'Яндекс 1ч / Бусик КР'}</span>
+                  <span className="font-bold text-sky-400">{deliveryText}</span>
                 </div>
               </div>
             </div>
@@ -361,6 +387,23 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                 {isDemo && (
                   <p className="mt-2 px-3 py-2 rounded-xl bg-slate-200 text-slate-800 text-xs font-semibold">{DEMO_NOTICE}</p>
                 )}
+                {(fits.length > 0 || side || axle) && (
+                  <div className="mt-2.5 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-xs">
+                    <div className="font-bold text-emerald-300 mb-1 flex items-center gap-1.5"><Car size={13} />Подходит</div>
+                    <ul className="space-y-0.5 text-neutral-200" data-no-i18n>
+                      {fits.slice(0, 6).map((x, i) => (
+                        <li key={i}><b className="text-white">{x.car}</b>{x.years ? ` · ${x.years}` : ''}{x.body ? ` · кузов ${x.body}` : ''}{x.engine ? ` · двигатель ${x.engine}` : ''}</li>
+                      ))}
+                      {fits.length > 6 && <li className="text-neutral-400">и ещё {fits.length - 6} — в таблице ниже</li>}
+                    </ul>
+                    {(side || axle) && (
+                      <div className="mt-1.5 flex gap-1.5">
+                        {axle && <span className="px-2 py-0.5 rounded bg-neutral-800 font-bold text-white">{AXLE_LABEL[axle]}</span>}
+                        {side && <span className="px-2 py-0.5 rounded bg-neutral-800 font-bold text-white">{SIDE_LABEL[side]}</span>}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* OEM Copy button */}
                 <div className="mt-2.5 flex items-center justify-between p-2.5 rounded-xl bg-neutral-900 border border-neutral-800">
@@ -371,6 +414,9 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                     {part.crossNumbers?.length ? (
                       <div className="mt-1 text-neutral-400">{isKg ? 'Кросс-номерлер' : 'Кросс-номера'}: <span className="font-mono text-neutral-200" data-no-i18n>{part.crossNumbers.join(', ')}</span></div>
                     ) : null}
+                    {maker && (
+                      <div className="mt-1.5 text-neutral-400">О бренде: <span className="text-white font-semibold">{maker.country} · {maker.kind}</span>. {maker.note}</div>
+                    )}
                   </div>
                   <button
                     onClick={handleCopyOEM}
@@ -412,13 +458,14 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                 <div className="grid grid-cols-2 gap-2.5 pt-1">
                   <button
                     onClick={() => {
-                      onClose();
-                      if (!isDemo) onOpenOrder(part);
+                      if (isDemo) { onClose(); onOpenOrder(part); return; }
+                      if (!inCartNow) addToCart(part.id);
+                      openCart();
                     }}
-                    className="py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-950/50 transition-all cursor-pointer"
+                    className={`py-3 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${inCartNow ? 'bg-amber-400 hover:bg-amber-300 text-neutral-950' : 'bg-red-600 hover:bg-red-500 text-white shadow-red-950/50'}`}
                   >
                     <Truck size={16} />
-                    <span>{isKg ? 'Оформить буюртма' : 'Оформить заказ'}</span>
+                    <span>{inCartNow ? 'В корзине — оформить' : 'В корзину'}</span>
                   </button>
 
                   <a
@@ -444,6 +491,66 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                   <p>{part.description}</p>
                 </div>
               )}
+
+              {/* Warranty, returns, delivery and payment as stated by the seller */}
+              <div className="p-3.5 rounded-xl bg-neutral-900/60 border border-neutral-800/80 text-xs space-y-2">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-0.5 flex items-center gap-1"><ShieldCheck size={12} />Гарантия и возврат</div>
+                  <p className="text-neutral-200">
+                    {part.warrantyDays ? `Гарантия ${part.warrantyDays} дн.` : 'Гарантия не указана'}
+                    {' · '}
+                    {part.returnDays === undefined ? 'условия возврата уточните у продавца' : part.returnDays === 0 ? 'без возврата' : `проверка и возврат — ${part.returnDays} дн.`}
+                  </p>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-0.5 flex items-center gap-1"><Truck size={12} />Доставка и оплата</div>
+                  <p className="text-neutral-200">
+                    {part.pickupAvailable !== false && <>Самовывоз{part.storeLocation || part.containerInfo ? <>: <span data-no-i18n>{[part.market, part.containerInfo || part.storeLocation].filter(Boolean).join(', ')}</span></> : ''}. </>}
+                    {deliveryText}.
+                    {part.paymentMethods?.length ? <> Оплата: <span data-no-i18n>{part.paymentMethods.join(', ')}</span>.</> : ' Оплата — при получении, по договорённости с продавцом.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Usually replaced together */}
+              {related.length > 0 && (
+                <div className="p-3.5 rounded-xl bg-neutral-900/60 border border-neutral-800/80 text-xs">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Обычно меняют вместе</div>
+                  <div className="space-y-1.5">
+                    {related.map(({ q, items }) => (
+                      <div key={q}>
+                        {items.length ? items.map((p) => (
+                          <button key={p.id} type="button" onClick={() => onSelectPart?.(p)} className="w-full text-left flex items-center gap-2 p-1.5 rounded-lg hover:bg-neutral-800 cursor-pointer">
+                            {p.image && <img src={p.image} alt="" className="w-9 h-9 rounded object-cover shrink-0" />}
+                            <span className="flex-1 min-w-0 truncate text-neutral-200" data-no-i18n>{p.title}</span>
+                            <span className="font-black text-emerald-400 whitespace-nowrap">{p.priceKgs.toLocaleString('ru-RU')} сом</span>
+                          </button>
+                        )) : (
+                          <div className="flex items-center gap-2 p-1.5 text-neutral-400">
+                            <span className="flex-1 capitalize">{q}</span>
+                            <span className="text-[10px]">пока нет на сайте</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Private note: only this buyer sees it */}
+              <div className="p-3 rounded-xl bg-amber-400/5 border border-amber-400/20 text-xs">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1 block">📝 Моя заметка (видите только вы)</label>
+                <textarea
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  onBlur={() => setPartNote(part.id, noteDraft)}
+                  rows={2}
+                  maxLength={500}
+                  placeholder="Например: звонил, отдаст за 9 000, приехать в субботу"
+                  className="w-full px-2.5 py-2 bg-neutral-950 border border-neutral-700 rounded-lg text-neutral-100 placeholder:text-neutral-500"
+                  data-no-i18n
+                />
+              </div>
 
               {/* VERIFIED SELLER & CONTAINER CARD (Requirements 2 & 5) */}
               <div className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3">
@@ -479,16 +586,12 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-[11px] text-neutral-300 flex items-start gap-2">
-                    <Info size={14} className="text-sky-400 shrink-0 mt-0.5" />
-                    <span>
-                      {part.directionsGuide || (
-                        part.market.includes('Кудайберген')
-                          ? 'Кантип баруу: Патрис Лумумба көчөсүнөн негизги кире бериш, мечиттин тушундагы 4-өтмөк, бокс #22.'
-                          : 'Дордой Моторс автобазары, контейнерлер борбордук катарда.'
-                      )}
-                    </span>
-                  </div>
+                  {part.directionsGuide && (
+                    <div className="p-2.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-[11px] text-neutral-300 flex items-start gap-2">
+                      <Info size={14} className="text-sky-400 shrink-0 mt-0.5" />
+                      <span data-no-i18n>{part.directionsGuide}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Seller direct phone and payment methods (Click-to-reveal Anti-Spam Drom feature) */}
@@ -514,10 +617,12 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                     </a>
                   )}
 
-                  <div className="flex items-center gap-1 text-[10px] text-neutral-400">
-                    <CreditCard size={12} className="text-amber-400" />
-                    <span>MBANK, О!Деньги, Элкарт</span>
-                  </div>
+                  {part.paymentMethods?.length ? (
+                    <div className="flex items-center gap-1 text-[10px] text-neutral-400">
+                      <CreditCard size={12} className="text-amber-400" />
+                      <span data-no-i18n>{part.paymentMethods.join(', ')}</span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -528,7 +633,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                     <Car size={14} className="text-amber-400" />
                     <span>{isKg ? 'Шайкеш келген унаалар' : 'Таблица совместимости с авто'}</span>
                   </div>
-                  <span className="text-[10px] text-neutral-400 font-mono">100% Fit</span>
+                  <span className="text-[10px] text-neutral-400">по данным продавца</span>
                 </div>
 
                 <div className="overflow-x-auto text-[11px]">
@@ -548,15 +653,15 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                             <td className="py-1.5 font-bold text-white">{item.brand} {item.model}</td>
                             <td className="py-1.5 text-neutral-300">{item.bodyCode || '-'}</td>
                             <td className="py-1.5 font-mono text-amber-300">{item.years}</td>
-                            <td className="py-1.5 text-neutral-300">{item.engine || 'Бензин / Гибрид'}</td>
+                            <td className="py-1.5 text-neutral-300">{item.engine || '—'}</td>
                           </tr>
                         ))
                       ) : (
                         <tr className="hover:bg-neutral-800/40">
                           <td className="py-1.5 font-bold text-white">{part.brand} {part.model}</td>
                           <td className="py-1.5 text-neutral-300">{part.bodyCode || part.generation || '-'}</td>
-                          <td className="py-1.5 font-mono text-amber-300">{part.yearRange || '2008-2022'}</td>
-                          <td className="py-1.5 text-neutral-300">Стандарт OEM</td>
+                          <td className="py-1.5 font-mono text-amber-300">{part.yearRange || '—'}</td>
+                          <td className="py-1.5 text-neutral-300">—</td>
                         </tr>
                       )}
                     </tbody>
