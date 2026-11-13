@@ -12,6 +12,13 @@ import { removeFromCart, sellerKey, setCartQty, unitPrice, useCart } from '../..
 const som = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} сом`;
 const inputCls = 'w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-hidden focus:border-[#1d6fb8]';
 
+// "Кудайберген" + "Кудайберген, ряд А" -> "Кудайберген, ряд А" (no repeated market name)
+export const placeOf = (p: AutoPartItem) => {
+  const where = (p.storeLocation || p.containerInfo || '').trim();
+  const market = (p.market || '').trim();
+  return market && !where.toLowerCase().includes(market.toLowerCase()) ? [market, where].filter(Boolean).join(', ') : where || market;
+};
+
 interface Group { key: string; seller: string; location: string; lines: { part: AutoPartItem; qty: number }[]; total: number; delivery: string }
 
 /** Header button with the number of items; opens the cart */
@@ -59,7 +66,7 @@ const CartDrawer: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       const p = byId.get(l.partId);
       if (!p) continue;
       const k = sellerKey(p);
-      const g = map.get(k) || { key: k, seller: p.storeName || p.companyName || 'Продавец', location: [p.market, p.storeLocation].filter(Boolean).join(', '), lines: [], total: 0, delivery: '' };
+      const g = map.get(k) || { key: k, seller: p.storeName || p.companyName || 'Продавец', location: placeOf(p), lines: [], total: 0, delivery: '' };
       const qty = Math.min(l.qty, Math.max(1, p.stockCount || 1));
       g.lines.push({ part: p, qty });
       g.total += unitPrice(p, qty) * qty;

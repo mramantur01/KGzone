@@ -9,6 +9,7 @@ import { partSide, partAxle, SIDE_LABEL, AXLE_LABEL, brandInfo, relatedQueries, 
 import { partHaystack, smartMatch } from '../../utils/smartSearch';
 import { partFitsModel } from '../../utils/partMatching';
 import { addToCart, openCart, useCart } from '../../utils/cart';
+import { placeOf } from '../cart/CartDrawer';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
@@ -505,7 +506,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-0.5 flex items-center gap-1"><Truck size={12} />Доставка и оплата</div>
                   <p className="text-neutral-200">
-                    {part.pickupAvailable !== false && <>Самовывоз{part.storeLocation || part.containerInfo ? <>: <span data-no-i18n>{[part.market, part.containerInfo || part.storeLocation].filter(Boolean).join(', ')}</span></> : ''}. </>}
+                    {part.pickupAvailable !== false && <>Самовывоз{part.storeLocation || part.containerInfo ? <>: <span data-no-i18n>{placeOf(part)}</span></> : ''}. </>}
                     {deliveryText}.
                     {part.paymentMethods?.length ? <> Оплата: <span data-no-i18n>{part.paymentMethods.join(', ')}</span>.</> : ' Оплата — при получении, по договорённости с продавцом.'}
                   </p>
