@@ -30,6 +30,7 @@ import { PartRequestsPanel } from '../catalog/PartRequestsPanel';
 import { ReviewsModerationPanel } from '../cabinet/ReviewsModerationPanel';
 import { AdminToolsPanel } from '../cabinet/AdminToolsPanel';
 import { SellerRequestsPanel } from '../catalog/SellerRequestsPanel';
+import { QuestionsForMe } from '../catalog/PartQuestions';
 import { TelegramCard } from './TelegramCard';
 import { DeleteAccountCard } from './DeleteAccountCard';
 import { SearchMissesPanel } from '../catalog/SearchMissesPanel';
@@ -261,6 +262,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
           {section === 'requests' && (
             <div className="space-y-4">
+              <QuestionsForMe />
               <SellerRequestsPanel showEmpty />
               <SearchMissesPanel />
             </div>

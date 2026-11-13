@@ -21,6 +21,7 @@ import { CrossesPanel } from '../catalog/CrossesPanel';
 import { PartRequestForm } from '../catalog/PartRequestForm';
 import { NotifyWhenAvailable } from '../catalog/NotifyWhenAvailable';
 import { ServiceKitModal } from '../catalog/ServiceKitModal';
+import { MyRequestsStrip } from './RequestPage';
 import { pulse, reportSearchMiss } from '../../api/watches';
 import { partHaystack, smartMatch } from '../../utils/smartSearch';
 import { partSide, partAxle, SIDE_LABEL, AXLE_LABEL, brandInfo, usePartNotes, type Side, type Axle } from '../../utils/partExtras';
@@ -1379,6 +1380,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
           {/* LISTINGS CONTAINER (9 cols on desktop) */}
           <div className="lg:col-span-9">
+            <MyRequestsStrip />
             {selectedBrand && selectedModel && (
               <button
                 type="button"

@@ -10,6 +10,7 @@ import { partHaystack, smartMatch } from '../../utils/smartSearch';
 import { partFitsModel } from '../../utils/partMatching';
 import { addToCart, openCart, useCart } from '../../utils/cart';
 import { placeOf } from '../cart/CartDrawer';
+import { PartQuestions } from '../catalog/PartQuestions';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
@@ -552,6 +553,8 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                   data-no-i18n
                 />
               </div>
+
+              <PartQuestions partId={part.id} />
 
               {/* VERIFIED SELLER & CONTAINER CARD (Requirements 2 & 5) */}
               <div className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3">

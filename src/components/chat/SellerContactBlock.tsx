@@ -5,6 +5,7 @@ import { lastSeenText, seenRecently } from '../../utils/lastSeen';
 import { openShop } from '../../seo/routes';
 import { useAuth } from '../../api/auth';
 import { getSellerReviews, postSellerReview, requestSignIn, startConversation, type SellerReviewsInfo } from '../../api/chat';
+import { uploadPhoto } from '../../api/upload';
 import { ChatThread } from './ChatThread';
 
 interface Props {
@@ -82,12 +83,26 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
     }
   };
 
+  const [reviewPhotos, setReviewPhotos] = useState<string[]>([]);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const addReviewPhotos = async (files: FileList | null) => {
+    if (!files) return;
+    setPhotoBusy(true);
+    try {
+      for (const file of Array.from(files).slice(0, 3 - reviewPhotos.length)) {
+        const url = await uploadPhoto(file, 'part');
+        setReviewPhotos((v) => [...v, url].slice(0, 3));
+      }
+    } catch (err: any) { setReviewMsg(err.message); } finally { setPhotoBusy(false); }
+  };
+
   const sendReview = async (e: React.FormEvent) => {
     e.preventDefault();
     setReviewMsg(null);
     try {
-      await postSellerReview(sellerId, rating, reviewText.trim());
+      await postSellerReview(sellerId, rating, reviewText.trim(), reviewPhotos);
       setReviewText('');
+      setReviewPhotos([]);
       setReviewMsg('Спасибо за отзыв!');
       load();
     } catch (err: any) {
@@ -122,6 +137,11 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
             <div key={r.id} className={`p-2.5 rounded-xl text-xs ${dark ? 'bg-neutral-950' : 'bg-slate-50'}`}>
               <div className="flex items-center gap-2"><Stars value={r.rating} size={11} /><b data-no-i18n>{r.authorName}</b><span className={muted}>{new Date(r.createdAt).toLocaleDateString('ru-RU')}</span></div>
               {r.text && <div className="mt-1" data-no-i18n>{r.text}</div>}
+              {r.images?.length ? (
+                <div className="mt-1.5 flex gap-1.5">
+                  {r.images.map((src) => <a key={src} href={src} target="_blank" rel="noopener noreferrer"><img src={src} alt="" loading="lazy" className="w-14 h-14 rounded-lg object-cover" /></a>)}
+                </div>
+              ) : null}
               <div className={`mt-0.5 ${muted}`} data-no-i18n>{r.listingTitle}</div>
             </div>
           ))}
@@ -184,6 +204,17 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
                 <Star size={22} className={i <= rating ? 'fill-amber-400 text-amber-400' : 'text-slate-400'} />
               </button>
             ))}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {reviewPhotos.map((src) => (
+              <button key={src} type="button" onClick={() => setReviewPhotos((v) => v.filter((x) => x !== src))} title="Убрать фото" className="cursor-pointer"><img src={src} alt="" className="w-12 h-12 rounded-lg object-cover" /></button>
+            ))}
+            {reviewPhotos.length < 3 && (
+              <label className={`px-3 py-2 rounded-xl text-xs font-bold cursor-pointer ${dark ? 'bg-neutral-800 text-neutral-200' : 'bg-slate-100 text-slate-700'}`}>
+                {photoBusy ? 'Загрузка…' : '📷 Фото товара (до 3)'}
+                <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addReviewPhotos(e.target.files); e.target.value = ''; }} />
+              </label>
+            )}
           </div>
           <textarea rows={2} value={reviewText} onChange={(e) => setReviewText(e.target.value)} maxLength={1000} placeholder="Как прошла сделка? (необязательно)" className={`w-full px-3 py-2 rounded-xl text-sm ${dark ? 'bg-neutral-950 border border-neutral-700 text-white' : 'bg-slate-50 border border-slate-300'}`} />
           <button type="submit" className={`px-4 py-2 rounded-xl text-sm font-bold cursor-pointer ${dark ? 'bg-neutral-800 text-white' : 'bg-slate-900 text-white'}`}>Оставить отзыв</button>

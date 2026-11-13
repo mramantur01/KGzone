@@ -52,6 +52,7 @@ export const TAB_PATHS: Record<string, string> = {
   cabinet: '/kabinet',
   terms: '/pravila',
   privacy: '/konfidencialnost',
+  sellers: '/prodavcam',
 };
 
 export interface Route {
@@ -61,6 +62,7 @@ export interface Route {
   category?: string; // PartsSection category id
   brandSlug?: string;
   sellerId?: string; // shop page
+  requestId?: string; // buyer's request with offers
 }
 
 export function parseRoute(pathname: string): Route {
@@ -68,6 +70,7 @@ export function parseRoute(pathname: string): Route {
   let m: RegExpMatchArray | null;
   if ((m = p.match(/^\/zapchast\/([^/]+)/))) return { tab: 'parts', partId: m[1] };
   if ((m = p.match(/^\/magazin\/([^/]+)/))) return { tab: 'shop', sellerId: m[1] };
+  if ((m = p.match(/^\/zayavka\/([^/]+)/))) return { tab: 'request', requestId: m[1] };
   if ((m = p.match(/^\/avto\/([^/]+)/))) return { tab: 'cars', carId: m[1] };
   if ((m = p.match(/^\/zapchasti\/marka\/([^/]+)/))) return { tab: 'parts', brandSlug: m[1] };
   if ((m = p.match(/^\/zapchasti\/([^/]+)/))) return { tab: 'parts', category: SLUG_TO_CATEGORY[m[1]] };

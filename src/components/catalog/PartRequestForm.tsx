@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../api/auth';
-import { sendPartRequest } from '../../api/partRequests';
+import { sendPartRequest, rememberRequest, requestPath } from '../../api/partRequests';
 
 interface Props {
   part: string;
@@ -21,6 +21,7 @@ export const PartRequestForm: React.FC<Props> = ({ part, brand = '', model = '',
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [link, setLink] = useState('');
 
   useEffect(() => { setWhat(part); setSent(false); }, [part, brand, model, generation]);
   useEffect(() => {
@@ -34,7 +35,11 @@ export const PartRequestForm: React.FC<Props> = ({ part, brand = '', model = '',
     setBusy(true);
     setError(null);
     try {
-      await sendPartRequest({ part: what.trim(), brand, model, generation, comment: comment.trim(), name: name.trim(), phone: phone.trim() });
+      const r: any = await sendPartRequest({ part: what.trim(), brand, model, generation, comment: comment.trim(), name: name.trim(), phone: phone.trim() });
+      if (r?.id && r?.key) {
+        rememberRequest({ id: r.id, key: r.key, part: what.trim(), createdAt: new Date().toISOString() });
+        setLink(requestPath(r.id, r.key));
+      }
       setSent(true);
       setOpen(false);
     } catch (err: any) {
@@ -47,7 +52,8 @@ export const PartRequestForm: React.FC<Props> = ({ part, brand = '', model = '',
   if (sent) {
     return (
       <p className="mt-4 inline-flex items-center gap-2 text-sm text-emerald-400 font-semibold">
-        <CheckCircle2 size={16} /> Заявка принята. Её получат продавцы с запчастями для вашей марки — они позвонят вам.
+        <CheckCircle2 size={16} /> Заявка принята. Продавцы пришлют цены — сравните и выберите.
+        {link && <a href={link} className="underline text-amber-300">Смотреть предложения →</a>}
       </p>
     );
   }

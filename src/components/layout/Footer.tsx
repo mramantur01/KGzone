@@ -185,6 +185,10 @@ export const Footer: React.FC<FooterProps> = ({
               Проверка авто
             </button>
             <span>·</span>
+            <a href="/prodavcam" className="text-amber-400 hover:text-amber-300 font-bold transition-colors">
+              Продавцам: разместить запчасти бесплатно
+            </a>
+            <span>·</span>
             <button onClick={() => onOpenLegal?.('terms')} className="hover:text-slate-300 transition-colors cursor-pointer">
               Пользовательское соглашение
             </button>

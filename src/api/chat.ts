@@ -75,14 +75,14 @@ export function useUnreadMessages(signedIn: boolean): number {
 export interface SellerReviewsInfo {
   seller: { id: string; name: string; accountType: 'individual' | 'legal'; verified: boolean; since: string; lastSeenAt?: string };
   rating: number | null;
-  reviews: { id: string; authorName: string; rating: number; text: string; listingTitle: string; createdAt: string }[];
+  reviews: { id: string; authorName: string; rating: number; text: string; listingTitle: string; createdAt: string; images?: string[] }[];
   canReview: boolean;
 }
 
 export const getSellerReviews = (sellerId: string) => call<SellerReviewsInfo>(`/api/sellers/${encodeURIComponent(sellerId)}/reviews`);
 
-export const postSellerReview = (sellerId: string, rating: number, text: string) =>
-  call(`/api/sellers/${encodeURIComponent(sellerId)}/reviews`, { method: 'POST', body: JSON.stringify({ rating, text }) });
+export const postSellerReview = (sellerId: string, rating: number, text: string, images: string[] = []) =>
+  call(`/api/sellers/${encodeURIComponent(sellerId)}/reviews`, { method: 'POST', body: JSON.stringify({ rating, text, images }) });
 
 // Lets any component ask App to show the sign-in window
 export const requestSignIn = (notice: string) => window.dispatchEvent(new CustomEvent('kgz:open-auth', { detail: { notice } }));

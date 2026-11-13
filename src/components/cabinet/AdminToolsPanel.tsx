@@ -174,10 +174,32 @@ const ImportForSellerCard: React.FC = () => {
   );
 };
 
+// Telegram channel: new listings are posted automatically once it is connected
+const ChannelCard: React.FC = () => {
+  const [st, setSt] = useState<{ configured: boolean; channel: string | null; bot: boolean } | null>(null);
+  useEffect(() => { call<{ configured: boolean; channel: string | null; bot: boolean }>('/api/admin/telegram-channel', {}, true).then(setSt).catch(() => setSt(null)); }, []);
+  return (
+    <div className={card}>
+      <div className="flex items-center gap-2 font-bold text-slate-900"><Send size={15} className="text-sky-500" />Telegram-канал с новыми запчастями</div>
+      {st?.configured ? (
+        <p className="text-xs text-emerald-700">Подключён: <b data-no-i18n>{st.channel}</b>. Новые объявления публикуются автоматически (до 20 в час, большой прайс — одним постом).</p>
+      ) : (
+        <ol className="list-decimal pl-5 text-xs text-slate-600 space-y-1">
+          {!st?.bot && <li>Сначала подключите Telegram-бота (карточка выше).</li>}
+          <li>В Telegram создайте публичный канал, например <code>@kgzone_parts</code>.</li>
+          <li>Добавьте вашего бота в канал администратором с правом «Публиковать сообщения».</li>
+          <li>В Vercel добавьте переменную <code>TELEGRAM_CHANNEL_ID</code> = имя канала (например <code>@kgzone_parts</code>) и обновите сайт.</li>
+        </ol>
+      )}
+    </div>
+  );
+};
+
 export const AdminToolsPanel: React.FC = () => (
   <div className="space-y-4">
     <SiteStatsCard />
     <TelegramBotCard />
+    <ChannelCard />
     <ImportForSellerCard />
     <BackupCard />
   </div>

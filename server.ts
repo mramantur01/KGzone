@@ -7,6 +7,8 @@ import { timingSafeEqual, randomUUID, randomBytes, createHmac, scrypt } from 'cr
 import { put } from '@vercel/blob';
 import { GoogleGenAI } from '@google/genai';
 import { Redis } from '@upstash/redis';
+import webpush from 'web-push';
+import { createECDH, createHash } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,7 +21,7 @@ const __dirname = path.dirname(__filename);
 // Each collection is a hash (id -> JSON document) plus a sorted set that keeps
 // newest-first order. Without KV_REST_API_* it falls back to in-memory arrays.
 
-type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews' | 'memberships' | 'partRequests' | 'watches' | 'searchMisses' | 'crm';
+type Collection = 'orders' | 'bookings' | 'reviews' | 'parts' | 'cars' | 'reports' | 'users' | 'audit' | 'conversations' | 'sellerReviews' | 'memberships' | 'partRequests' | 'watches' | 'searchMisses' | 'crm' | 'questions';
 
 const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -27,7 +29,7 @@ const redis = redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisTo
 
 const isDatabaseConnected = Boolean(redis);
 
-const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [], crm: [] };
+const memory: Record<Collection, any[]> = { orders: [], bookings: [], reviews: [], parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [], crm: [], questions: [] };
 let readyPromise: Promise<void> | null = null;
 
 const dataKey = (c: Collection) => `kgzone:${c}`;
@@ -139,7 +141,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Make sure the DB table exists and is seeded before any API call touches it
 app.use('/api', (_req: Request, res: Response, next) => {
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [], crm: [] })
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [], crm: [], questions: [] })
     .then(() => next())
     .catch((err) => {
       console.error('[DB] init failed:', err);
@@ -246,9 +248,47 @@ async function markNoticesRead(userId: string) {
   else memoryNoticeRead.set(userId, now);
 }
 
+// Keys are derived from the session secret, so no extra setting is needed (changing ADMIN_TOKEN renews them)
+let vapidReady: { publicKey: string } | null = null;
+function vapid() {
+  if (vapidReady) return vapidReady;
+  const priv = createHmac('sha256', SESSION_SECRET).update('kgzone-web-push-vapid').digest();
+  const ecdh = createECDH('prime256v1');
+  ecdh.setPrivateKey(priv);
+  const publicKey = ecdh.getPublicKey().toString('base64url');
+  webpush.setVapidDetails(SITE_URL, publicKey, priv.toString('base64url'));
+  vapidReady = { publicKey };
+  return vapidReady;
+}
+type PushSub = { endpoint: string; keys: { p256dh: string; auth: string } };
+const memoryPush = new Map<string, PushSub[]>();
+const pushKey = (userId: string) => `kgzone:push:${userId}`;
+async function pushSubs(userId: string): Promise<PushSub[]> {
+  if (redis) return ((await redis.get<PushSub[]>(pushKey(userId))) || []);
+  return memoryPush.get(userId) || [];
+}
+async function savePushSubs(userId: string, subs: PushSub[]) {
+  if (redis) { if (subs.length) await redis.set(pushKey(userId), subs); else await redis.del(pushKey(userId)); }
+  else memoryPush.set(userId, subs);
+}
+async function sendPush(userId: string, text: string) {
+  const subs = await pushSubs(userId);
+  if (!subs.length) return;
+  vapid();
+  const url = text.match(/https?:\/\/\S+/)?.[0]?.replace(/^https?:\/\/[^/]+/, '') || '/kabinet';
+  const payload = JSON.stringify({ title: 'KGzone', body: text.replace(/https?:\/\/\S+/g, '').slice(0, 300), url });
+  const alive: PushSub[] = [];
+  for (const sub of subs) {
+    try { await webpush.sendNotification(sub, payload, { TTL: 86400, timeout: 5000 }); alive.push(sub); }
+    catch (err: any) { if (![404, 410].includes(err?.statusCode)) alive.push(sub); }
+  }
+  if (alive.length !== subs.length) await savePushSubs(userId, alive);
+}
+
 async function notifyUser(userId: string | undefined, text: string) {
   if (!userId) return;
   try { await storeNotice(userId, text); } catch (err) { console.warn('[Notices] store failed:', err); }
+  try { await sendPush(userId, text); } catch (err) { console.warn('[Push] failed:', err); }
   if (!process.env.TELEGRAM_BOT_TOKEN) return;
   try {
     const u = await getRecord<any>('users', userId);
@@ -2021,6 +2061,7 @@ app.post('/api/conversations/:id/messages', requireUser, asyncRoute(async (req: 
 // --- Seller reviews ---------------------------------------------------------
 
 interface SellerReview {
+  images?: string[];
   id: string;
   sellerId: string;
   authorId: string;
@@ -2067,6 +2108,12 @@ app.get('/api/sellers/:id', asyncRoute(async (req: Request, res: Response) => {
   });
 }));
 
+// A cart order from this seller also lets the buyer leave a review
+async function orderFromSeller(userId: string, sellerId: string) {
+  const ids = new Set((await listRecords<any>('parts')).filter((p) => p.ownerId === sellerId).map((p) => p.id));
+  return (await listRecords<any>('orders')).find((o) => o.userId === userId && ids.has(o.partId)) || null;
+}
+
 app.get('/api/sellers/:id/reviews', asyncRoute(async (req: Request, res: Response) => {
   const seller = await getRecord<UserRecord>('users', req.params.id);
   if (!seller) return res.status(404).json({ success: false, error: 'Продавец не найден' });
@@ -2074,7 +2121,7 @@ app.get('/api/sellers/:id/reviews', asyncRoute(async (req: Request, res: Respons
   const viewer = await getSessionUser(req);
   let canReview = false;
   if (viewer && viewer.id !== seller.id) {
-    const talked = (await myConversations(viewer)).some((c) => c.buyerId === viewer.id && c.sellerId === seller.id);
+    const talked = (await myConversations(viewer)).some((c) => c.buyerId === viewer.id && c.sellerId === seller.id) || Boolean(await orderFromSeller(viewer.id, seller.id));
     canReview = talked && !reviews.some((r) => r.authorId === viewer.id);
   }
   res.json({
@@ -2098,7 +2145,8 @@ app.post('/api/sellers/:id/reviews', requireUser, asyncRoute(async (req: Request
   const seller = await getRecord<UserRecord>('users', req.params.id);
   if (!seller || seller.id === user.id) return res.status(400).json({ success: false, error: 'Нельзя оставить отзыв этому продавцу' });
   const conv = (await myConversations(user)).find((c) => c.buyerId === user.id && c.sellerId === seller.id);
-  if (!conv) return res.status(403).json({ success: false, error: 'Отзыв можно оставить после переписки с продавцом' });
+  const order = conv ? null : await orderFromSeller(user.id, seller.id);
+  if (!conv && !order) return res.status(403).json({ success: false, error: 'Отзыв можно оставить после переписки или заказа у продавца' });
   const all = await listRecords<SellerReview>('sellerReviews');
   if (all.some((r) => r.sellerId === seller.id && r.authorId === user.id)) return res.status(409).json({ success: false, error: 'Вы уже оставили отзыв этому продавцу' });
   const rating = Math.round(num(req.body?.rating, 1, 5));
@@ -2111,10 +2159,12 @@ app.post('/api/sellers/:id/reviews', requireUser, asyncRoute(async (req: Request
     authorName: user.name.split(' ')[0],
     rating,
     text,
-    listingTitle: conv.listingTitle,
+    listingTitle: conv?.listingTitle || order?.partTitle || '',
     createdAt: new Date().toISOString(),
+    images: (Array.isArray(req.body?.images) ? req.body.images : []).map(imageUrl).filter(Boolean).slice(0, 3),
   };
   await insertRecord('sellerReviews', review);
+  await notifyUser(seller.id, `⭐ Новый отзыв: ${rating} из 5${text ? ` — «${text.slice(0, 120)}»` : ''}`);
   res.status(201).json({ success: true });
 }));
 
@@ -3161,7 +3211,7 @@ const conditionSchema = (c: string) =>
 
 // Page requests do not pass the /api middleware, so make sure the store is ready here
 const seoStoreReady = () =>
-  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [], crm: [] });
+  initStore({ orders: seedOrders, bookings: seedBookings, reviews: seedReviews, parts: [], cars: [], reports: [], users: [], audit: [], conversations: [], sellerReviews: [], memberships: [], partRequests: [], watches: [], searchMisses: [], crm: [], questions: [] });
 
 const liveParts = async () => (await listRecords('parts')).filter(isPublicPart);
 const liveCars = async () => (await listRecords('cars')).filter(isLive);
@@ -3327,6 +3377,18 @@ async function seoPageFor(pathname: string): Promise<SeoPage | null> {
     const [title, description, h1] = STATIC[p];
     return { title, description, path: p, body: `${crumbsHtml([['KGzone', '/'], [h1, p]])}<h1>${esc(h1)}</h1><p>${esc(description)}</p>`, structured: [breadcrumbs([['KGzone', '/'], [h1, p]])] };
   }
+  if (p === '/prodavcam') {
+    return {
+      title: 'Продавать запчасти на KGzone — бесплатно, без комиссии | KGzone',
+      description: 'Разместите запчасти бесплатно: покупатели звонят и пишут напрямую. Загрузка всего склада из Excel, страница магазина, заявки покупателей, CRM для компаний.',
+      path: '/prodavcam',
+      body: '<h1>Продавать запчасти на KGzone</h1><p>Бесплатно и без комиссии. Покупатели связываются с вами напрямую. Весь склад загружается одним файлом из Excel.</p><p><a href="/kabinet?register" style="color:#fbbf24">Зарегистрироваться</a></p>',
+      structured: [],
+    };
+  }
+  if (p.startsWith('/zayavka/')) {
+    return { title: 'Заявка на запчасть | KGzone', description: 'Предложения продавцов на заявку.', path: p, body: '<h1>Заявка на запчасть</h1>', structured: [], noindex: true };
+  }
   if (p === '/kabinet') {
     return { title: 'Личный кабинет | KGzone', description: 'Вход и регистрация на KGzone.', path: p, body: '<h1>Личный кабинет</h1>', structured: [], noindex: true };
   }
@@ -3347,6 +3409,7 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
     { loc: '/', priority: '1.0' },
     { loc: '/zapchasti', priority: '0.9' },
     { loc: '/avto', priority: '0.8' },
+    { loc: '/prodavcam', priority: '0.7' },
     ...SEO_CATEGORIES.map((c) => ({ loc: `/zapchasti/${c.slug}`, priority: '0.7' })),
     ...SEO_BRANDS.map((b) => ({ loc: `/zapchasti/marka/${seoSlugify(b)}`, priority: '0.7' })),
     ...['/sto', '/akcii', '/faq', '/otzyvy', '/novosti', '/pravila', '/konfidencialnost'].map((loc) => ({ loc, priority: '0.5' })),
@@ -3366,7 +3429,7 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
 }));
 
 // Page requests (not files, not API): send prepared HTML when we have it
-app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet|pravila|konfidencialnost|magazin)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
+app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet|pravila|konfidencialnost|magazin|prodavcam|zayavka)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
   if (!isProd) return next();
   seoPageFor(req.path)
     .then((page) => {
@@ -3665,6 +3728,66 @@ app.get('/api/catalog/crosses', asyncRoute(async (req: Request, res: Response) =
 }));
 
 // ---------------------------------------------------------------------------
+const isStaff = (u: UserRecord) => u.role === 'admin' || u.role === 'moderator';
+// Questions about a listing: the seller's answers are public, so everyone sees them
+// ---------------------------------------------------------------------------
+interface PartQuestion { id: string; partId: string; sellerId: string; authorId: string; authorName: string; text: string; answer?: string; answeredBy?: string; answeredAt?: string; createdAt: string }
+async function canAnswerFor(user: UserRecord, sellerId: string) {
+  if (user.id === sellerId) return true;
+  const ctx = await companyContext(user);
+  return Boolean(ctx && ctx.companyId === sellerId && ctx.can('messages'));
+}
+app.get('/api/parts/:id/questions', asyncRoute(async (req: Request, res: Response) => {
+  const viewer = await getSessionUser(req);
+  const part: any = await getRecord('parts', req.params.id);
+  const isSeller = Boolean(viewer && part && (await canAnswerFor(viewer, part.ownerId)));
+  const list = (await listRecords<PartQuestion>('questions')).filter((q) => q.partId === req.params.id && (q.answer || isSeller || (viewer && q.authorId === viewer.id)));
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, isSeller, questions: list.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 50) });
+}));
+app.post('/api/parts/:id/questions', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  if (tooMany(`q:${user.id}`, 10, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много вопросов. Подождите.' });
+  const part: any = await getRecord('parts', req.params.id);
+  if (!part || !part.ownerId || !isLive(part)) return res.status(404).json({ success: false, error: 'Объявление не найдено' });
+  if (part.ownerId === user.id) return res.status(400).json({ success: false, error: 'Это ваше объявление' });
+  const text = cleanText(req.body?.text).slice(0, 500);
+  if (text.length < 5) return res.status(400).json({ success: false, error: 'Напишите вопрос' });
+  const q: PartQuestion = { id: `q-${randomUUID()}`, partId: part.id, sellerId: part.ownerId, authorId: user.id, authorName: user.name.split(' ')[0], text, createdAt: new Date().toISOString() };
+  await insertRecord('questions', q);
+  await notifyUser(part.ownerId, `❓ Вопрос по «${part.title}»: ${text}\nОтветьте — ответ увидят все покупатели.\n${SITE_URL}/zapchast/${encodeURIComponent(part.id)}`);
+  res.status(201).json({ success: true, question: q });
+}));
+app.post('/api/questions/:id/answer', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const q = await getRecord<PartQuestion>('questions', req.params.id);
+  if (!q || !(await canAnswerFor(user, q.sellerId))) return res.status(404).json({ success: false, error: 'Вопрос не найден' });
+  const answer = cleanText(req.body?.text).slice(0, 1000);
+  if (!answer) return res.status(400).json({ success: false, error: 'Напишите ответ' });
+  const updated = await updateRecord<PartQuestion>('questions', q.id, { answer, answeredBy: user.name.split(' ')[0], answeredAt: new Date().toISOString() });
+  const part: any = await getRecord('parts', q.partId);
+  await notifyUser(q.authorId, `✅ Продавец ответил на ваш вопрос${part ? ` по «${part.title}»` : ''}: ${answer.slice(0, 200)}\n${SITE_URL}/zapchast/${encodeURIComponent(q.partId)}`);
+  res.json({ success: true, question: updated });
+}));
+app.delete('/api/questions/:id', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const q = await getRecord<PartQuestion>('questions', req.params.id);
+  if (!q || !(q.authorId === user.id || (await canAnswerFor(user, q.sellerId)) || isStaff(user))) return res.status(404).json({ success: false, error: 'Вопрос не найден' });
+  await deleteRecord('questions', q.id);
+  res.json({ success: true });
+}));
+// Unanswered questions on my listings (seller cabinet)
+app.get('/api/questions/for-me', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const ctx = await companyContext(user);
+  const owners = new Set([user.id, ...(ctx && ctx.can('messages') ? [ctx.companyId] : [])]);
+  const list = (await listRecords<PartQuestion>('questions')).filter((q) => owners.has(q.sellerId) && !q.answer);
+  const parts = new Map((await listRecords<any>('parts')).filter((p) => owners.has(p.ownerId)).map((p) => [p.id, p]));
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, questions: list.map((q) => ({ ...q, partTitle: parts.get(q.partId)?.title || '', partImage: parts.get(q.partId)?.image || '' })) });
+}));
+
+// ---------------------------------------------------------------------------
 // "Find me a part" requests from buyers when nothing is listed yet.
 // Stored on the site; staff see them in the cabinet (and in Telegram when configured).
 // ---------------------------------------------------------------------------
@@ -3694,7 +3817,12 @@ app.post('/api/part-requests', asyncRoute(async (req: Request, res: Response) =>
     userId: user?.id,
     status: 'new',
     createdAt: new Date().toISOString(),
+    keyHash: '',
+    offers: [] as RequestOffer[],
   };
+  // The buyer opens the offers page with this key (no account needed)
+  const key = randomBytes(12).toString('hex');
+  record.keyHash = createHash('sha256').update(key).digest('hex');
   await insertRecord('partRequests', record);
   const sellers = await sellersForBrand(brand);
   await Promise.all(sellers.slice(0, 50).map((id) => notifyUser(id,
@@ -3704,7 +3832,71 @@ app.post('/api/part-requests', asyncRoute(async (req: Request, res: Response) =>
     `🔎 Заявка на поиск запчасти\n${record.part}${[brand, model, record.generation].filter(Boolean).length ? ` для ${[brand, model, record.generation].filter(Boolean).join(' ')}` : ''}` +
       `${record.vin ? `\nVIN/кузов: ${record.vin}` : ''}${record.comment ? `\n${record.comment}` : ''}\n${record.name ? record.name + ', ' : ''}+${phone}`
   );
-  res.status(201).json({ success: true });
+  res.status(201).json({ success: true, id: record.id, key, url: `/zayavka/${record.id}?k=${key}` });
+}));
+
+interface RequestOffer {
+  id: string; sellerId: string; sellerName: string; sellerPhone: string; priceKgs: number; condition: string; note: string; partId?: string; createdAt: string;
+}
+const requestKeyOk = (r: any, key: unknown) => {
+  if (!r?.keyHash || typeof key !== 'string' || !key) return false;
+  const a = Buffer.from(createHash('sha256').update(key).digest('hex'));
+  const b = Buffer.from(String(r.keyHash));
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+
+// Buyer's page of one request with sellers' offers (by private key, or the signed-in author)
+// Only real request ids (preq-...), so /api/part-requests/for-me keeps working
+app.get('/api/part-requests/:id(preq-[A-Za-z0-9-]+)', asyncRoute(async (req: Request, res: Response) => {
+  const r: any = await getRecord('partRequests', req.params.id);
+  const viewer = await getSessionUser(req);
+  if (!r || !(requestKeyOk(r, req.query.k) || (viewer && r.userId === viewer.id) || (viewer && isStaff(viewer)))) {
+    return res.status(404).json({ success: false, error: 'Заявка не найдена' });
+  }
+  const verified = await verifiedOwners();
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    success: true,
+    request: { id: r.id, part: r.part, brand: r.brand, model: r.model, generation: r.generation, vin: r.vin, comment: r.comment, status: r.status, createdAt: r.createdAt },
+    offers: (r.offers || []).map((o: RequestOffer) => ({ ...o, verified: verified.has(o.sellerId) })).sort((a: any, b: any) => a.priceKgs - b.priceKgs),
+  });
+}));
+app.post('/api/part-requests/:id/close', asyncRoute(async (req: Request, res: Response) => {
+  const r: any = await getRecord('partRequests', req.params.id);
+  const viewer = await getSessionUser(req);
+  if (!r || !(requestKeyOk(r, req.body?.k) || (viewer && r.userId === viewer.id))) return res.status(404).json({ success: false, error: 'Заявка не найдена' });
+  await updateRecord('partRequests', r.id, { status: 'done', updatedAt: new Date().toISOString() });
+  res.json({ success: true });
+}));
+
+// A seller answers a request with a price (one offer per seller, can be updated)
+app.post('/api/part-requests/:id/offers', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  if (tooMany(`offer:${user.id}`, 40, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много предложений. Подождите.' });
+  const r: any = await getRecord('partRequests', req.params.id);
+  if (!r || !['new', 'in_work'].includes(r.status)) return res.status(404).json({ success: false, error: 'Заявка закрыта или не найдена' });
+  if (r.userId === user.id) return res.status(400).json({ success: false, error: 'Это ваша заявка' });
+  const ctx = await companyContext(user);
+  const sellerId = ctx ? ctx.companyId : user.id;
+  const priceKgs = Math.round(num(req.body?.priceKgs, 0, 100_000_000));
+  if (!priceKgs) return res.status(400).json({ success: false, error: 'Укажите цену' });
+  const partId = str(req.body?.partId, 80);
+  if (partId) {
+    const p: any = await getRecord('parts', partId);
+    if (!p || p.ownerId !== sellerId) return res.status(400).json({ success: false, error: 'Это не ваш товар' });
+  }
+  const owner = ctx ? ctx.owner : user;
+  const offer: RequestOffer = {
+    id: `off-${randomUUID()}`, sellerId, sellerName: owner.company?.name || owner.name,
+    sellerPhone: owner.company?.contactPhone || `+${owner.phone}`, priceKgs,
+    condition: PART_CONDITIONS.includes(req.body?.condition) ? req.body.condition : '', note: str(req.body?.note, 300),
+    partId: partId || undefined, createdAt: new Date().toISOString(),
+  };
+  const others = (r.offers || []).filter((o: RequestOffer) => o.sellerId !== sellerId);
+  if (others.length >= 30) return res.status(400).json({ success: false, error: 'На эту заявку уже много предложений' });
+  await updateRecord('partRequests', r.id, { offers: [...others, offer], status: 'in_work' });
+  if (r.userId) await notifyUser(r.userId, `💬 Новое предложение на вашу заявку «${r.part}»: ${priceKgs.toLocaleString('ru-RU')} сом от «${offer.sellerName}».\n${SITE_URL}/zayavka/${r.id}`);
+  res.status(201).json({ success: true, offer });
 }));
 
 // Owners (users or companies) with live parts for this car brand
@@ -3727,7 +3919,7 @@ app.get('/api/part-requests/for-me', requireUser, asyncRoute(async (req: Request
   const since = Date.now() - 30 * 86_400_000;
   const requests = (await listRecords<any>('partRequests'))
     .filter((r) => (r.status === 'new' || r.status === 'in_work') && Date.parse(r.createdAt) > since && brands.has(String(r.brand || '').toLowerCase()) && r.userId !== user.id)
-    .map(({ userId, ...r }) => r);
+    .map(({ userId, keyHash, offers, ...r }) => ({ ...r, offersCount: (offers || []).length, myOffer: (offers || []).find((o: RequestOffer) => owners.has(o.sellerId)) || null }));
   res.setHeader('Cache-Control', 'no-store');
   res.json({ success: true, requests, brands: [...brands] });
 }));
@@ -3800,6 +3992,9 @@ async function handleTelegramUpdate(update: any) {
   await tgSend(chatId, `Это бот уведомлений KGzone. Чтобы подключить его, откройте ${SITE_URL}/kabinet и нажмите «Подключить Telegram».`);
 }
 
+app.get('/api/admin/telegram-channel', requireAdminOnly, (_req: Request, res: Response) => {
+  res.json({ success: true, configured: Boolean(process.env.TELEGRAM_CHANNEL_ID && process.env.TELEGRAM_BOT_TOKEN), channel: process.env.TELEGRAM_CHANNEL_ID || null, bot: Boolean(process.env.TELEGRAM_BOT_TOKEN) });
+});
 app.get('/api/admin/telegram', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
   if (!process.env.TELEGRAM_BOT_TOKEN) return res.json({ success: true, configured: false });
   const info = await tgCall('getWebhookInfo', {});
@@ -3924,9 +4119,34 @@ const watchMatches = (w: Watch, p: any) => {
   const hay = compact([p.title, p.partNumber, ...(p.crossNumbers || []), p.model].join(' '));
   return w.q.split(' ').filter(Boolean).every((word) => hay.includes(compact(word)));
 };
+// Posts new listings to the KGzone Telegram channel (TELEGRAM_CHANNEL_ID, e.g. @kgzone_parts) — at most 20 an hour;
+// a big price import becomes one summary post per shop
+async function postToChannel(live: any[]) {
+  const channel = process.env.TELEGRAM_CHANNEL_ID;
+  if (!channel || !process.env.TELEGRAM_BOT_TOKEN || !live.length) return;
+  try {
+    if (live.length > 3) {
+      if (tooMany('channel:post', 20, 60 * 60_000)) return;
+      const shop = live[0].storeName || live[0].companyName || 'Магазин';
+      await tgCall('sendMessage', { chat_id: channel, text: `🆕 ${shop} добавил ${live.length} запчастей: ${live.slice(0, 5).map((p) => p.title).join(', ')}…\n${SITE_URL}/magazin/${encodeURIComponent(live[0].ownerId)}`, disable_web_page_preview: false });
+      return;
+    }
+    for (const p of live) {
+      if (tooMany('channel:post', 20, 60 * 60_000)) return;
+      const caption = `🔧 ${p.title}\n${[p.brand, p.model, p.generation].filter(Boolean).join(' ')} · OEM ${p.partNumber}\n💰 ${Number(p.priceKgs).toLocaleString('ru-RU')} сом · ${p.condition}\n📍 ${[p.storeCity, p.market].filter(Boolean).join(', ')}\n${SITE_URL}/zapchast/${encodeURIComponent(p.id)}`;
+      const photo = p.image ? absUrl(p.image) : '';
+      if (photo) await tgCall('sendPhoto', { chat_id: channel, photo, caption: caption.slice(0, 1000) });
+      else await tgCall('sendMessage', { chat_id: channel, text: caption });
+    }
+  } catch (err) {
+    console.warn('[Channel] post failed:', err);
+  }
+}
+
 async function notifyWatchers(parts: any[]) {
   const live = parts.filter(isPublicPart);
   if (!live.length) return;
+  await postToChannel(live);
   const watches = await listRecords<Watch>('watches');
   for (const w of watches) {
     if (w.lastNotifiedAt && Date.now() - Date.parse(w.lastNotifiedAt) < 6 * 3_600_000) continue;
@@ -3994,6 +4214,25 @@ app.get('/api/admin/stats', requireAdminOnly, asyncRoute(async (_req: Request, r
     },
     topMisses: misses.sort((a, b) => b.count - a.count).slice(0, 8).map((m) => ({ q: [m.q, m.brand, m.model].filter(Boolean).join(' · '), count: m.count })),
   });
+}));
+
+// Phone notifications (web push)
+app.get('/api/push/key', (_req: Request, res: Response) => { res.json({ success: true, publicKey: vapid().publicKey }); });
+app.post('/api/push/subscribe', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const sub = req.body?.subscription;
+  const endpoint = str(sub?.endpoint, 600);
+  if (!/^https:\/\//.test(endpoint) || !sub?.keys?.p256dh || !sub?.keys?.auth) return res.status(400).json({ success: false, error: 'Неверная подписка' });
+  const clean: PushSub = { endpoint, keys: { p256dh: str(sub.keys.p256dh, 200), auth: str(sub.keys.auth, 100) } };
+  const subs = (await pushSubs(user.id)).filter((x) => x.endpoint !== endpoint);
+  await savePushSubs(user.id, [clean, ...subs].slice(0, 5));
+  res.json({ success: true });
+}));
+app.post('/api/push/unsubscribe', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const endpoint = str(req.body?.endpoint, 600);
+  await savePushSubs(user.id, (await pushSubs(user.id)).filter((x) => x.endpoint !== endpoint));
+  res.json({ success: true });
 }));
 
 // The bell in the header
@@ -4146,7 +4385,7 @@ app.patch('/api/admin/reports/:id', requireAdmin, asyncRoute(async (req: Request
 
 // Real backups: everything in the database as one JSON file.
 // Staff download it in the cabinet; a daily Vercel cron sends it to the owner's Telegram.
-const ALL_COLLECTIONS: Collection[] = ['orders', 'bookings', 'reviews', 'parts', 'cars', 'reports', 'users', 'audit', 'conversations', 'sellerReviews', 'memberships', 'partRequests', 'watches', 'searchMisses', 'crm'];
+const ALL_COLLECTIONS: Collection[] = ['orders', 'bookings', 'reviews', 'parts', 'cars', 'reports', 'users', 'audit', 'conversations', 'sellerReviews', 'memberships', 'partRequests', 'watches', 'searchMisses', 'crm', 'questions'];
 async function makeBackup() {
   const collections: Record<string, any[]> = {};
   for (const c of ALL_COLLECTIONS) collections[c] = await listRecords(c);

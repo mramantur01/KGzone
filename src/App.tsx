@@ -50,6 +50,8 @@ import { parseRoute, setPath, setTitle, carPath, shopPath, TAB_PATHS, type Route
 const INITIAL_ROUTE: Route = typeof window !== 'undefined' ? parseRoute(window.location.pathname) : { tab: 'cars' };
 
 const TAB_TITLES: Record<string, string> = {
+  sellers: 'Продавать запчасти на KGzone — бесплатно',
+  request: 'Заявка на запчасть — предложения продавцов',
   cars: 'KGzone — Автомобильный портал Кыргызстана | Автобазар КР',
   parts: 'Автозапчасти в Кыргызстане — новые, б/у и контрактные',
   workshop: 'Автосервис и СТО в Бишкеке',
@@ -69,6 +71,9 @@ const FavoritesModal = lazy(() => import('./components/modals/FavoritesModal').t
 const PartsSection = lazy(() => import('./components/sections/PartsSection').then((m) => ({ default: m.PartsSection })));
 const ReviewsSection = lazy(() => import('./components/sections/ReviewsSection').then((m) => ({ default: m.ReviewsSection })));
 const ShopPage = lazy(() => import('./components/sections/ShopPage').then((m) => ({ default: m.ShopPage })));
+const FavoritePriceWatch = lazy(() => import('./components/catalog/PriceDropNotice').then((m) => ({ default: m.FavoritePriceWatch })));
+const RequestPage = lazy(() => import('./components/sections/RequestPage').then((m) => ({ default: m.RequestPage })));
+const SellersLanding = lazy(() => import('./components/sections/SellersLanding').then((m) => ({ default: m.SellersLanding })));
 const LegalSection = lazy(() => import('./components/sections/LegalSection').then((m) => ({ default: m.LegalSection })));
 const NewsSection = lazy(() => import('./components/sections/NewsSection').then((m) => ({ default: m.NewsSection })));
 const WorkshopSection = lazy(() => import('./components/sections/WorkshopSection').then((m) => ({ default: m.WorkshopSection })));
@@ -139,6 +144,7 @@ export default function App() {
   const [partsRoute, setPartsRoute] = useState<Route | null>(INITIAL_ROUTE.tab === 'parts' ? INITIAL_ROUTE : null);
   const [pendingCarId, setPendingCarId] = useState<string | undefined>(INITIAL_ROUTE.carId);
   const [shopId, setShopId] = useState<string | undefined>(INITIAL_ROUTE.sellerId);
+  const [requestId, setRequestId] = useState<string | undefined>(INITIAL_ROUTE.requestId);
   // Part pages and the cabinet open a seller's shop through this event
   React.useEffect(() => {
     const onOpen = (e: Event) => {
@@ -209,6 +215,7 @@ export default function App() {
   // Keep the address bar in sync with the open section / car, so pages can be shared and indexed
   React.useEffect(() => {
     if (activeTab === 'shop') { if (shopId) setPath(shopPath(shopId)); return; }
+    if (activeTab === 'request') return; // keeps /zayavka/<id>?k=...
     if (parseRoute(window.location.pathname).tab !== activeTab) setPath(TAB_PATHS[activeTab] || '/');
     if (!selectedCar) setTitle(TAB_TITLES[activeTab] || TAB_TITLES.cars);
   }, [activeTab]);
@@ -231,6 +238,7 @@ export default function App() {
       setActiveTab(r.tab);
       if (r.tab === 'parts') setPartsRoute({ ...r });
       if (r.tab === 'shop') setShopId(r.sellerId);
+      if (r.tab === 'request') setRequestId(r.requestId);
       if (r.carId) setPendingCarId(r.carId);
       else setSelectedCar(null);
     };
@@ -775,6 +783,17 @@ export default function App() {
           <ShopPage
             sellerId={shopId}
             onOpenPart={(p) => { setPartsRoute({ tab: 'parts', partId: p.id }); setActiveTab('parts'); window.scrollTo({ top: 0 }); }}
+          />
+        )}
+
+        <Suspense fallback={null}><FavoritePriceWatch /></Suspense>
+
+        {activeTab === 'request' && requestId && <RequestPage requestId={requestId} />}
+
+        {activeTab === 'sellers' && (
+          <SellersLanding
+            onRegister={() => openAuth('register', 'Регистрация бесплатная. После неё добавьте свои запчасти — покупатели будут писать вам напрямую.')}
+            onOpenParts={() => { setActiveTab('parts'); window.scrollTo({ top: 0 }); }}
           />
         )}
 

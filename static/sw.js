@@ -1,7 +1,7 @@
 // KGzone service worker: lets the site install as an app and open without a connection.
 // Pages: network first (fresh listings), cached copy when offline. Built assets (hashed names)
 // and photos: cache first. API calls are never cached.
-const VERSION = 'kgz-v1';
+const VERSION = 'kgz-v2';
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png'];
 
 self.addEventListener('install', (e) => {
@@ -44,4 +44,23 @@ self.addEventListener('fetch', (e) => {
       )
     );
   }
+});
+
+// Phone notifications (web push): new messages, offers on requests, answers, orders
+self.addEventListener('push', (e) => {
+  let data = { title: 'KGzone', body: '', url: '/kabinet' };
+  try { data = { ...data, ...e.data.json() }; } catch { if (e.data) data.body = e.data.text(); }
+  e.waitUntil(self.registration.showNotification(data.title, { body: data.body, icon: '/icon-192.png', badge: '/favicon-48.png', data: { url: data.url } }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => c.url.startsWith(self.location.origin));
+      if (open) { open.navigate(url).catch(() => undefined); return open.focus(); }
+      return self.clients.openWindow(url);
+    })
+  );
 });

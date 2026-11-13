@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, X } from 'lucide-react';
 import { call } from '../../api/admin';
+import { disablePush, enablePush, pushEnabled, pushSupported } from '../../api/push';
 
 interface Notice { id: string; text: string; at: string }
 
@@ -26,6 +27,16 @@ export const NotificationBell: React.FC = () => {
   const [unread, setUnread] = useState(0);
   const [readAt, setReadAt] = useState('');
   const [open, setOpen] = useState(false);
+  const [push, setPush] = useState<boolean | null>(null);
+  const [pushMsg, setPushMsg] = useState<string | null>(null);
+  useEffect(() => { if (open) pushEnabled().then(setPush).catch(() => setPush(false)); }, [open]);
+  const togglePush = async () => {
+    setPushMsg(null);
+    try {
+      if (push) { await disablePush(); setPush(false); }
+      else { await enablePush(); setPush(true); setPushMsg('Готово! Уведомления будут приходить на это устройство.'); }
+    } catch (e: any) { setPushMsg(e.message); }
+  };
   const box = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
@@ -78,6 +89,15 @@ export const NotificationBell: React.FC = () => {
             <span className="font-black text-sm">Уведомления</span>
             <button onClick={() => setOpen(false)} className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer" aria-label="Закрыть"><X size={16} /></button>
           </div>
+          {pushSupported() && (
+            <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="flex-1">📱 Уведомления на телефон</span>
+                <button type="button" onClick={togglePush} className={`px-2.5 py-1 rounded-lg font-bold cursor-pointer ${push ? 'bg-slate-200 text-slate-700' : 'bg-[#C8102E] text-white'}`}>{push ? 'Выключить' : 'Включить'}</button>
+              </div>
+              {pushMsg && <p className="mt-1 text-slate-600">{pushMsg}</p>}
+            </div>
+          )}
           {items.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-slate-500">
               Пока ничего нет. Здесь появятся новые сообщения, ответы модератора и запчасти, которые вы ждёте.
