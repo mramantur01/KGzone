@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { PARTS_TOP_ADS } from '../../data/adBanners';
+import { useBanner } from '../../api/banner';
+import { SLIDE_GRADIENTS, type SlideIcon } from '../../data/bannerDefaults';
+import { Disc3, Droplets } from 'lucide-react';
 import { Language } from '../../types/car';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import {
@@ -41,15 +43,21 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
   onFocusSearch,
 }) => {
   const isKg = language === 'kg';
-  // Slide 0 = the three offers; then the ad places
-  const total = 1 + PARTS_TOP_ADS.length;
+  // Slides come from the owner's settings (cabinet → «Слайды в каталоге»): first the three offers, then the ads
+  const banner = useBanner();
+  const ads = banner.slides.filter((s) => s.enabled);
+  const offset = banner.showOffers ? 1 : 0;
+  const total = offset + ads.length;
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
+  useEffect(() => { if (current >= total) setCurrent(0); }, [current, total]);
   useEffect(() => {
     if (paused || total < 2) return;
-    const t = window.setInterval(() => setCurrent((c) => (c + 1) % total), 3000);
+    const t = window.setInterval(() => setCurrent((c) => (c + 1) % total), Math.max(2, banner.intervalSec) * 1000);
     return () => window.clearInterval(t);
-  }, [paused, total]);
+  }, [paused, total, banner.intervalSec]);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const ICONS: Record<SlideIcon, React.ElementType> = { tire: Disc3, oil: Droplets, wrench: Wrench, truck: Truck, store: Store, megaphone: Megaphone };
   const go = (d: number) => setCurrent((c) => (c + d + total) % total);
 
   // Only real features of the site — no invented warranties, delivery promises or audience numbers
@@ -131,6 +139,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
     },
   ];
 
+  if (total === 0) return null;
   // Slider: the first slide shows all three offers side by side, the next slides are ad places
   return (
     <div
@@ -152,6 +161,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
 
       {/* All slides share one grid cell, so the banner keeps the height of the tallest slide */}
       <div className="relative grid">
+      {banner.showOffers && (
       <div aria-hidden={current !== 0} className={`[grid-area:1/1] transition-opacity duration-500 ${current === 0 ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'}`}>
       <div className="relative grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-neutral-800">
         {slides.map((sl) => (
@@ -198,10 +208,12 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
         ))}
       </div>
       </div>
+      )}
 
       {/* Ad places */}
-      {PARTS_TOP_ADS.map((ad, i) => {
-        const shown = current === i + 1;
+      {ads.map((ad, i) => {
+        const shown = current === i + offset;
+        const Icon = ICONS[ad.icon] || Megaphone;
         return (
           <a
             key={ad.id}
@@ -210,13 +222,13 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
             rel="noopener noreferrer sponsored"
             aria-hidden={!shown}
             tabIndex={shown ? 0 : -1}
-            className={`[grid-area:1/1] relative overflow-hidden flex items-center p-5 sm:p-7 transition-opacity duration-500 ${shown ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'} ${ad.image ? '' : `bg-gradient-to-br ${ad.gradient}`}`}
+            className={`[grid-area:1/1] relative overflow-hidden flex items-center p-5 sm:p-7 transition-opacity duration-500 ${shown ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'} ${ad.image ? '' : `bg-gradient-to-br ${SLIDE_GRADIENTS[ad.color] || SLIDE_GRADIENTS.amber}`}`}
           >
             {ad.image && <img src={ad.image} alt={ad.title} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
             {ad.image && <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />}
             {!ad.image && (
               <div className="absolute right-8 top-1/2 -translate-y-1/2 hidden md:flex w-28 h-28 rounded-full bg-white/5 border border-white/10 items-center justify-center">
-                <Megaphone size={44} className="text-amber-400" />
+                <Icon size={48} className="text-amber-400" />
               </div>
             )}
             <div className="relative max-w-xl space-y-2">
@@ -235,7 +247,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
       {/* Slide controls */}
       {total > 1 && (
         <div className="absolute z-20 top-4 right-4 flex items-center gap-2">
-          <span className="text-[11px] font-mono font-bold text-neutral-400">0{current + 1} / 0{total}</span>
+          <span className="text-[11px] font-mono font-bold text-neutral-400">{pad(current + 1)} / {pad(total)}</span>
           <div className="flex items-center gap-1.5">
             {Array.from({ length: total }, (_, i) => (
               <button

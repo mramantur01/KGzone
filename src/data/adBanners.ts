@@ -60,23 +60,3 @@ export const PARTS_SIDEBAR_BOXES: AdBanner[][] = [
 
 // Tall slot at the bottom of the sidebar; it stays on screen while the catalog scrolls
 export const PARTS_SIDEBAR_BOTTOM_ADS: AdBanner[] = [tallPlaceholder('ad-bottom-placeholder', 'from-red-600/25 via-neutral-900 to-neutral-950')];
-
-// Wide slides after the first slide of the banner at the top of the parts catalog.
-// Image size: 2400×600 px (shown about 1200×300). Add an image and a link to place an ad.
-const widePlaceholder = (id: string, gradient: string): AdBanner => ({
-  id,
-  badge: 'Реклама',
-  title: 'Здесь может быть ваша реклама',
-  text: 'Большой баннер в самом начале каталога автозапчастей KGzone — его видит каждый покупатель. Формат 1200×300.',
-  cta: 'Разместить рекламу',
-  href: AD_CONTACT,
-  gradient,
-});
-
-export const PARTS_TOP_ADS: AdBanner[] = [
-  widePlaceholder('top-ad-1', 'from-amber-500/30 via-neutral-900 to-neutral-950'),
-  widePlaceholder('top-ad-2', 'from-sky-500/25 via-neutral-900 to-neutral-950'),
-  widePlaceholder('top-ad-3', 'from-emerald-600/25 via-neutral-900 to-neutral-950'),
-  widePlaceholder('top-ad-4', 'from-red-600/30 via-neutral-900 to-neutral-950'),
-  widePlaceholder('top-ad-5', 'from-violet-600/25 via-neutral-900 to-neutral-950'),
-];

@@ -5,6 +5,7 @@ import { listUsers, type AdminUser } from '../../api/myListings';
 import { parseCsv, readCsvFile, rowsToParts, IMPORT_TEMPLATE } from '../../utils/csv';
 import { formatPhone } from '../../api/auth';
 import { SiteStatsCard } from './SiteStatsCard';
+import { BannerSlidesPanel } from './BannerSlidesPanel';
 
 const card = 'p-4 rounded-2xl bg-white border border-slate-200 text-sm space-y-3';
 const btn = 'px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60';
@@ -198,6 +199,7 @@ const ChannelCard: React.FC = () => {
 export const AdminToolsPanel: React.FC = () => (
   <div className="space-y-4">
     <SiteStatsCard />
+    <BannerSlidesPanel />
     <TelegramBotCard />
     <ChannelCard />
     <ImportForSellerCard />

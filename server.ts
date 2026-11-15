@@ -4235,6 +4235,47 @@ app.post('/api/push/unsubscribe', requireUser, asyncRoute(async (req: Request, r
   res.json({ success: true });
 }));
 
+// ---- Banner slides at the top of the parts catalog (the owner edits them in the cabinet) ----
+const BANNER_KEY = 'kgzone:banner';
+let memoryBanner: unknown = null;
+const SLIDE_COLORS = ['amber', 'sky', 'emerald', 'red', 'violet', 'slate'];
+const SLIDE_ICONS = ['tire', 'oil', 'wrench', 'truck', 'store', 'megaphone'];
+function sanitizeBanner(b: any) {
+  const href = (v: unknown) => { const h = str(v, 400); return /^https:\/\/[^\s"'<>]+$/.test(h) || /^\/[a-zA-Z0-9/_?=&.-]*$/.test(h) ? h : '/prodavcam'; };
+  return {
+    intervalSec: Math.max(2, Math.min(15, Math.round(Number(b?.intervalSec) || 3))),
+    showOffers: b?.showOffers !== false,
+    slides: (Array.isArray(b?.slides) ? b.slides : []).slice(0, 12).map((x: any, i: number) => ({
+      id: str(x?.id, 40) || `slide-${i + 1}`,
+      enabled: x?.enabled !== false,
+      badge: str(x?.badge, 40),
+      title: str(x?.title, 90) || 'Реклама',
+      text: str(x?.text, 220),
+      cta: str(x?.cta, 40) || 'Подробнее',
+      href: href(x?.href),
+      image: imageUrl(x?.image) || undefined,
+      color: SLIDE_COLORS.includes(x?.color) ? x.color : 'amber',
+      icon: SLIDE_ICONS.includes(x?.icon) ? x.icon : 'megaphone',
+    })),
+  };
+}
+app.get('/api/banner', asyncRoute(async (_req: Request, res: Response) => {
+  const banner = redis ? await redis.get(BANNER_KEY) : memoryBanner;
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60');
+  res.json({ success: true, banner: banner || null });
+}));
+app.put('/api/admin/banner', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  if (req.body?.reset) {
+    if (redis) await redis.del(BANNER_KEY); else memoryBanner = null;
+    await audit((req as any).actor || 'admin', 'banner.reset', 'banner', {});
+    return res.json({ success: true, banner: null });
+  }
+  const banner = sanitizeBanner(req.body);
+  if (redis) await redis.set(BANNER_KEY, banner); else memoryBanner = banner;
+  await audit((req as any).actor || 'admin', 'banner.update', 'banner', { slides: banner.slides.length });
+  res.json({ success: true, banner });
+}));
+
 // The bell in the header
 app.get('/api/notifications', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
