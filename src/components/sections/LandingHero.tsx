@@ -334,7 +334,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
         Ample height (680px - 740px) so the floating presentation / search card sits gracefully 
         on one side (left or right), leaving the background car photo 100% visible and unobstructed!
       */}
-      <div className="relative w-full h-[690px] sm:h-[720px] lg:h-[750px] overflow-hidden select-none">
+      <div className="relative w-full h-[530px] sm:h-[550px] lg:h-[570px] overflow-hidden select-none">
         
         {/* Photos Layer with smooth crossfade */}
         {slides.map((slide, idx) => (
