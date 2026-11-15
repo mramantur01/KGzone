@@ -134,7 +134,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
   // Slider: the first slide shows all three offers side by side, the next slides are ad places
   return (
     <div
-      className="kgz-keep-dark relative rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl mb-8 bg-neutral-950 text-white"
+      className="kgz-keep-dark relative rounded-2xl overflow-hidden border border-neutral-800 shadow-xl mb-6 bg-neutral-950 text-white"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -155,7 +155,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
       <div aria-hidden={current !== 0} className={`[grid-area:1/1] transition-opacity duration-500 ${current === 0 ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'}`}>
       <div className="relative grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-neutral-800">
         {slides.map((sl) => (
-          <div key={sl.id} className="relative overflow-hidden p-5 sm:p-6 flex flex-col">
+          <div key={sl.id} className="relative overflow-hidden px-4 py-3 sm:p-5 flex flex-col">
             {/* Photo and colour tint of this block */}
             <img src={sl.bgImage} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xs scale-105" />
             <div className={`absolute inset-0 bg-gradient-to-br ${sl.accentColor} opacity-95`} />
@@ -164,21 +164,21 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
                 {sl.icon}
                 <span>{sl.badge}</span>
               </div>
-              <h2 className="mt-3 text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">{sl.title}</h2>
-              <p className="mt-2 text-xs sm:text-sm text-neutral-300 leading-relaxed">{sl.description}</p>
-              <div className="mt-3 flex flex-wrap gap-1.5">
+              <h2 className="mt-2 text-lg sm:text-xl font-black text-white tracking-tight leading-tight">{sl.title}</h2>
+              <p className="mt-1.5 hidden sm:block text-xs text-neutral-300 leading-snug line-clamp-2">{sl.description}</p>
+              <div className="mt-2 hidden sm:flex flex-wrap gap-1.5">
                 {sl.stats.map((st, i) => (
-                  <span key={i} className="px-2 py-1 rounded-lg bg-neutral-900/80 border border-neutral-800 text-[11px]">
+                  <span key={i} className="px-2 py-0.5 rounded-lg bg-neutral-900/80 border border-neutral-800 text-[10px]">
                     <span className="text-neutral-400">{st.label}: </span>
                     <b className="text-amber-300">{st.val}</b>
                   </span>
                 ))}
               </div>
-              <div className="mt-auto pt-4 flex flex-wrap gap-2">
+              <div className="mt-auto pt-3 flex flex-wrap gap-2">
                 {sl.buttonAction && (
                   <button
                     onClick={sl.buttonAction}
-                    className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg cursor-pointer"
                   >
                     <span>{sl.buttonText}</span>
                     <ArrowRight size={15} />
@@ -187,7 +187,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
                 {sl.secondaryAction && (
                   <button
                     onClick={sl.secondaryAction}
-                    className="px-3.5 py-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 hover:text-white font-semibold text-xs sm:text-sm cursor-pointer"
+                    className="px-3 py-2 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 hover:text-white font-semibold text-xs cursor-pointer"
                   >
                     {sl.secondaryText}
                   </button>
@@ -210,20 +210,20 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
             rel="noopener noreferrer sponsored"
             aria-hidden={!shown}
             tabIndex={shown ? 0 : -1}
-            className={`[grid-area:1/1] relative overflow-hidden flex items-center p-6 sm:p-10 transition-opacity duration-500 ${shown ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'} ${ad.image ? '' : `bg-gradient-to-br ${ad.gradient}`}`}
+            className={`[grid-area:1/1] relative overflow-hidden flex items-center p-5 sm:p-7 transition-opacity duration-500 ${shown ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'} ${ad.image ? '' : `bg-gradient-to-br ${ad.gradient}`}`}
           >
             {ad.image && <img src={ad.image} alt={ad.title} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
             {ad.image && <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />}
             {!ad.image && (
-              <div className="absolute right-8 top-1/2 -translate-y-1/2 hidden md:flex w-40 h-40 rounded-full bg-white/5 border border-white/10 items-center justify-center">
-                <Megaphone size={64} className="text-amber-400" />
+              <div className="absolute right-8 top-1/2 -translate-y-1/2 hidden md:flex w-28 h-28 rounded-full bg-white/5 border border-white/10 items-center justify-center">
+                <Megaphone size={44} className="text-amber-400" />
               </div>
             )}
-            <div className="relative max-w-xl space-y-3">
+            <div className="relative max-w-xl space-y-2">
               {ad.badge && <span className="inline-block px-2.5 py-1 rounded-md bg-black/50 border border-white/15 text-[11px] font-bold uppercase tracking-wider text-neutral-300">{ad.badge}</span>}
-              <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">{ad.title}</h2>
-              <p className="text-sm text-neutral-300 leading-relaxed">{ad.text}</p>
-              <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold">
+              <h2 className="text-xl sm:text-2xl font-black text-white leading-tight">{ad.title}</h2>
+              <p className="text-xs sm:text-sm text-neutral-300 leading-snug">{ad.text}</p>
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-xs font-bold">
                 {ad.cta}<ExternalLink size={14} />
               </span>
             </div>
