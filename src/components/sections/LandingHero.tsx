@@ -344,16 +344,34 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
               idx === currentSlideIndex ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
             }`}
           >
-            {loadedSlides.has(idx) && <img
-              src={slide.image}
-              alt={slide.title}
-              decoding="async"
-              fetchPriority={idx === 0 ? 'high' : 'low'}
-              className="w-full h-full object-cover object-[center_68%]"
-            />}
-            {/* Soft vignette on edges that keeps 90% of the photo crisp and vibrant */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none" />
-            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent pointer-events-none" />
+            {/* Phones and tablets: photo fills the slide */}
+            <div className="lg:hidden absolute inset-0">
+              {loadedSlides.has(idx) && <img
+                src={slide.image}
+                alt={slide.title}
+                decoding="async"
+                fetchPriority={idx === 0 ? 'high' : 'low'}
+                className="w-full h-full object-cover object-[center_68%]"
+              />}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none" />
+              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent pointer-events-none" />
+            </div>
+            {/* Computers: the whole photo (car not too close) on the side opposite the card, turquoise beside it */}
+            <div className="hidden lg:block absolute inset-0 bg-[#0e8f8a]">
+              {loadedSlides.has(idx) && (
+                <div className={`absolute inset-y-0 h-full max-w-full ${cardPosition === 'left' ? 'right-0' : 'left-0'}`}>
+                  <img
+                    src={slide.image}
+                    alt={slide.title}
+                    decoding="async"
+                    fetchPriority={idx === 0 ? 'high' : 'low'}
+                    className="h-full w-auto max-w-full object-cover"
+                  />
+                  {/* Soft fade from the photo into the turquoise */}
+                  <div className={`absolute inset-y-0 w-1/4 pointer-events-none ${cardPosition === 'left' ? 'left-0 bg-gradient-to-r' : 'right-0 bg-gradient-to-l'} from-[#0e8f8a] to-transparent`} />
+                </div>
+              )}
+            </div>
           </div>
         ))}
 
