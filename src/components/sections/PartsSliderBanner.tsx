@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { Language } from '../../types/car';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import {
@@ -38,9 +38,6 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
   onFocusSearch,
 }) => {
   const isKg = language === 'kg';
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const timerRef = useRef<any>(null);
 
   // Only real features of the site — no invented warranties, delivery promises or audience numbers
   const slides = [
@@ -121,150 +118,62 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
     },
   ];
 
-  const totalSlides = slides.length;
-
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % totalSlides);
-  };
-
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + totalSlides) % totalSlides);
-  };
-
-  useEffect(() => {
-    if (isPaused) return;
-    timerRef.current = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % totalSlides);
-    }, 6000);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isPaused, totalSlides]);
-
-  const activeSlide = slides[currentSlide];
-
+  // One banner with all three offers side by side (no rotating slides)
   return (
-    <div
-      className="kgz-keep-dark relative rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl mb-8 group bg-neutral-950 text-white"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-    >
-      {/* Background Graphic & Kyrgyz National Ornament Overlay */}
-      <div className="absolute inset-0 z-0">
-        <img
-          src={activeSlide.bgImage}
-          alt="slide-bg"
-          className="w-full h-full object-cover object-center opacity-25 filter blur-xs transition-all duration-700 scale-105"
-        />
-        <div className={`absolute inset-0 bg-gradient-to-r ${activeSlide.accentColor} opacity-95 transition-all duration-700`} />
+    <div className="kgz-keep-dark relative rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl mb-8 bg-neutral-950 text-white">
+      {/* Ornament watermarks */}
+      <div className="absolute -top-10 -right-10 opacity-5 pointer-events-none text-red-500">
+        <TundukIcon size={340} />
       </div>
-
-      {/* Traditional Vector Watermarks */}
-      <div className="absolute -top-10 -right-10 opacity-5 pointer-events-none text-red-500 z-1">
-        <TundukIcon size={380} />
+      <div className="absolute -bottom-10 -left-10 opacity-5 pointer-events-none text-amber-400">
+        <KochkorMuyuzIcon size={300} />
       </div>
-      <div className="absolute -bottom-10 -left-10 opacity-5 pointer-events-none text-amber-400 z-1">
-        <KochkorMuyuzIcon size={320} />
-      </div>
+      {/* Kyrgyz gold ribbon along the top */}
+      <div className="relative h-1.5 w-full bg-gradient-to-r from-red-600 via-amber-400 to-red-600" />
 
-      {/* Kyrgyz Gold Border Ribbon along Top */}
-      <div className="relative z-10 h-1.5 w-full bg-gradient-to-r from-red-600 via-amber-400 to-red-600" />
-
-      {/* Main Slide Content */}
-      <div className="relative z-10 p-6 sm:p-9 lg:p-10 flex flex-col justify-between min-h-[340px] sm:min-h-[380px]">
-        
-        {/* Top Row: Badge & Slide Counters */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold uppercase tracking-wider backdrop-blur-md ${activeSlide.badgeColor}`}>
-            {activeSlide.icon}
-            <span>{activeSlide.badge}</span>
-          </div>
-
-          {/* Indicators + Play/Pause state */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono font-bold text-neutral-400">
-              0{currentSlide + 1} / 0{totalSlides}
-            </span>
-            <div className="flex items-center gap-1.5">
-              {slides.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentSlide(idx)}
-                  className={`h-2 rounded-full transition-all cursor-pointer ${
-                    currentSlide === idx ? 'w-7 bg-amber-400 shadow-sm shadow-amber-400/50' : 'w-2 bg-neutral-700 hover:bg-neutral-500'
-                  }`}
-                  title={`Слайд ${idx + 1}`}
-                />
-              ))}
+      <div className="relative grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-neutral-800">
+        {slides.map((sl) => (
+          <div key={sl.id} className="relative overflow-hidden p-5 sm:p-6 flex flex-col">
+            {/* Photo and colour tint of this block */}
+            <img src={sl.bgImage} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xs scale-105" />
+            <div className={`absolute inset-0 bg-gradient-to-br ${sl.accentColor} opacity-95`} />
+            <div className="relative flex flex-col h-full">
+              <div className={`self-start inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-bold uppercase tracking-wider ${sl.badgeColor}`}>
+                {sl.icon}
+                <span>{sl.badge}</span>
+              </div>
+              <h2 className="mt-3 text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">{sl.title}</h2>
+              <p className="mt-2 text-xs sm:text-sm text-neutral-300 leading-relaxed">{sl.description}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {sl.stats.map((st, i) => (
+                  <span key={i} className="px-2 py-1 rounded-lg bg-neutral-900/80 border border-neutral-800 text-[11px]">
+                    <span className="text-neutral-400">{st.label}: </span>
+                    <b className="text-amber-300">{st.val}</b>
+                  </span>
+                ))}
+              </div>
+              <div className="mt-auto pt-4 flex flex-wrap gap-2">
+                {sl.buttonAction && (
+                  <button
+                    onClick={sl.buttonAction}
+                    className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg cursor-pointer"
+                  >
+                    <span>{sl.buttonText}</span>
+                    <ArrowRight size={15} />
+                  </button>
+                )}
+                {sl.secondaryAction && (
+                  <button
+                    onClick={sl.secondaryAction}
+                    className="px-3.5 py-2.5 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 hover:text-white font-semibold text-xs sm:text-sm cursor-pointer"
+                  >
+                    {sl.secondaryText}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Middle: Title & Description */}
-        <div className="max-w-3xl my-auto">
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight mb-3">
-            {activeSlide.title}
-          </h2>
-
-          <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed max-w-2xl mb-6">
-            {activeSlide.description}
-          </p>
-
-          {/* Slide Specific Stats */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-lg mb-6">
-            {activeSlide.stats.map((st, i) => (
-              <div key={i} className="p-2 sm:p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800 backdrop-blur-xs">
-                <div className="text-[10px] text-neutral-400 font-medium">{st.label}</div>
-                <div className="text-xs sm:text-sm font-black text-amber-300 font-mono mt-0.5">{st.val}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Bottom Row: Actions & Nav Arrows */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-neutral-800/80">
-          <div className="flex items-center gap-3 flex-wrap">
-            {activeSlide.buttonAction && (
-              <button
-                onClick={activeSlide.buttonAction}
-                className="px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-950/50 transition-all cursor-pointer hover:translate-x-0.5"
-              >
-                <span>{activeSlide.buttonText}</span>
-                <ArrowRight size={16} />
-              </button>
-            )}
-
-            {activeSlide.secondaryAction && (
-              <button
-                onClick={activeSlide.secondaryAction}
-                className="px-4 py-3 rounded-xl bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 hover:text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
-              >
-                <Store size={15} className="text-amber-400" />
-                <span>{activeSlide.secondaryText}</span>
-              </button>
-            )}
-          </div>
-
-          {/* Slider Prev / Next Arrows */}
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <button
-              onClick={prevSlide}
-              className="p-2.5 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 hover:text-white transition-all cursor-pointer"
-              title="Предыдущий слайд"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <button
-              onClick={nextSlide}
-              className="p-2.5 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 hover:text-white transition-all cursor-pointer"
-              title="Следующий слайд"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
-        </div>
-
+        ))}
       </div>
     </div>
   );
