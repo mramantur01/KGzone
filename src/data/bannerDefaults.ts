@@ -42,8 +42,11 @@ export const SLIDE_ICON_NAMES: Record<SlideIcon, string> = {
   tire: 'Колесо', oil: 'Масло', wrench: 'Ключ', truck: 'Грузовик', store: 'Магазин', megaphone: 'Рупор',
 };
 
-const sample = (id: string, color: SlideColor, icon: SlideIcon, title: string, text: string): BannerSlide => ({
-  id, enabled: true, badge: 'Пример рекламы', title, text, cta: 'Разместить свою рекламу', href: '/prodavcam', color, icon,
+// Photos from Unsplash (free to use without credit, unsplash.com/license); no brands or shop signs in them
+const photo = (id: string) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=2000&h=500&q=70`;
+
+const sample = (id: string, color: SlideColor, icon: SlideIcon, title: string, text: string, image?: string): BannerSlide => ({
+  id, enabled: true, badge: 'Пример рекламы', title, text, cta: 'Разместить свою рекламу', href: '/prodavcam', color, icon, image,
 });
 
 // Made-up sample ads (no real companies) so the slots look filled until real advertisers come
@@ -51,10 +54,10 @@ export const DEFAULT_BANNER: BannerConfig = {
   intervalSec: 3,
   showOffers: true,
   slides: [
-    sample('sample-1', 'amber', 'tire', 'Шиномонтаж и хранение шин', 'Сезонная замена резины, балансировка, хранение колёс. Так здесь будет выглядеть реклама шиномонтажа.'),
-    sample('sample-2', 'sky', 'oil', 'Масла и фильтры оптом и в розницу', 'Моторные масла, фильтры, свечи и расходники для ТО. Пример рекламы магазина автохимии.'),
-    sample('sample-3', 'emerald', 'wrench', 'Автосервис: диагностика и ремонт', 'Компьютерная диагностика, ходовая, замена масла за 30 минут. Пример рекламы СТО.'),
-    sample('sample-4', 'red', 'truck', 'Доставка запчастей по Кыргызстану', 'Отправка в Ош, Каракол, Джалал-Абад и другие города. Пример рекламы службы доставки.'),
-    sample('sample-5', 'violet', 'store', 'Ваш магазин запчастей — здесь', 'Покажите свой магазин каждому покупателю каталога KGzone. Формат 1200×300.'),
+    sample('sample-1', 'amber', 'tire', 'Шиномонтаж и хранение шин', 'Сезонная замена резины, балансировка, хранение колёс. Так здесь будет выглядеть реклама шиномонтажа.', photo('1578844251758-2f71da64c96f')),
+    sample('sample-2', 'sky', 'oil', 'Масла и фильтры оптом и в розницу', 'Моторные масла, фильтры, свечи и расходники для ТО. Пример рекламы магазина автохимии.', photo('1487754180451-c456f719a1fc')),
+    sample('sample-3', 'emerald', 'wrench', 'Автосервис: диагностика и ремонт', 'Компьютерная диагностика, ходовая, замена масла за 30 минут. Пример рекламы СТО.', photo('1625047509248-ec889cbff17f')),
+    sample('sample-4', 'red', 'truck', 'Доставка запчастей по Кыргызстану', 'Отправка в Ош, Каракол, Джалал-Абад и другие города. Пример рекламы службы доставки.', photo('1614976523626-d598aafd4fda')),
+    sample('sample-5', 'violet', 'store', 'Ваш магазин запчастей — здесь', 'Покажите свой магазин каждому покупателю каталога KGzone. Формат 1200×300.', photo('1767341372150-b9521fec39a3')),
   ],
 };

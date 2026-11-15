@@ -143,7 +143,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
   // Slider: the first slide shows all three offers side by side, the next slides are ad places
   return (
     <div
-      className="kgz-keep-dark relative rounded-2xl overflow-hidden border border-neutral-800 shadow-xl mb-6 bg-neutral-950 text-white"
+      className="kgz-keep-dark relative rounded-2xl overflow-clip border border-neutral-800 shadow-xl mb-6 bg-neutral-950 text-white"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -225,7 +225,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
             className={`[grid-area:1/1] relative overflow-hidden flex items-center p-5 sm:p-7 transition-opacity duration-500 ${shown ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'} ${ad.image ? '' : `bg-gradient-to-br ${SLIDE_GRADIENTS[ad.color] || SLIDE_GRADIENTS.amber}`}`}
           >
             {ad.image && <img src={ad.image} alt={ad.title} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
-            {ad.image && <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />}
+            {ad.image && <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/65 to-black/10" />}
             {!ad.image && (
               <div className="absolute right-8 top-1/2 -translate-y-1/2 hidden md:flex w-28 h-28 rounded-full bg-white/5 border border-white/10 items-center justify-center">
                 <Icon size={48} className="text-amber-400" />
