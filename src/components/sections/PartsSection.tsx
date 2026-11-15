@@ -847,7 +847,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   };
 
   return (
-    <div className="kgz-themed bg-neutral-950 text-white min-h-screen py-5 px-4 sm:px-6 lg:px-8 relative overflow-clip">
+    <div className="kgz-themed bg-neutral-950 text-white min-h-screen pt-3 pb-5 px-4 sm:px-6 lg:px-8 relative overflow-clip">
       
       {/* Background Kyrgyz Ornaments (Tunduk & Kochkor Muyuz) */}
       <div className="absolute top-10 right-10 opacity-4 pointer-events-none text-red-500">
@@ -868,7 +868,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
       <div className="max-w-7xl mx-auto relative z-10">
         
         {/* TOP ACTION BAR: HEADING & ACTIONS */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-neutral-850">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-start gap-3 sm:gap-6 mb-3">
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-950/60 border border-red-700/60 text-red-400 text-[10px] font-bold uppercase tracking-wider mb-1.5">
               <KochkorMuyuzIcon size={12} />
