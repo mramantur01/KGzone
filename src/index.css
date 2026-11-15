@@ -214,3 +214,6 @@ html:not(.dark) .kgz-keep-dark .from-amber-950 { --tw-gradient-from: #451a03 !im
 html:not(.dark) .kgz-keep-dark .via-neutral-950 { --tw-gradient-via: #0a0a0a !important; }
 html:not(.dark) .kgz-keep-dark .to-neutral-900 { --tw-gradient-to: #171717 !important; }
 html:not(.dark) .kgz-keep-dark .divide-neutral-800 > :not(:last-child) { border-color: #262626 !important; }
+html:not(.dark) .kgz-keep-dark .to-neutral-950 { --tw-gradient-to: #0a0a0a !important; }
+html:not(.dark) .kgz-keep-dark .via-neutral-900 { --tw-gradient-via: #171717 !important; }
+html:not(.dark) .kgz-keep-dark :is(.from-neutral-900, .from-neutral-950) { --tw-gradient-from: #171717 !important; }

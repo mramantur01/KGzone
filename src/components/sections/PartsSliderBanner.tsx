@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { PARTS_TOP_ADS } from '../../data/adBanners';
 import { Language } from '../../types/car';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import {
@@ -13,6 +14,8 @@ import {
   Video,
   Layers,
   ArrowRight,
+  Megaphone,
+  ExternalLink,
   Clock,
   MapPin,
   Car,
@@ -38,6 +41,16 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
   onFocusSearch,
 }) => {
   const isKg = language === 'kg';
+  // Slide 0 = the three offers; then the ad places
+  const total = 1 + PARTS_TOP_ADS.length;
+  const [current, setCurrent] = useState(0);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (paused || total < 2) return;
+    const t = window.setInterval(() => setCurrent((c) => (c + 1) % total), 3000);
+    return () => window.clearInterval(t);
+  }, [paused, total]);
+  const go = (d: number) => setCurrent((c) => (c + d + total) % total);
 
   // Only real features of the site — no invented warranties, delivery promises or audience numbers
   const slides = [
@@ -118,9 +131,15 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
     },
   ];
 
-  // One banner with all three offers side by side (no rotating slides)
+  // Slider: the first slide shows all three offers side by side, the next slides are ad places
   return (
-    <div className="kgz-keep-dark relative rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl mb-8 bg-neutral-950 text-white">
+    <div
+      className="kgz-keep-dark relative rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl mb-8 bg-neutral-950 text-white"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
       {/* Ornament watermarks */}
       <div className="absolute -top-10 -right-10 opacity-5 pointer-events-none text-red-500">
         <TundukIcon size={340} />
@@ -131,6 +150,9 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
       {/* Kyrgyz gold ribbon along the top */}
       <div className="relative h-1.5 w-full bg-gradient-to-r from-red-600 via-amber-400 to-red-600" />
 
+      {/* All slides share one grid cell, so the banner keeps the height of the tallest slide */}
+      <div className="relative grid">
+      <div aria-hidden={current !== 0} className={`[grid-area:1/1] transition-opacity duration-500 ${current === 0 ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'}`}>
       <div className="relative grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-neutral-800">
         {slides.map((sl) => (
           <div key={sl.id} className="relative overflow-hidden p-5 sm:p-6 flex flex-col">
@@ -175,6 +197,60 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
           </div>
         ))}
       </div>
+      </div>
+
+      {/* Ad places */}
+      {PARTS_TOP_ADS.map((ad, i) => {
+        const shown = current === i + 1;
+        return (
+          <a
+            key={ad.id}
+            href={ad.href}
+            target={ad.href.startsWith('http') ? '_blank' : undefined}
+            rel="noopener noreferrer sponsored"
+            aria-hidden={!shown}
+            tabIndex={shown ? 0 : -1}
+            className={`[grid-area:1/1] relative overflow-hidden flex items-center p-6 sm:p-10 transition-opacity duration-500 ${shown ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'} ${ad.image ? '' : `bg-gradient-to-br ${ad.gradient}`}`}
+          >
+            {ad.image && <img src={ad.image} alt={ad.title} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}
+            {ad.image && <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />}
+            {!ad.image && (
+              <div className="absolute right-8 top-1/2 -translate-y-1/2 hidden md:flex w-40 h-40 rounded-full bg-white/5 border border-white/10 items-center justify-center">
+                <Megaphone size={64} className="text-amber-400" />
+              </div>
+            )}
+            <div className="relative max-w-xl space-y-3">
+              {ad.badge && <span className="inline-block px-2.5 py-1 rounded-md bg-black/50 border border-white/15 text-[11px] font-bold uppercase tracking-wider text-neutral-300">{ad.badge}</span>}
+              <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">{ad.title}</h2>
+              <p className="text-sm text-neutral-300 leading-relaxed">{ad.text}</p>
+              <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-bold">
+                {ad.cta}<ExternalLink size={14} />
+              </span>
+            </div>
+          </a>
+        );
+      })}
+      </div>
+
+      {/* Slide controls */}
+      {total > 1 && (
+        <div className="absolute z-20 top-4 right-4 flex items-center gap-2">
+          <span className="text-[11px] font-mono font-bold text-neutral-400">0{current + 1} / 0{total}</span>
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: total }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setCurrent(i)}
+                aria-label={`Слайд ${i + 1}`}
+                className={`h-2 rounded-full transition-all cursor-pointer ${current === i ? 'w-6 bg-amber-400' : 'w-2 bg-neutral-600 hover:bg-neutral-400'}`}
+              />
+            ))}
+          </div>
+          <button type="button" onClick={() => go(-1)} aria-label="Предыдущий слайд" className="p-1.5 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 hover:text-white cursor-pointer"><ChevronLeft size={15} /></button>
+          <button type="button" onClick={() => go(1)} aria-label="Следующий слайд" className="p-1.5 rounded-lg bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 hover:text-white cursor-pointer"><ChevronRight size={15} /></button>
+        </div>
+      )}
     </div>
   );
 };
