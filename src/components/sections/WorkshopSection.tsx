@@ -234,7 +234,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
   ];
 
   return (
-    <div className="bg-gradient-to-b from-[#cfd8e3] via-[#e2e8f0] to-[#cfd8e3] dark:from-[#0a1322] dark:via-[#111d31] dark:to-[#0a1322] pt-3 pb-6 min-h-screen">
+    <div className="bg-gradient-to-b from-[#cfe8d6] via-[#e4f2e8] to-[#cfe8d6] dark:from-[#06180f] dark:via-[#0c2418] dark:to-[#06180f] pt-3 pb-6 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {WORKSHOP_DEMO && (
