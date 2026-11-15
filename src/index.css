@@ -219,5 +219,5 @@ html:not(.dark) .kgz-keep-dark .via-neutral-900 { --tw-gradient-via: #171717 !im
 html:not(.dark) .kgz-keep-dark :is(.from-neutral-900, .from-neutral-950) { --tw-gradient-from: #171717 !important; }
 
 /* Parts catalog page background: blue (light and dark theme) */
-.kgz-parts-bg { background: linear-gradient(180deg, #0f2a4d 0%, #163a66 50%, #0f2a4d 100%); }
-html:not(.dark) .kgz-parts-bg { background: linear-gradient(180deg, #c9daf0 0%, #e2ecf8 50%, #c9daf0 100%); }
+.kgz-parts-bg { background: linear-gradient(180deg, #153d75 0%, #1f5296 50%, #153d75 100%); }
+html:not(.dark) .kgz-parts-bg { background: linear-gradient(180deg, #a9c8f2 0%, #cfe1fb 50%, #a9c8f2 100%); }
