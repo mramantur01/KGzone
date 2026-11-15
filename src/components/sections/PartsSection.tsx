@@ -868,16 +868,16 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
       <div className="max-w-7xl mx-auto relative z-10">
         
         {/* TOP ACTION BAR: HEADING & ACTIONS */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-start gap-3 sm:gap-6 mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 py-2 border-y border-neutral-850">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-950/60 border border-red-700/60 text-red-400 text-[10px] font-bold uppercase tracking-wider mb-1.5">
-              <KochkorMuyuzIcon size={12} />
+            <div className="inline-flex items-center gap-1.5 px-2 py-px rounded-full bg-red-950/60 border border-red-700/60 text-red-400 text-[9px] font-bold uppercase tracking-wider mb-1">
+              <KochkorMuyuzIcon size={10} />
               <span>{isKg ? 'KGzone • Автотетиктер порталы' : 'KGzone • Портал автозапчастей Кыргызстана'}</span>
             </div>
-            <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-tight">
+            <h1 className="text-base sm:text-xl font-black text-white tracking-tight leading-tight">
               {isKg ? 'Кыргызстан боюнча каалаган унаага автотетиктер' : 'Автозапчасти для любого авто по всему Кыргызстану'}
             </h1>
-            <p className="text-[11px] text-neutral-400 mt-0.5">
+            <p className="text-[10px] text-neutral-400 mt-0.5">
               {isKg
                 ? 'Бишкек, Ош, Кудайберген, Дордой-Авто жана бардык облустар боюнча түз байланыш'
                 : 'Прямые контакты разборов, контейнеров Кудайбергена, Дордой-Авто и магазинов всех городов КР'}
@@ -887,7 +887,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => openSellerPortal()}
-              className="py-2 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer hover:scale-102"
+              className="py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-[11px] flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer hover:scale-102"
             >
               <Store size={14} />
               <span>{isKg ? '+ Тетик сатуу — акысыз' : '+ Продать запчасть — бесплатно'}</span>
