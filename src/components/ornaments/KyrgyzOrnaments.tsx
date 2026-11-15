@@ -96,7 +96,7 @@ export const KyrgyzPlateBadge: React.FC<{ plate: string; className?: string }> =
 }) => {
   return (
     <div
-      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-white border border-slate-300 rounded shadow-xs font-mono font-bold text-xs tracking-wider text-slate-900 ${className}`}
+      className={`kgz-keep-light inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-white border border-slate-300 rounded shadow-xs font-mono font-bold text-xs tracking-wider text-slate-900 ${className}`}
       title={`Госномер Кыргызстана: ${plate}`}
     >
       <div className="flex flex-col items-center justify-center -ml-1 pr-1 border-r border-slate-300 h-4">

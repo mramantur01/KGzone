@@ -114,7 +114,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-0.5 min-[380px]:gap-2 sm:gap-3 shrink-0">
           {/* Панель управления сайтом (Прямой доступ) */}
           {onOpenControlPanel && (
             <button
@@ -339,7 +339,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Избранное */}
           <button
             onClick={onOpenFavorites}
-            className="relative p-2 text-neutral-300 hover:text-white transition-colors rounded-lg hover:bg-neutral-800 cursor-pointer"
+            className="relative p-2 text-neutral-300 hover:text-white transition-colors rounded-lg hover:bg-neutral-800 cursor-pointer max-[379px]:hidden"
             title={isKg ? 'Сакталгандар' : 'Избранное'}
             aria-label="Избранное"
           >
@@ -513,6 +513,17 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Newspaper size={16} />
               <span>Автоновости КР</span>
+            </button>
+
+            <button
+              onClick={() => {
+                onOpenFavorites();
+                setMobileMenuOpen(false);
+              }}
+              className="w-full p-2.5 rounded-xl text-left text-xs font-semibold text-neutral-300 hover:text-white hover:bg-neutral-900 flex items-center gap-2.5 transition-colors"
+            >
+              <Heart size={16} />
+              <span>{isKg ? 'Сакталгандар' : 'Избранное'}{favoritesCount > 0 ? ` (${favoritesCount})` : ''}</span>
             </button>
 
             <button

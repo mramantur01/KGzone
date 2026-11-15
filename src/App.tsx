@@ -138,7 +138,14 @@ export default function App() {
   // ?lang=kg (Kyrgyz pages for Google) opens the site in Kyrgyz
   const [language, setLanguage] = useState<Language>(() =>
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('lang') === 'kg' ? 'kg' : 'ru');
-  const [darkMode, setDarkMode] = useState<boolean>(false);
+  // Theme: the visitor's choice is remembered; the first visit follows the phone / computer setting
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('kgz-theme');
+      if (saved) return saved === 'dark';
+    } catch { /* storage unavailable */ }
+    return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  });
   const [selectedCity, setSelectedCity] = useState<string>('Все регионы');
   const [activeTab, setActiveTab] = useState<string>(INITIAL_ROUTE.tab);
   const [partsRoute, setPartsRoute] = useState<Route | null>(INITIAL_ROUTE.tab === 'parts' ? INITIAL_ROUTE : null);
@@ -173,6 +180,7 @@ export default function App() {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    try { localStorage.setItem('kgz-theme', darkMode ? 'dark' : 'light'); } catch { /* storage unavailable */ }
   }, [darkMode]);
 
   // Keep <html lang> in sync with the site language (ISO code for Kyrgyz is "ky")
