@@ -847,7 +847,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   };
 
   return (
-    <div className="bg-neutral-950 text-white min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative overflow-clip">
+    <div className="kgz-themed bg-neutral-950 text-white min-h-screen py-8 px-4 sm:px-6 lg:px-8 relative overflow-clip">
       
       {/* Background Kyrgyz Ornaments (Tunduk & Kochkor Muyuz) */}
       <div className="absolute top-10 right-10 opacity-4 pointer-events-none text-red-500">
@@ -1607,7 +1607,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           </div>
                         )}
                         {/* Action buttons */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                           <button
                             onClick={() => setSelectedPartForDetail(part)}
                             className="py-2.5 px-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1 cursor-pointer"

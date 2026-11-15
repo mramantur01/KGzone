@@ -93,7 +93,7 @@ export const HeroFilter: React.FC<HeroFilterProps> = ({
   };
 
   return (
-    <div className="relative bg-slate-900 border-b border-slate-800 py-6 px-4 sm:px-6 lg:px-8">
+    <div className="kgz-themed relative bg-slate-900 border-b border-slate-800 py-6 px-4 sm:px-6 lg:px-8">
       {/* Background Ornament Accents */}
       <div className="absolute top-0 right-10 opacity-5 pointer-events-none text-red-500">
         <TundukIcon size={240} />

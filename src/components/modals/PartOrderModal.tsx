@@ -143,7 +143,7 @@ export const PartOrderModal: React.FC<PartOrderModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-xl bg-neutral-950 border border-neutral-800 rounded-3xl shadow-2xl overflow-hidden my-6 text-white">
+      <div className="kgz-themed relative w-full max-w-xl bg-neutral-950 border border-neutral-800 rounded-3xl shadow-2xl overflow-hidden my-6 text-white">
         
         {/* Kyrgyz Gold-Red Top Ribbon */}
         <div className="h-1.5 w-full bg-gradient-to-r from-red-600 via-amber-400 to-red-600" />

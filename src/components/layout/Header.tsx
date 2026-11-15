@@ -67,12 +67,12 @@ export const Header: React.FC<HeaderProps> = ({
   const isEn = language === 'en';
 
   return (
-    <header className="sticky top-0 z-40 bg-black border-b border-neutral-800 shadow-md transition-colors text-white">
+    <header className="kgz-themed sticky top-0 z-40 bg-neutral-950 border-b border-neutral-800 shadow-md transition-colors text-white">
       {/* Кыргызский орнаментальный кант (Шырдак бордюр) */}
       <ShyrdakRibbon variant="red" />
 
       {/* Верхняя микро-панель: Город, курс НБ КР, язык, валюта, WhatsApp, Dark Mode */}
-      <div className="bg-[#0a0a0a] text-slate-300 text-xs border-b border-neutral-800">
+      <div className="bg-neutral-900 text-slate-300 text-xs border-b border-neutral-800">
         {/* Same container as the main row below so both rows line up on wide screens */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <div className="flex flex-wrap items-center gap-3 sm:gap-4 min-w-0">
@@ -374,7 +374,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
-        <div className="xl:hidden bg-black text-white border-t border-neutral-800 px-4 py-3 shadow-2xl space-y-2 animate-in slide-in-from-top duration-150">
+        <div className="xl:hidden bg-neutral-950 text-white border-t border-neutral-800 px-4 py-3 shadow-2xl space-y-2 animate-in slide-in-from-top duration-150">
           <div className="grid grid-cols-2 gap-2 pb-2 border-b border-neutral-800">
             <button
               onClick={() => {

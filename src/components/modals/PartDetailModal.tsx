@@ -144,7 +144,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-5xl bg-neutral-950 border border-neutral-800 rounded-3xl shadow-2xl overflow-hidden my-auto text-white flex flex-col max-h-[92vh]">
+      <div className="kgz-themed relative w-full max-w-5xl bg-neutral-950 border border-neutral-800 rounded-3xl shadow-2xl overflow-hidden my-auto text-white flex flex-col max-h-[92vh]">
         
         {/* Kyrgyz National Gold-Red Ribbon Header */}
         <div className="h-1.5 w-full bg-gradient-to-r from-red-700 via-amber-500 to-red-700 shrink-0" />

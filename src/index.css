@@ -105,3 +105,111 @@ html.dark body { background-color: #0a0a0a; color: #e5e5e5; }
 .dark .kgz-keep-light .border-slate-300 { border-color: #cbd5e1; }
 .dark .text-red-900 { color: #fca5a5; }
 .dark .border-red-100 { border-color: rgba(239, 68, 68, 0.3); }
+
+/* ------------------------------------------------------------------
+   Day theme for the parts catalog, the part page and the seller / order windows.
+   These parts are drawn dark; in the day theme (no "dark" class) they become light.
+   Mark the root with .kgz-themed. Coloured buttons, photo overlays and the header stay as they are.
+   ------------------------------------------------------------------ */
+html:not(.dark) .kgz-themed.bg-neutral-950, html:not(.dark) .kgz-themed .bg-neutral-950 { background-color: #f1f5f9; }
+html:not(.dark) .kgz-themed .bg-neutral-900, html:not(.dark) .kgz-themed.bg-neutral-900 { background-color: #ffffff; }
+html:not(.dark) .kgz-themed .bg-neutral-800 { background-color: #f1f5f9; }
+html:not(.dark) .kgz-themed .bg-neutral-700 { background-color: #e2e8f0; }
+html:not(.dark) .kgz-themed [class~="bg-neutral-950/90"]:not(.absolute), html:not(.dark) .kgz-themed [class~="bg-neutral-950/85"]:not(.absolute),
+html:not(.dark) .kgz-themed [class~="bg-neutral-950/80"]:not(.absolute), html:not(.dark) .kgz-themed [class~="bg-neutral-950/70"]:not(.absolute),
+html:not(.dark) .kgz-themed [class~="bg-neutral-950/60"]:not(.absolute), html:not(.dark) .kgz-themed [class~="bg-neutral-950/40"]:not(.absolute) { background-color: rgba(255, 255, 255, 0.92); }
+html:not(.dark) .kgz-themed [class~="bg-neutral-900/95"], html:not(.dark) .kgz-themed [class~="bg-neutral-900/90"],
+html:not(.dark) .kgz-themed [class~="bg-neutral-900/80"], html:not(.dark) .kgz-themed [class~="bg-neutral-900/60"],
+html:not(.dark) .kgz-themed [class~="bg-neutral-900/50"], html:not(.dark) .kgz-themed [class~="bg-neutral-900/40"] { background-color: #ffffff; }
+html:not(.dark) .kgz-themed .hover\:bg-neutral-900:hover, html:not(.dark) .kgz-themed .hover\:bg-neutral-800:hover,
+html:not(.dark) .kgz-themed [class~="hover:bg-neutral-800/40"]:hover { background-color: #f1f5f9; }
+html:not(.dark) .kgz-themed .hover\:bg-neutral-700:hover, html:not(.dark) .kgz-themed .hover\:bg-neutral-500:hover { background-color: #e2e8f0; }
+
+/* Gradients of dark panels */
+html:not(.dark) .kgz-themed .from-neutral-950, html:not(.dark) .kgz-themed .from-neutral-900 { --tw-gradient-from: #ffffff; }
+html:not(.dark) .kgz-themed .to-neutral-950, html:not(.dark) .kgz-themed .to-neutral-900 { --tw-gradient-to: #f8fafc; }
+html:not(.dark) .kgz-themed .via-neutral-950 { --tw-gradient-via: #f8fafc; }
+
+/* Borders */
+html:not(.dark) .kgz-themed .border-neutral-800, html:not(.dark) .kgz-themed .border-neutral-850,
+html:not(.dark) .kgz-themed [class~="border-neutral-800/80"], html:not(.dark) .kgz-themed .border-neutral-800\/80 { border-color: #e2e8f0; }
+html:not(.dark) .kgz-themed .border-neutral-700, html:not(.dark) .kgz-themed .border-neutral-600,
+html:not(.dark) .kgz-themed .hover\:border-neutral-700:hover, html:not(.dark) .kgz-themed .hover\:border-neutral-500:hover { border-color: #cbd5e1; }
+html:not(.dark) .kgz-themed .divide-neutral-800 > :not(:last-child) { border-color: #e2e8f0; }
+
+/* Text: light text on the (now light) panels becomes dark.
+   Not inside coloured buttons, badges or dark photo overlays (window backdrops are .fixed and do count). */
+html:not(.dark) .kgz-themed :is(.text-white, .text-neutral-100):not(:is(.absolute[class*=" bg-neutral-950/"], .absolute[class^="bg-neutral-950/"], .absolute[class*=" bg-neutral-900/"], .absolute[class^="bg-neutral-900/"], [class^="bg-red-4"], [class*=" bg-red-4"], [class^="bg-red-5"], [class*=" bg-red-5"], [class^="bg-red-6"], [class*=" bg-red-6"], [class^="bg-red-7"], [class*=" bg-red-7"], [class^="bg-emerald-4"], [class*=" bg-emerald-4"], [class^="bg-emerald-5"], [class*=" bg-emerald-5"], [class^="bg-emerald-6"], [class*=" bg-emerald-6"], [class^="bg-emerald-7"], [class*=" bg-emerald-7"], [class^="bg-amber-4"], [class*=" bg-amber-4"], [class^="bg-amber-5"], [class*=" bg-amber-5"], [class^="bg-amber-6"], [class*=" bg-amber-6"], [class^="bg-amber-7"], [class*=" bg-amber-7"], [class^="bg-sky-4"], [class*=" bg-sky-4"], [class^="bg-sky-5"], [class*=" bg-sky-5"], [class^="bg-sky-6"], [class*=" bg-sky-6"], [class^="bg-sky-7"], [class*=" bg-sky-7"], [class^="bg-blue-4"], [class*=" bg-blue-4"], [class^="bg-blue-5"], [class*=" bg-blue-5"], [class^="bg-blue-6"], [class*=" bg-blue-6"], [class^="bg-blue-7"], [class*=" bg-blue-7"], [class^="bg-orange-4"], [class*=" bg-orange-4"], [class^="bg-orange-5"], [class*=" bg-orange-5"], [class^="bg-orange-6"], [class*=" bg-orange-6"], [class^="bg-orange-7"], [class*=" bg-orange-7"], [class^="bg-violet-4"], [class*=" bg-violet-4"], [class^="bg-violet-5"], [class*=" bg-violet-5"], [class^="bg-violet-6"], [class*=" bg-violet-6"], [class^="bg-violet-7"], [class*=" bg-violet-7"], [class^="bg-green-4"], [class*=" bg-green-4"], [class^="bg-green-5"], [class*=" bg-green-5"], [class^="bg-green-6"], [class*=" bg-green-6"], [class^="bg-green-7"], [class*=" bg-green-7"], [class^="bg-rose-4"], [class*=" bg-rose-4"], [class^="bg-rose-5"], [class*=" bg-rose-5"], [class^="bg-rose-6"], [class*=" bg-rose-6"], [class^="bg-rose-7"], [class*=" bg-rose-7"], [class^="bg-[#"], [class*=" bg-[#"], [class^="bg-gradient"], [class*=" bg-gradient"], [class^="bg-linear"], [class*=" bg-linear"], [class^="from-black"], [class*=" from-black"], [class^="bg-black"]:not(.fixed), [class*=" bg-black"]:not(.fixed)) *):not([class^="bg-red-4"], [class*=" bg-red-4"], [class^="bg-red-5"], [class*=" bg-red-5"], [class^="bg-red-6"], [class*=" bg-red-6"], [class^="bg-red-7"], [class*=" bg-red-7"], [class^="bg-emerald-4"], [class*=" bg-emerald-4"], [class^="bg-emerald-5"], [class*=" bg-emerald-5"], [class^="bg-emerald-6"], [class*=" bg-emerald-6"], [class^="bg-emerald-7"], [class*=" bg-emerald-7"], [class^="bg-amber-4"], [class*=" bg-amber-4"], [class^="bg-amber-5"], [class*=" bg-amber-5"], [class^="bg-amber-6"], [class*=" bg-amber-6"], [class^="bg-amber-7"], [class*=" bg-amber-7"], [class^="bg-sky-4"], [class*=" bg-sky-4"], [class^="bg-sky-5"], [class*=" bg-sky-5"], [class^="bg-sky-6"], [class*=" bg-sky-6"], [class^="bg-sky-7"], [class*=" bg-sky-7"], [class^="bg-blue-4"], [class*=" bg-blue-4"], [class^="bg-blue-5"], [class*=" bg-blue-5"], [class^="bg-blue-6"], [class*=" bg-blue-6"], [class^="bg-blue-7"], [class*=" bg-blue-7"], [class^="bg-orange-4"], [class*=" bg-orange-4"], [class^="bg-orange-5"], [class*=" bg-orange-5"], [class^="bg-orange-6"], [class*=" bg-orange-6"], [class^="bg-orange-7"], [class*=" bg-orange-7"], [class^="bg-violet-4"], [class*=" bg-violet-4"], [class^="bg-violet-5"], [class*=" bg-violet-5"], [class^="bg-violet-6"], [class*=" bg-violet-6"], [class^="bg-violet-7"], [class*=" bg-violet-7"], [class^="bg-green-4"], [class*=" bg-green-4"], [class^="bg-green-5"], [class*=" bg-green-5"], [class^="bg-green-6"], [class*=" bg-green-6"], [class^="bg-green-7"], [class*=" bg-green-7"], [class^="bg-rose-4"], [class*=" bg-rose-4"], [class^="bg-rose-5"], [class*=" bg-rose-5"], [class^="bg-rose-6"], [class*=" bg-rose-6"], [class^="bg-rose-7"], [class*=" bg-rose-7"], [class^="bg-[#"], [class*=" bg-[#"], [class^="bg-gradient"], [class*=" bg-gradient"], [class^="bg-linear"], [class*=" bg-linear"], [class^="from-black"], [class*=" from-black"]):not([class^="bg-black"]:not(.fixed), [class*=" bg-black"]:not(.fixed)):not(.absolute[class*=" bg-neutral-950/"], .absolute[class^="bg-neutral-950/"], .absolute[class*=" bg-neutral-900/"], .absolute[class^="bg-neutral-900/"]) { color: #0f172a; }
+html:not(.dark) .kgz-themed.text-white { color: #0f172a; }
+html:not(.dark) .kgz-themed .text-neutral-200 { color: #1e293b; }
+html:not(.dark) .kgz-themed .text-neutral-300 { color: #334155; }
+html:not(.dark) .kgz-themed .text-neutral-400 { color: #475569; }
+html:not(.dark) .kgz-themed .text-neutral-500 { color: #64748b; }
+html:not(.dark) .kgz-themed .text-neutral-600 { color: #94a3b8; }
+html:not(.dark) .kgz-themed .hover\:text-white:hover:not([class*="bg-red"]):not([class*="bg-emerald"]),
+html:not(.dark) .kgz-themed .hover\:text-neutral-200:hover, html:not(.dark) .kgz-themed .hover\:text-neutral-300:hover { color: #0f172a; }
+html:not(.dark) .kgz-themed .placeholder\:text-neutral-500::placeholder { color: #94a3b8; }
+html:not(.dark) .kgz-themed input::placeholder, html:not(.dark) .kgz-themed textarea::placeholder { color: #94a3b8; }
+
+/* Bright accent text made for a dark background: deeper shades on light */
+html:not(.dark) .kgz-themed :is(.text-amber-400, .text-amber-300, .text-yellow-400):not(:is([class^="bg-black"]:not(.fixed), [class*=" bg-black"]:not(.fixed), [class^="bg-red"], [class*=" bg-red"], [class^="bg-[#"], [class*=" bg-[#"]) *):not([class^="bg-neutral-950/"], [class*=" bg-neutral-950/"]) { color: #b45309; }
+html:not(.dark) .kgz-themed :is(.text-emerald-400, .text-emerald-300, .text-green-400):not(:is([class^="bg-black"]:not(.fixed), [class*=" bg-black"]:not(.fixed)) *) { color: #047857; }
+html:not(.dark) .kgz-themed :is(.text-red-400, .text-red-300):not(:is([class^="bg-black"]:not(.fixed), [class*=" bg-black"]:not(.fixed), [class^="bg-red"], [class*=" bg-red"]) *) { color: #b91c1c; }
+html:not(.dark) .kgz-themed :is(.text-sky-400, .text-sky-300, .text-blue-400) { color: #0369a1; }
+html:not(.dark) .kgz-themed .border-white\/10, html:not(.dark) .kgz-themed .border-white\/15 { border-color: rgba(15, 23, 42, 0.1); }
+/* Dark coloured badges become light tints in the day theme */
+html:not(.dark) .kgz-themed [class*="bg-red-950"], html:not(.dark) .kgz-themed [class*="bg-red-900"] { background-color: #fee2e2; }
+html:not(.dark) .kgz-themed [class*="bg-emerald-950"], html:not(.dark) .kgz-themed [class*="bg-emerald-900"] { background-color: #d1fae5; }
+html:not(.dark) .kgz-themed [class*="bg-amber-950"], html:not(.dark) .kgz-themed [class*="bg-amber-900"] { background-color: #fef3c7; }
+html:not(.dark) .kgz-themed [class*="bg-sky-950"], html:not(.dark) .kgz-themed [class*="bg-sky-900"] { background-color: #e0f2fe; }
+html:not(.dark) .kgz-themed [class*="border-red-8"], html:not(.dark) .kgz-themed [class*="border-red-9"] { border-color: #fecaca; }
+html:not(.dark) .kgz-themed [class*="border-emerald-8"], html:not(.dark) .kgz-themed [class*="border-emerald-9"] { border-color: #a7f3d0; }
+html:not(.dark) .kgz-themed [class*="border-amber-8"], html:not(.dark) .kgz-themed [class*="border-amber-9"] { border-color: #fde68a; }
+/* Grey text that was made for dark panels */
+html:not(.dark) .kgz-themed .text-slate-300, html:not(.dark) .kgz-themed .text-slate-200 { color: #334155; }
+html:not(.dark) .kgz-themed .text-slate-400 { color: #475569; }
+/* The header in the day theme: white bar with a soft line */
+html:not(.dark) header.kgz-themed.kgz-themed.kgz-themed { background-color: #ffffff; border-color: #e2e8f0; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); }
+html:not(.dark) header.kgz-themed .bg-neutral-900.bg-neutral-900 { background-color: #f8fafc; }
+html:not(.dark) header.kgz-themed .bg-neutral-950 { background-color: #ffffff; }
+/* Slate-coloured dark panels (car filter, footer) in the day theme */
+html:not(.dark) .kgz-themed.bg-slate-950, html:not(.dark) .kgz-themed .bg-slate-950 { background-color: #f1f5f9; }
+html:not(.dark) .kgz-themed.bg-slate-900, html:not(.dark) .kgz-themed .bg-slate-900:not(button):not(a) { background-color: #ffffff; }
+html:not(.dark) .kgz-themed .bg-slate-800, html:not(.dark) .kgz-themed [class~="bg-slate-800/90"], html:not(.dark) .kgz-themed [class~="bg-slate-800/60"] { background-color: #f8fafc; }
+html:not(.dark) .kgz-themed .bg-slate-700 { background-color: #e2e8f0; }
+html:not(.dark) .kgz-themed .hover\:bg-slate-800:hover, html:not(.dark) .kgz-themed .hover\:bg-slate-700:hover { background-color: #e2e8f0; }
+html:not(.dark) .kgz-themed.border-slate-800, html:not(.dark) .kgz-themed .border-slate-800, html:not(.dark) .kgz-themed .border-slate-700,
+html:not(.dark) .kgz-themed [class~="border-slate-700/90"], html:not(.dark) .kgz-themed .border-slate-600 { border-color: #e2e8f0; }
+html:not(.dark) .kgz-themed.text-slate-400 { color: #475569; }
+html:not(.dark) .kgz-themed .hover\:text-slate-300:hover, html:not(.dark) .kgz-themed .hover\:text-slate-200:hover { color: #0f172a; }
+
+/* Overlays on photos keep light text and bright accents */
+html:not(.dark) .kgz-themed :is(.absolute[class*=" bg-neutral-950/"], .absolute[class^="bg-neutral-950/"], .absolute[class*=" bg-neutral-900/"], .absolute[class^="bg-neutral-900/"]) :is(.text-amber-400, .text-amber-300),
+html:not(.dark) .kgz-themed :is(.absolute[class*=" bg-neutral-950/"], .absolute[class^="bg-neutral-950/"], .absolute[class*=" bg-neutral-900/"], .absolute[class^="bg-neutral-900/"]):is(.text-amber-400, .text-amber-300) { color: #fbbf24; }
+html:not(.dark) .kgz-themed :is(.absolute[class*=" bg-neutral-950/"], .absolute[class^="bg-neutral-950/"], .absolute[class*=" bg-neutral-900/"], .absolute[class^="bg-neutral-900/"]) :is(.text-neutral-300, .text-neutral-200, .text-neutral-400),
+html:not(.dark) .kgz-themed :is(.absolute[class*=" bg-neutral-950/"], .absolute[class^="bg-neutral-950/"], .absolute[class*=" bg-neutral-900/"], .absolute[class^="bg-neutral-900/"]):is(.text-neutral-300, .text-neutral-200, .text-neutral-400) { color: #e5e5e5; }
+
+/* Boxes inside photo overlays (the "Паспорт & видео" hint) stay dark */
+html:not(.dark) .kgz-themed .absolute[class*=" bg-neutral-950/"] [class*=" bg-neutral-900/"],
+html:not(.dark) .kgz-themed .absolute[class*=" bg-neutral-950/"] [class^="bg-neutral-900/"] { background-color: rgba(23, 23, 23, 0.9); }
+
+/* Photo banners stay dark in the day theme too (white text on a dark picture) */
+html:not(.dark) .kgz-keep-dark { background-color: #0a0a0a !important; color: #ffffff !important; border-color: #262626 !important; }
+html:not(.dark) .kgz-keep-dark :is(.text-white, .text-neutral-100) { color: #ffffff !important; }
+html:not(.dark) .kgz-keep-dark .text-neutral-200 { color: #e5e5e5 !important; }
+html:not(.dark) .kgz-keep-dark .text-neutral-300 { color: #d4d4d4 !important; }
+html:not(.dark) .kgz-keep-dark .text-neutral-400 { color: #a3a3a3 !important; }
+html:not(.dark) .kgz-keep-dark .text-neutral-500 { color: #737373 !important; }
+html:not(.dark) .kgz-keep-dark :is(.text-amber-400, .text-amber-300) { color: #fbbf24 !important; }
+html:not(.dark) .kgz-keep-dark :is(.text-emerald-400, .text-emerald-300) { color: #34d399 !important; }
+html:not(.dark) .kgz-keep-dark :is(.text-red-400, .text-red-300) { color: #f87171 !important; }
+html:not(.dark) .kgz-keep-dark :is(.text-sky-400, .text-sky-300) { color: #38bdf8 !important; }
+html:not(.dark) .kgz-keep-dark [class*="bg-neutral-900/"], html:not(.dark) .kgz-keep-dark .bg-neutral-900 { background-color: rgba(23, 23, 23, 0.85) !important; }
+html:not(.dark) .kgz-keep-dark .bg-neutral-800, html:not(.dark) .kgz-keep-dark .hover\:bg-neutral-800:hover { background-color: #262626 !important; }
+html:not(.dark) .kgz-keep-dark :is(.border-neutral-700, .border-neutral-800) { border-color: #404040 !important; }
+html:not(.dark) .kgz-keep-dark .hover\:text-white:hover { color: #ffffff !important; }
+html:not(.dark) .kgz-keep-dark .from-red-950 { --tw-gradient-from: #450a0a !important; }
+html:not(.dark) .kgz-keep-dark .from-emerald-950 { --tw-gradient-from: #022c22 !important; }
+html:not(.dark) .kgz-keep-dark .from-amber-950 { --tw-gradient-from: #451a03 !important; }
+html:not(.dark) .kgz-keep-dark .via-neutral-950 { --tw-gradient-via: #0a0a0a !important; }
+html:not(.dark) .kgz-keep-dark .to-neutral-900 { --tw-gradient-to: #171717 !important; }

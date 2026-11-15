@@ -146,7 +146,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
 
   return (
     <div
-      className="relative rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl mb-8 group"
+      className="kgz-keep-dark relative rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl mb-8 group bg-neutral-950 text-white"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >

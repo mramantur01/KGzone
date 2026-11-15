@@ -30,7 +30,7 @@ const FAQ: [string, string][] = [
 /** Page for sellers: kgzone/prodavcam */
 export const SellersLanding: React.FC<{ onRegister: () => void; onOpenParts: () => void }> = ({ onRegister, onOpenParts }) => (
   <div className="bg-slate-50">
-    <section className="bg-neutral-950 text-white">
+    <section className="kgz-themed bg-neutral-950 text-white">
       <div className="max-w-5xl mx-auto px-4 py-12 sm:py-16">
         <div className="text-amber-400 font-bold text-sm uppercase tracking-wide">Для продавцов запчастей</div>
         <h1 className="mt-2 text-3xl sm:text-5xl font-black leading-tight">Продавайте запчасти на KGzone <span className="text-amber-400">бесплатно</span></h1>

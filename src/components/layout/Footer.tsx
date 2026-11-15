@@ -34,7 +34,7 @@ export const Footer: React.FC<FooterProps> = ({
   const isEn = language === 'en';
 
   return (
-    <footer className="bg-slate-950 text-slate-400 text-xs border-t border-slate-800">
+    <footer className="kgz-themed bg-slate-950 text-slate-400 text-xs border-t border-slate-800">
       {/* Кыргызский орнаментальный кант */}
       <ShyrdakRibbon variant="gold" />
 
