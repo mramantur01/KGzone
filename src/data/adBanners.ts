@@ -18,18 +18,24 @@ export interface AdBanner {
 
 const AD_CONTACT = siteWhatsApp('Здравствуйте! Хочу разместить рекламу на KGzone.') || '/kabinet';
 
-const tallPlaceholder = (id: string, gradient: string): AdBanner => ({
+// Photos from Unsplash (free to use, unsplash.com/license); no brands or shop signs in them
+const tallPhoto = (id: string) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=600&h=1200&q=70`;
+const boxPhoto = (id: string) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=600&h=500&q=70`;
+
+// Made-up sample ads (no real companies) so the places look filled until real advertisers come
+const sample = (id: string, title: string, text: string, image: string, gradient = 'from-amber-500/25 via-neutral-900 to-neutral-950'): AdBanner => ({
   id,
-  badge: 'Реклама',
-  title: 'Здесь может быть ваша реклама',
-  text: 'Баннер рядом с каталогом автозапчастей KGzone. Формат 300×600.',
-  cta: 'Разместить рекламу',
+  badge: 'Пример рекламы',
+  title,
+  text,
+  cta: 'Разместить свою рекламу',
   href: AD_CONTACT,
+  image,
   gradient,
 });
 
 export const PARTS_SIDEBAR_ADS: AdBanner[] = [
-  tallPlaceholder('ad-placeholder', 'from-amber-500/25 via-neutral-900 to-neutral-950'),
+  sample('ad-sample-engines', 'Контрактные двигатели и КПП', 'Моторы из Японии и Кореи с проверкой и гарантией на запуск. Так здесь будет выглядеть реклама разборки. Формат 300×600.', tallPhoto('1767340078222-98633f3ffd27')),
   {
     id: 'ad-sellers',
     badge: 'KGzone',
@@ -37,26 +43,19 @@ export const PARTS_SIDEBAR_ADS: AdBanner[] = [
     text: 'Размещение бесплатное для частных продавцов, магазинов и разборок. Для компаний — бизнес-кабинет с импортом из Excel.',
     cta: 'Как подключиться',
     href: siteWhatsApp('Здравствуйте! Хочу продавать запчасти на KGzone.') || '/kabinet',
+    image: tallPhoto('1615906655593-ad0386982a0f'),
     gradient: 'from-red-600/30 via-neutral-900 to-neutral-950',
   },
 ];
 
-const boxPlaceholder = (id: string, gradient = 'from-sky-500/20 via-neutral-900 to-neutral-950'): AdBanner => ({
-  id,
-  badge: 'Реклама',
-  title: 'Место для рекламы',
-  text: 'Формат 300×250. Ваш баннер рядом с каталогом запчастей.',
-  cta: 'Разместить рекламу',
-  href: AD_CONTACT,
-  gradient,
-});
-
 // Smaller 300×250 slots stacked under the main slider; each one rotates on its own
 export const PARTS_SIDEBAR_BOXES: AdBanner[][] = [
-  [boxPlaceholder('box-1')],
-  [boxPlaceholder('box-2', 'from-amber-500/25 via-neutral-900 to-neutral-950')],
-  [boxPlaceholder('box-3', 'from-emerald-600/25 via-neutral-900 to-neutral-950')],
+  [sample('box-1', 'Фары и оптика', 'Новые и б/у фары, линзы, стёкла. Пример рекламы магазина оптики.', boxPhoto('1556448851-9359658faa54'))],
+  [sample('box-2', 'Ремни и ролики ГРМ', 'Комплекты ГРМ в наличии и под заказ. Пример рекламы.', boxPhoto('1486262715619-67b85e0b08d3'))],
+  [sample('box-3', 'Тормозные диски и колодки', 'Оригинал и аналоги на японские и корейские авто. Пример рекламы.', boxPhoto('1764869427601-eb699ac80a0c'))],
 ];
 
 // Tall slot at the bottom of the sidebar; it stays on screen while the catalog scrolls
-export const PARTS_SIDEBAR_BOTTOM_ADS: AdBanner[] = [tallPlaceholder('ad-bottom-placeholder', 'from-red-600/25 via-neutral-900 to-neutral-950')];
+export const PARTS_SIDEBAR_BOTTOM_ADS: AdBanner[] = [
+  sample('ad-bottom-sample', 'Глушители и катализаторы', 'Выхлопные системы, гофры, резонаторы — подбор и установка. Пример рекламы. Формат 300×600.', tallPhoto('1759419282068-eb664e0f0a17')),
+];

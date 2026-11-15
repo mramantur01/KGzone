@@ -200,6 +200,7 @@ export const AdminToolsPanel: React.FC = () => (
   <div className="space-y-4">
     <SiteStatsCard />
     <BannerSlidesPanel />
+    <BannerSlidesPanel place="sto" />
     <TelegramBotCard />
     <ChannelCard />
     <ImportForSellerCard />

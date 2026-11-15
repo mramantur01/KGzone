@@ -1,40 +1,49 @@
 import { useEffect, useState } from 'react';
 import { call } from './admin';
-import { DEFAULT_BANNER, type BannerConfig } from '../data/bannerDefaults';
+import { DEFAULT_BANNER, DEFAULT_STO_BANNER, type BannerConfig } from '../data/bannerDefaults';
 
-// Slides of the catalog banner: saved by the owner on the server, otherwise the sample ads
-let cached: BannerConfig | null = null;
-let loading: Promise<BannerConfig> | null = null;
-const listeners = new Set<(b: BannerConfig) => void>();
+// Banner slides: saved by the owner on the server, otherwise the sample ads.
+// 'parts' = top of the parts catalog, 'sto' = top of the car service page.
+export type BannerPlace = 'parts' | 'sto';
 
-export function loadBanner(force = false): Promise<BannerConfig> {
-  if (cached && !force) return Promise.resolve(cached);
-  if (!loading || force) {
-    loading = call<{ banner: BannerConfig | null }>('/api/banner')
-      .then((r) => r.banner || DEFAULT_BANNER)
-      .catch(() => DEFAULT_BANNER)
-      .then((b) => { cached = b; listeners.forEach((l) => l(b)); return b; });
+const DEFAULTS: Record<BannerPlace, BannerConfig> = { parts: DEFAULT_BANNER, sto: DEFAULT_STO_BANNER };
+const cached: Partial<Record<BannerPlace, BannerConfig>> = {};
+const loading: Partial<Record<BannerPlace, Promise<BannerConfig>>> = {};
+const listeners: Record<BannerPlace, Set<(b: BannerConfig) => void>> = { parts: new Set(), sto: new Set() };
+const query = (place: BannerPlace) => (place === 'sto' ? '?place=sto' : '');
+const publish = (place: BannerPlace, b: BannerConfig) => { cached[place] = b; listeners[place].forEach((l) => l(b)); };
+
+export function loadBanner(force = false, place: BannerPlace = 'parts'): Promise<BannerConfig> {
+  const have = cached[place];
+  if (have && !force) return Promise.resolve(have);
+  if (!loading[place] || force) {
+    loading[place] = call<{ banner: BannerConfig | null }>(`/api/banner${query(place)}`)
+      .then((r) => r.banner || DEFAULTS[place])
+      .catch(() => DEFAULTS[place])
+      .then((b) => { publish(place, b); return b; });
   }
-  return loading;
+  return loading[place]!;
 }
 
-export function useBanner(): BannerConfig {
-  const [b, setB] = useState<BannerConfig>(cached || DEFAULT_BANNER);
+export function useBanner(place: BannerPlace = 'parts'): BannerConfig {
+  const [b, setB] = useState<BannerConfig>(cached[place] || DEFAULTS[place]);
   useEffect(() => {
-    listeners.add(setB);
-    loadBanner().then(setB);
-    return () => { listeners.delete(setB); };
-  }, []);
+    listeners[place].add(setB);
+    loadBanner(false, place).then(setB);
+    return () => { listeners[place].delete(setB); };
+  }, [place]);
   return b;
 }
 
-export const saveBanner = async (b: BannerConfig) => {
-  const r = await call<{ banner: BannerConfig }>('/api/admin/banner', { method: 'PUT', body: JSON.stringify(b) }, true);
-  cached = r.banner; listeners.forEach((l) => l(r.banner));
+export const defaultBanner = (place: BannerPlace) => DEFAULTS[place];
+
+export const saveBanner = async (b: BannerConfig, place: BannerPlace = 'parts') => {
+  const r = await call<{ banner: BannerConfig }>(`/api/admin/banner${query(place)}`, { method: 'PUT', body: JSON.stringify(b) }, true);
+  publish(place, r.banner);
   return r.banner;
 };
-export const resetBanner = async () => {
-  await call('/api/admin/banner', { method: 'PUT', body: JSON.stringify({ reset: true }) }, true);
-  cached = DEFAULT_BANNER; listeners.forEach((l) => l(DEFAULT_BANNER));
-  return DEFAULT_BANNER;
+export const resetBanner = async (place: BannerPlace = 'parts') => {
+  await call(`/api/admin/banner${query(place)}`, { method: 'PUT', body: JSON.stringify({ reset: true }) }, true);
+  publish(place, DEFAULTS[place]);
+  return DEFAULTS[place];
 };

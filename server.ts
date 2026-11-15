@@ -4237,7 +4237,6 @@ app.post('/api/push/unsubscribe', requireUser, asyncRoute(async (req: Request, r
 
 // ---- Banner slides at the top of the parts catalog (the owner edits them in the cabinet) ----
 const BANNER_KEY = 'kgzone:banner';
-let memoryBanner: unknown = null;
 const SLIDE_COLORS = ['amber', 'sky', 'emerald', 'red', 'violet', 'slate'];
 const SLIDE_ICONS = ['tire', 'oil', 'wrench', 'truck', 'store', 'megaphone'];
 function sanitizeBanner(b: any) {
@@ -4259,20 +4258,25 @@ function sanitizeBanner(b: any) {
     })),
   };
 }
-app.get('/api/banner', asyncRoute(async (_req: Request, res: Response) => {
-  const banner = redis ? await redis.get(BANNER_KEY) : memoryBanner;
+// place=sto: the same kind of slider on the car service page
+const bannerKey = (place: unknown) => (place === 'sto' ? `${BANNER_KEY}:sto` : BANNER_KEY);
+const memoryBanners: Record<string, unknown> = {};
+app.get('/api/banner', asyncRoute(async (req: Request, res: Response) => {
+  const key = bannerKey(req.query.place);
+  const banner = redis ? await redis.get(key) : memoryBanners[key];
   res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60');
   res.json({ success: true, banner: banner || null });
 }));
 app.put('/api/admin/banner', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  const key = bannerKey(req.query.place);
   if (req.body?.reset) {
-    if (redis) await redis.del(BANNER_KEY); else memoryBanner = null;
-    await audit((req as any).actor || 'admin', 'banner.reset', 'banner', {});
+    if (redis) await redis.del(key); else delete memoryBanners[key];
+    await audit((req as any).actor || 'admin', 'banner.reset', 'banner', { key });
     return res.json({ success: true, banner: null });
   }
   const banner = sanitizeBanner(req.body);
-  if (redis) await redis.set(BANNER_KEY, banner); else memoryBanner = banner;
-  await audit((req as any).actor || 'admin', 'banner.update', 'banner', { slides: banner.slides.length });
+  if (redis) await redis.set(key, banner); else memoryBanners[key] = banner;
+  await audit((req as any).actor || 'admin', 'banner.update', 'banner', { key, slides: banner.slides.length });
   res.json({ success: true, banner });
 }));
 

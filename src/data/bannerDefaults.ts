@@ -61,3 +61,16 @@ export const DEFAULT_BANNER: BannerConfig = {
     sample('sample-5', 'violet', 'store', 'Ваш магазин запчастей — здесь', 'Покажите свой магазин каждому покупателю каталога KGzone. Формат 1200×300.', photo('1767341372150-b9521fec39a3')),
   ],
 };
+
+// Same slider on the car service page (/sto): three KGzone blocks, then sample ads of services
+export const DEFAULT_STO_BANNER: BannerConfig = {
+  intervalSec: 3,
+  showOffers: true,
+  slides: [
+    sample('sto-1', 'amber', 'tire', 'Шиномонтаж без очереди', 'Переобувка, балансировка, ремонт проколов и хранение шин. Пример рекламы шиномонтажа.', photo('1645445522156-9ac06bc7a767')),
+    sample('sto-2', 'sky', 'wrench', 'Автомойка и детейлинг', 'Мойка кузова и салона, полировка, керамика. Пример рекламы автомойки.', photo('1633014041037-f5446fb4ce99')),
+    sample('sto-3', 'red', 'truck', 'Эвакуатор 24/7 по Бишкеку и области', 'Приедем за 30–40 минут, перевезём машину в сервис. Пример рекламы эвакуатора.', photo('1730514785075-b065c757b653')),
+    sample('sto-4', 'emerald', 'wrench', 'Тормоза и ходовая', 'Замена колодок и дисков, амортизаторы, развал-схождение. Пример рекламы СТО.', photo('1760317890314-e964ffd7e6a6')),
+    sample('sto-5', 'violet', 'store', 'Ваш автосервис — здесь', 'Покажите свой автосервис каждому, кто ищет ремонт на KGzone. Формат 1200×300.', photo('1767681092416-bccf9410bda4')),
+  ],
+};

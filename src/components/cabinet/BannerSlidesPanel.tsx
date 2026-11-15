@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { GalleryHorizontal, ArrowUp, ArrowDown, Trash2, Plus, Loader2, ImagePlus, Eye, EyeOff, RotateCcw, ExternalLink } from 'lucide-react';
-import { loadBanner, resetBanner, saveBanner } from '../../api/banner';
+import { defaultBanner, loadBanner, resetBanner, saveBanner, type BannerPlace } from '../../api/banner';
 import { uploadPhoto } from '../../api/upload';
 import {
-  DEFAULT_BANNER, SLIDE_COLOR_NAMES, SLIDE_GRADIENTS, SLIDE_ICON_NAMES,
+  SLIDE_COLOR_NAMES, SLIDE_GRADIENTS, SLIDE_ICON_NAMES,
   type BannerConfig, type BannerSlide, type SlideColor, type SlideIcon,
 } from '../../data/bannerDefaults';
 
@@ -16,12 +16,13 @@ const newSlide = (): BannerSlide => ({
 });
 
 /** Owner's control panel for the banner slides at the top of the parts catalog */
-export const BannerSlidesPanel: React.FC = () => {
+export const BannerSlidesPanel: React.FC<{ place?: BannerPlace }> = ({ place = 'parts' }) => {
+  const isSto = place === 'sto';
   const [cfg, setCfg] = useState<BannerConfig | null>(null);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
-  useEffect(() => { loadBanner(true).then((b) => setCfg(JSON.parse(JSON.stringify(b)))); }, []);
+  useEffect(() => { loadBanner(true, place).then((b) => setCfg(JSON.parse(JSON.stringify(b)))); }, [place]);
   if (!cfg) return <div className="p-4 rounded-2xl bg-white border border-slate-200 text-sm text-slate-400"><Loader2 className="animate-spin" /></div>;
 
   const setSlide = (id: string, patch: Partial<BannerSlide>) => setCfg({ ...cfg, slides: cfg.slides.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
@@ -38,13 +39,13 @@ export const BannerSlidesPanel: React.FC = () => {
   };
   const save = async () => {
     setBusy('save'); setMsg(null);
-    try { setCfg(JSON.parse(JSON.stringify(await saveBanner(cfg)))); setMsg({ ok: true, text: 'Сохранено. Слайды на сайте обновятся в течение минуты.' }); }
+    try { setCfg(JSON.parse(JSON.stringify(await saveBanner(cfg, place)))); setMsg({ ok: true, text: 'Сохранено. Слайды на сайте обновятся в течение минуты.' }); }
     catch (e: any) { setMsg({ ok: false, text: e.message }); } finally { setBusy(''); }
   };
   const reset = async () => {
     if (!confirm('Вернуть примерные рекламы по умолчанию? Ваши слайды будут удалены.')) return;
     setBusy('reset'); setMsg(null);
-    try { await resetBanner(); setCfg(JSON.parse(JSON.stringify(DEFAULT_BANNER))); setMsg({ ok: true, text: 'Возвращены примерные рекламы.' }); }
+    try { await resetBanner(place); setCfg(JSON.parse(JSON.stringify(defaultBanner(place)))); setMsg({ ok: true, text: 'Возвращены примерные рекламы.' }); }
     catch (e: any) { setMsg({ ok: false, text: e.message }); } finally { setBusy(''); }
   };
   const enabled = cfg.slides.filter((s) => s.enabled).length + (cfg.showOffers ? 1 : 0);
@@ -52,15 +53,15 @@ export const BannerSlidesPanel: React.FC = () => {
   return (
     <div className="p-4 rounded-2xl bg-white border border-slate-200 text-sm space-y-3">
       <div className="flex items-center gap-2 font-bold text-slate-900">
-        <GalleryHorizontal size={16} className="text-[#C8102E]" />Слайды в каталоге запчастей
-        <a href="/zapchasti" target="_blank" rel="noopener" className="ml-auto text-xs font-bold text-[#1d6fb8] hover:underline inline-flex items-center gap-1">Открыть на сайте<ExternalLink size={12} /></a>
+        <GalleryHorizontal size={16} className="text-[#C8102E]" />{isSto ? 'Слайды на странице автосервиса' : 'Слайды в каталоге запчастей'}
+        <a href={isSto ? '/sto' : '/zapchasti'} target="_blank" rel="noopener" className="ml-auto text-xs font-bold text-[#1d6fb8] hover:underline inline-flex items-center gap-1">Открыть на сайте<ExternalLink size={12} /></a>
       </div>
-      <p className="text-xs text-slate-500">Баннер в начале каталога. Всего на сайте сейчас слайдов: <b>{enabled}</b>. Картинка рекламы — 2400×600 пикселей; без картинки показывается цвет и значок.</p>
+      <p className="text-xs text-slate-500">{isSto ? 'Баннер в начале страницы «Сервис».' : 'Баннер в начале каталога.'} Всего на сайте сейчас слайдов: <b>{enabled}</b>. Картинка рекламы — 2400×600 пикселей; без картинки показывается цвет и значок.</p>
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={cfg.showOffers} onChange={(e) => setCfg({ ...cfg, showOffers: e.target.checked })} className="w-4 h-4 accent-[#C8102E]" />
-          <span>Первый слайд: три блока KGzone (VIN, поиск по номеру, «Продавайте бесплатно»)</span>
+          <span>{isSto ? 'Первый слайд: три блока KGzone (запись к мастеру, прайс-лист, галерея работ)' : 'Первый слайд: три блока KGzone (VIN, поиск по номеру, «Продавайте бесплатно»)'}</span>
         </label>
         <label className="flex items-center gap-2">
           <span>Смена каждые</span>

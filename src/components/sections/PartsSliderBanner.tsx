@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useBanner } from '../../api/banner';
+import { useBanner, type BannerPlace } from '../../api/banner';
 import { SLIDE_GRADIENTS, type SlideIcon } from '../../data/bannerDefaults';
 import { Disc3, Droplets } from 'lucide-react';
 import { Language } from '../../types/car';
@@ -23,8 +23,29 @@ import {
   Car,
 } from 'lucide-react';
 
+/** One of the three blocks on the first slide */
+export interface OfferBlock {
+  id: number;
+  badge: string;
+  badgeColor: string;
+  title: React.ReactNode;
+  description: string;
+  stats: { label: string; val: string }[];
+  buttonText?: string;
+  buttonAction?: () => void;
+  secondaryText?: string;
+  secondaryAction?: () => void;
+  accentColor: string;
+  bgImage: string;
+  icon: React.ReactNode;
+}
+
 interface PartsSliderBannerProps {
   language: Language;
+  /** Which saved slides to show: parts catalog (default) or the car service page */
+  place?: BannerPlace;
+  /** Own three blocks for the first slide (the service page passes its own) */
+  offers?: OfferBlock[];
   onFilterEngines?: () => void;
   onFilterOptics?: () => void;
   onOpenSellerRegistration?: () => void;
@@ -41,10 +62,12 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
   onSelectMarket,
   onFocusVin,
   onFocusSearch,
+  place = 'parts',
+  offers,
 }) => {
   const isKg = language === 'kg';
   // Slides come from the owner's settings (cabinet → «Слайды в каталоге»): first the three offers, then the ads
-  const banner = useBanner();
+  const banner = useBanner(place);
   const ads = banner.slides.filter((s) => s.enabled);
   const offset = banner.showOffers ? 1 : 0;
   const total = offset + ads.length;
@@ -61,7 +84,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
   const go = (d: number) => setCurrent((c) => (c + d + total) % total);
 
   // Only real features of the site — no invented warranties, delivery promises or audience numbers
-  const slides = [
+  const partsOffers: OfferBlock[] = [
     {
       id: 1,
       badge: isKg ? 'VIN жана кузов номери боюнча тандоо' : 'Подбор по VIN и номеру кузова',
@@ -139,6 +162,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
     },
   ];
 
+  const slides = offers || partsOffers;
   if (total === 0) return null;
   // Slider: the first slide shows all three offers side by side, the next slides are ad places
   return (

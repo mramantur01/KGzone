@@ -28,7 +28,7 @@ export const AdBannerSlot: React.FC<AdBannerSlotProps> = ({ banners, intervalMs 
 
   return (
     <div
-      className={`relative overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-950 ${className}`}
+      className={`kgz-keep-dark relative overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-950 text-white ${className}`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -50,7 +50,7 @@ export const AdBannerSlot: React.FC<AdBannerSlotProps> = ({ banners, intervalMs 
             {b.image && (
               <img src={b.image} alt={b.title} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
             )}
-            {b.image && <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />}
+            {b.image && <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 to-black/10" />}
 
             {!b.image && !isBox && (
               <div className="absolute inset-x-0 top-12 flex justify-center">

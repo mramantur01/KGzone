@@ -7,6 +7,19 @@ import {
 import { Currency, Language, WorkshopService, WorkshopMaster, WorkshopWorkGallery, WorkshopBooking } from '../../types/car';
 import { WORKSHOP_LOCATIONS, WORKSHOP_SERVICES, WORKSHOP_MASTERS, WORKSHOP_GALLERY } from '../../data/workshopData';
 import { KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
+import { PartsSliderBanner, type OfferBlock } from './PartsSliderBanner';
+
+// Photos from Unsplash (free to use, unsplash.com/license); examples until real workshops add their own
+const unsplash = (id: string, w = 800, h = 400) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&h=${h}&q=70`;
+const SERVICE_PHOTOS: Record<string, string> = {
+  diagnostics: unsplash('1727893380169-4dda123e19f7'),
+  suspension: unsplash('1742741592138-d61129e7fd97'),
+  oil_maintenance: unsplash('1771340742493-52fbd5476ccb'),
+  engine: unsplash('1792792999828-74b071329fdd'),
+  hybrid_ev: unsplash('1593941707874-ef25b8b4a92b'),
+  detailing_body: unsplash('1780558852670-3f49298ecc1f'),
+  electric: unsplash('1765211003026-f7666ea3a948'),
+};
 
 // The service centres, masters, prices and addresses in workshopData are EXAMPLES. While this is
 // true, booking and contacts are switched off and a notice is shown. Set to false only after
@@ -160,8 +173,68 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
     }
   };
 
+  const showTab = (tab: typeof activeSubTab) => () => setActiveSubTab(tab);
+  const stoOffers: OfferBlock[] = [
+    {
+      id: 1,
+      badge: isKg ? 'Онлайн жазылуу' : isEn ? 'Online booking' : 'Онлайн-запись',
+      badgeColor: 'bg-red-950/80 border-red-600 text-red-300',
+      title: isKg ? (<>Устага жазылыңыз <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-amber-300 to-emerald-400">кезексиз</span></>)
+        : isEn ? (<>Book a mechanic <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-amber-300 to-emerald-400">without queues</span></>)
+        : (<>Запишитесь к мастеру <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-amber-300 to-emerald-400">без очереди</span></>),
+      description: isKg ? 'Кызматты, устаны жана ыңгайлуу убакытты тандаңыз.' : isEn ? 'Pick a service, a mechanic and a convenient time.' : 'Выберите услугу, мастера и удобное время.',
+      stats: [
+        { label: isKg ? 'Убакыт' : isEn ? 'Time' : 'Время', val: isKg ? 'ыңгайлуу' : isEn ? 'your choice' : 'удобное' },
+        { label: isKg ? 'Уста' : isEn ? 'Mechanic' : 'Мастер', val: isKg ? 'тандоо' : isEn ? 'choose' : 'на выбор' },
+      ],
+      buttonText: isKg ? 'Жазылуу' : isEn ? 'Book' : 'Записаться',
+      buttonAction: showTab('booking'),
+      accentColor: 'from-red-950 via-neutral-950 to-neutral-900',
+      bgImage: unsplash('1771340012319-0b4fca008b54'),
+      icon: <Calendar className="text-red-400" size={20} />,
+    },
+    {
+      id: 2,
+      badge: isKg ? 'Кызматтардын баасы' : isEn ? 'Price list' : 'Прайс-лист',
+      badgeColor: 'bg-emerald-950/80 border-emerald-600 text-emerald-300',
+      title: isKg ? (<>Баасын алдын ала <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-amber-300 to-sky-400">билиңиз</span></>)
+        : isEn ? (<>Know the price <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-amber-300 to-sky-400">in advance</span></>)
+        : (<>Узнайте цену <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-amber-300 to-sky-400">заранее</span></>),
+      description: isKg ? 'Диагностика, ходовой бөлүк, май алмаштыруу, мотор, гибриддер жана автоэлектрика.' : isEn ? 'Diagnostics, suspension, oil change, engine, hybrids and electrics.' : 'Диагностика, ходовая, замена масла, двигатель, гибриды и автоэлектрика.',
+      stats: [
+        { label: isKg ? 'Кызматтар' : isEn ? 'Services' : 'Услуг', val: String(WORKSHOP_SERVICES.length) },
+        { label: isKg ? 'Убакыт' : isEn ? 'Duration' : 'Сроки', val: isKg ? 'көрсөтүлгөн' : isEn ? 'shown' : 'указаны' },
+      ],
+      buttonText: isKg ? 'Баалар' : isEn ? 'Prices' : 'Смотреть цены',
+      buttonAction: showTab('services'),
+      accentColor: 'from-emerald-950 via-neutral-950 to-neutral-900',
+      bgImage: unsplash('1615906655593-ad0386982a0f'),
+      icon: <Wrench className="text-emerald-400" size={20} />,
+    },
+    {
+      id: 3,
+      badge: isKg ? 'Иштер жана усталар' : isEn ? 'Work and mechanics' : 'Работы и мастера',
+      badgeColor: 'bg-amber-950/80 border-amber-600 text-amber-300',
+      title: isKg ? (<>Иштердин сүрөттөрү <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-red-400">чейин жана кийин</span></>)
+        : isEn ? (<>Photos of work <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-red-400">before and after</span></>)
+        : (<>Фото работ <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-red-400">до и после</span></>),
+      description: isKg ? 'Усталар, алардын тажрыйбасы жана картадагы филиалдар.' : isEn ? 'Mechanics, their experience and branches on the map.' : 'Мастера, их опыт и филиалы на карте.',
+      stats: [
+        { label: isKg ? 'Усталар' : isEn ? 'Mechanics' : 'Мастеров', val: String(WORKSHOP_MASTERS.length) },
+        { label: isKg ? 'Филиалдар' : isEn ? 'Branches' : 'Филиалов', val: String(WORKSHOP_LOCATIONS.length) },
+      ],
+      buttonText: isKg ? 'Галерея' : isEn ? 'Gallery' : 'Галерея работ',
+      buttonAction: showTab('gallery'),
+      secondaryText: isKg ? 'Усталар' : isEn ? 'Mechanics' : 'Мастера',
+      secondaryAction: showTab('masters'),
+      accentColor: 'from-amber-950 via-neutral-950 to-neutral-900',
+      bgImage: unsplash('1767681092416-bccf9410bda4'),
+      icon: <Sparkles className="text-amber-400" size={20} />,
+    },
+  ];
+
   return (
-    <div className="bg-slate-50 dark:bg-slate-900 py-6 min-h-screen">
+    <div className="bg-slate-50 dark:bg-slate-900 pt-3 pb-6 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {WORKSHOP_DEMO && (
@@ -170,64 +243,44 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
             <span>{WORKSHOP_DEMO_NOTICE}</span>
           </div>
         )}
-        {/* Шапка раздела мастерской */}
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-red-950 rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden mb-8 border border-slate-700">
-          <div className="absolute right-0 top-0 bottom-0 opacity-10 flex items-center pointer-events-none pr-8">
-            <KochkorMuyuzIcon size={260} color="#FFFFFF" />
-          </div>
-
-          <div className="relative z-10 max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-600/30 text-red-300 border border-red-500/40 rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
-              <Wrench size={14} />
-              {isKg ? 'Автосервис жана СТО Түйүнү' : isEn ? 'Auto workshop (example section)' : 'Автосервис & СТО (пример раздела)'}
+        {/* Heading row (same style as the parts catalog) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 py-2 border-y border-slate-200 dark:border-slate-800">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2 py-px rounded-full bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-700/60 text-[#C8102E] dark:text-red-400 text-[9px] font-bold uppercase tracking-wider mb-1">
+              <KochkorMuyuzIcon size={10} />
+              <span>{isKg ? 'KGzone • Автосервис жана СТО' : isEn ? 'KGzone • Car service' : 'KGzone • Автосервис и СТО'}</span>
             </div>
-            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white mb-3">
-              {isKg 
-                ? 'Квалификациялуу усталар, так диагностика жана кепилдик' 
-                : isEn 
-                ? 'Certified Mechanics, 3D Diagnostics & Service Guarantee'
-                : 'Профессиональный автосервис, 3D диагностика и ремонт в Бишкеке и Оше'}
+            <h1 className="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+              {isKg ? 'Автосервис, диагностика жана оңдоо Кыргызстан боюнча' : isEn ? 'Car service, diagnostics and repair in Kyrgyzstan' : 'Автосервис, диагностика и ремонт по всему Кыргызстану'}
             </h1>
-            <p className="text-slate-300 text-sm sm:text-base leading-relaxed mb-6">
-              {isKg
-                ? 'ДВС оңдоо, 3D развал-схождение, гибриддердин ВВБ батареяларын калибрлөө, автоэлектрика жана оригиналдуу майларды алмаштыруу. Онлайн жазылуу жана WhatsApp аркылуу түз байланыш.'
-                : isEn
-                ? 'Full engine reconditioning, 3D wheel alignment, hybrid battery cell balancing, computer diagnostics and paint restoration with real-time appointment booking.'
-                : 'Капитальный ремонт ДВС, 3D развал Hunter, калибровка высоковольтных батарей гибридов и электрокаров (Prius, Aqua, Zeekr), компьютерная диагностика Launch/Autel и детейлинг. Гарантия на работы до 12 месяцев.'}
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              {isKg ? 'Кызматтардын баасы, усталар, иштердин галереясы жана онлайн жазылуу' : isEn ? 'Prices, mechanics, work gallery and online booking' : 'Цены на услуги, мастера, галерея работ и онлайн-запись'}
             </p>
-
-            {/* Быстрые метрики и CTA */}
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => setActiveSubTab('booking')}
-                className="px-5 py-2.5 bg-[#C8102E] hover:bg-[#a60d26] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
-              >
-                <Calendar size={16} />
-                {isKg ? 'Онлайн жазылуу' : isEn ? 'Book Service Now' : 'Записаться к мастеру онлайн'}
-              </button>
-
-              {!WORKSHOP_DEMO && (<>
+          </div>
+          <div className="flex items-center gap-2">
+            {!WORKSHOP_DEMO && (
               <a
                 href={`https://wa.me/${selectedLocation.whatsapp}?text=${encodeURIComponent('Здравствуйте! Хочу проконсультироваться по ремонту автомобиля в KGzone СТО.')}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] flex items-center gap-1.5"
               >
-                <MessageCircle size={16} />
-                {isKg ? 'WhatsApp консультация' : isEn ? 'Chat via WhatsApp' : 'Написать в WhatsApp мастеру'}
+                <MessageCircle size={14} />
+                <span>WhatsApp</span>
               </a>
-
-              <a
-                href={`tel:${selectedLocation.phone}`}
-                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 font-semibold text-sm rounded-xl transition-all flex items-center gap-2"
-              >
-                <Phone size={16} />
-                <span>{selectedLocation.phone}</span>
-              </a>
-              </>)}
-            </div>
+            )}
+            <button
+              onClick={() => setActiveSubTab('booking')}
+              className="py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-[11px] flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+            >
+              <Calendar size={14} />
+              <span>{isKg ? '+ Устага жазылуу' : isEn ? '+ Book a mechanic' : '+ Записаться к мастеру'}</span>
+            </button>
           </div>
         </div>
+
+        {/* Slider: three blocks, then ad places (the owner edits them in the cabinet) */}
+        <PartsSliderBanner language={language} place="sto" offers={stoOffers} />
 
         {/* Навигационные табы раздела СТО */}
         <div className="flex items-center gap-2 flex-wrap pb-3 mb-6 border-b border-slate-200 dark:border-slate-800">
@@ -329,9 +382,12 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
               {filteredServices.map((srv) => (
                 <div
                   key={srv.id}
-                  className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-xs hover:border-[#C8102E] transition-all flex flex-col justify-between"
+                  className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-xs hover:border-[#C8102E] transition-all flex flex-col justify-between overflow-hidden"
                 >
                   <div>
+                    {SERVICE_PHOTOS[srv.category] && (
+                      <img src={SERVICE_PHOTOS[srv.category]} alt="" loading="lazy" className="-mx-5 -mt-5 mb-4 w-[calc(100%+2.5rem)] max-w-none h-36 object-cover" />
+                    )}
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug">
                         {isKg && srv.titleKg ? srv.titleKg : isEn && srv.titleEn ? srv.titleEn : srv.title}
