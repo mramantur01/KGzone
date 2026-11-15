@@ -349,7 +349,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
               alt={slide.title}
               decoding="async"
               fetchPriority={idx === 0 ? 'high' : 'low'}
-              className="w-full h-full object-cover object-center transform scale-100 transition-transform duration-7000 ease-out"
+              className="w-full h-full object-cover object-[center_68%]"
             />}
             {/* Soft vignette on edges that keeps 90% of the photo crisp and vibrant */}
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none" />
