@@ -847,7 +847,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   };
 
   return (
-    <div className="kgz-themed bg-neutral-950 text-white min-h-screen pt-3 pb-5 px-4 sm:px-6 lg:px-8 relative overflow-clip">
+    <div className="kgz-themed kgz-parts-bg text-white min-h-screen pt-3 pb-5 px-4 sm:px-6 lg:px-8 relative overflow-clip">
       
       {/* Background Kyrgyz Ornaments (Tunduk & Kochkor Muyuz) */}
       <div className="absolute top-10 right-10 opacity-4 pointer-events-none text-red-500">
