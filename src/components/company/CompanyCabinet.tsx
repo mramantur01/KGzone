@@ -45,7 +45,7 @@ export const CompanyCabinet: React.FC<{ info: CompanyInfo; onChanged: () => void
           <h2 className="text-lg font-black text-slate-900" data-no-i18n>{info.company.name}</h2>
           <div className="text-xs text-slate-500">
             Ваша роль: <b>{ROLE_LABELS[info.role]}</b> · ИНН <span className="font-mono" data-no-i18n>{info.company.inn}</span>
-            {info.company.status === 'verified' ? ' · Проверенная компания — товары публикуются сразу' : ' · Компания не подтверждена — товары проходят модерацию'}
+            {' · Товары появляются на сайте сразу, как только у них есть фото'}
           </div>
         </div>
         {info.role !== 'owner' && (
@@ -125,7 +125,6 @@ const Overview: React.FC<{ info: CompanyInfo }> = ({ info }) => {
       </div>
       <p className="text-[11px] text-slate-500">
         Размещение товаров сейчас бесплатное, комиссии нет. Платные тарифы и продвижение появятся после подключения онлайн-оплаты.
-        {info.company.status !== 'verified' ? ' Подтвердите компанию в разделе «Компания», чтобы товары публиковались без ожидания модерации.' : ''}
       </p>
     </div>
   );
@@ -212,9 +211,9 @@ const ImportExport: React.FC<{ info: CompanyInfo }> = ({ info }) => {
           {result && (
             <div className="text-xs p-3 rounded-lg bg-emerald-50 border border-emerald-200 space-y-1">
               <div>Добавлено: <b>{result.created}</b>, обновлено: <b>{result.updated}</b>, с ошибками: <b>{result.errors.length}</b>.</div>
-              <div>{result.moderation === 'approved' ? 'Товары опубликованы.' : 'Товары отправлены на модерацию.'}</div>
+              <div>{result.noPhoto > 0 ? 'Товары сохранены. Товары с фото уже на сайте.' : 'Товары опубликованы на сайте.'}</div>
               {result.noPhoto > 0 && (
-                <div className="text-amber-700 font-semibold">Без фото: {result.noPhoto}. Покупатели их не видят — добавьте фото в разделе «Каталог» (кнопка «Добавить фото»).</div>
+                <div className="text-amber-700 font-semibold">Без фото: {result.noPhoto}. Они появятся на сайте сразу после того, как вы добавите фото в разделе «Каталог» (кнопка «Добавить фото»).</div>
               )}
               {result.errors.slice(0, 30).map((e) => <div key={e.row} className="text-red-600">Строка {e.row}: {e.error}</div>)}
             </div>

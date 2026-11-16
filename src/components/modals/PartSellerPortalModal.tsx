@@ -295,7 +295,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-    showNotification(`Запчасть «${newPart.title}» отправлена на модерацию. Она появится в каталоге после проверки администратором.`);
+    showNotification(`Запчасть «${newPart.title}» опубликована и уже видна в каталоге.`);
     
     // reset form
     setIsPreview(false);
@@ -966,7 +966,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                   className="px-6 py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-red-950/50 cursor-pointer"
                 >
                   <Plus size={16} />
-                  <span>{isSubmitting ? 'Отправка...' : isPreview ? (isKg ? 'Жарыялоо (модерацияга)' : 'Опубликовать (на модерацию)') : (isKg ? 'Алдын ала көрүү' : 'Предпросмотр объявления')}</span>
+                  <span>{isSubmitting ? 'Отправка...' : isPreview ? (isKg ? 'Жарыялоо' : 'Опубликовать') : (isKg ? 'Алдын ала көрүү' : 'Предпросмотр объявления')}</span>
                 </button>
               </div>
 

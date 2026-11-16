@@ -85,8 +85,8 @@ export const MyImportPanel: React.FC<{ onDone: () => void }> = ({ onDone }) => {
       {result && (
         <div className="text-sm p-3 rounded-lg bg-emerald-50 border border-emerald-200 space-y-1">
           <div>Добавлено: <b>{result.created}</b>, обновлено: <b>{result.updated}</b>, с ошибками: <b>{result.errors.length}</b>.</div>
-          <div>{result.moderation === 'approved' ? 'Товары опубликованы.' : 'Товары отправлены на проверку модератору.'}</div>
-          {result.noPhoto > 0 && <div className="text-amber-700 font-semibold">Без фото: {result.noPhoto}. Покупатели их не видят — добавьте фото в «Моих объявлениях».</div>}
+          <div>{result.noPhoto > 0 ? 'Товары сохранены. Товары с фото уже на сайте.' : 'Товары опубликованы на сайте.'}</div>
+          {result.noPhoto > 0 && <div className="text-amber-700 font-semibold">Без фото: {result.noPhoto}. Они появятся на сайте сразу, как только вы добавите фото в «Моих объявлениях».</div>}
           {result.errors.slice(0, 20).map((e) => <div key={e.row} className="text-red-600">Строка {e.row}: {e.error}</div>)}
           <button type="button" onClick={onDone} className="mt-1 text-[#1d6fb8] hover:underline font-bold cursor-pointer">Перейти к моим объявлениям →</button>
         </div>

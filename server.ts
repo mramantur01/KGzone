@@ -857,6 +857,10 @@ const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, ...part }:
 };
 
 const isLive = (l: any) => l.moderation?.status === 'approved' && (l.listingStatus ?? 'active') === 'active';
+/** Parts are published without pre-moderation (they still need a photo and stock to be shown) */
+const autoPublished = () => { const now = new Date().toISOString(); return { status: 'approved' as PartStatus, submittedAt: now, reviewedAt: now, reviewedBy: 'auto' }; };
+/** On an update keep a moderator's decision (rejected / hidden after complaints); otherwise publish */
+const keepOrPublish = (prev: any) => (prev?.moderation?.status === 'rejected' || (prev?.moderation?.status === 'pending' && /жалоб/i.test(prev?.moderation?.reason || ''))) ? prev.moderation : autoPublished();
 // Parts on the site: published, in stock (no "on order") and with the seller's own photo
 const isPublicPart = (p: any) => isLive(p) && Number(p.stockCount) > 0 && Array.isArray(p.images) && p.images.length > 0;
 // Sellers with the crown: checked by an admin in person, or a company with verified documents
@@ -881,12 +885,9 @@ app.post('/api/parts', requireUser, asyncRoute(async (req: Request, res: Respons
     || (part.stockCount < 1 ? 'Укажите количество в наличии: товары под заказ на сайте не публикуются' : null);
   if (problem) return res.status(400).json({ success: false, error: problem });
 
-  // Basic flood protection: at most 20 parts waiting for review per phone number
-  const phone = part.sellerPhone.replace(/\D/g, '');
-  const all = await listRecords('parts');
-  const pendingFromPhone = all.filter((p: any) => p.moderation?.status === 'pending' && p.sellerPhone?.replace(/\D/g, '') === phone).length;
-  if (pendingFromPhone >= 20) {
-    return res.status(429).json({ success: false, error: 'Слишком много заявок на модерации с этого номера. Дождитесь проверки.' });
+  // Basic flood protection: at most 60 new parts an hour per seller
+  if (tooMany(`newpart:${owner.id}`, 60, 60 * 60_000)) {
+    return res.status(429).json({ success: false, error: 'Слишком много новых объявлений. Попробуйте через час.' });
   }
 
   const record = {
@@ -894,15 +895,16 @@ app.post('/api/parts', requireUser, asyncRoute(async (req: Request, res: Respons
     ...part,
     ownerId: owner.id,
     createdAt: new Date().toISOString(),
-    moderation: { status: 'pending' as PartStatus, submittedAt: new Date().toISOString() },
+    moderation: autoPublished(),
   };
   await insertRecord('parts', record);
+  await notifyWatchers([record]);
   await notifyAdmin(
-    `📦 Новая запчасть на модерации\n${record.title}\nOEM ${record.partNumber} · ${record.priceKgs} сом\n` +
+    `📦 Новая запчасть опубликована\n${record.title}\nOEM ${record.partNumber} · ${record.priceKgs} сом\n` +
       `Продавец: ${record.storeName || record.companyName || '—'}, ${record.sellerPhone}\n` +
-      `Проверить: ${SITE_URL} → Панель управления → Автозапчасти`
+      `Скрыть при нарушении: ${SITE_URL}/kabinet → Модерация`
   );
-  res.status(201).json({ success: true, id: record.id, status: 'pending' });
+  res.status(201).json({ success: true, id: record.id, status: 'approved' });
 }));
 
 // Lets the admin panel check the password before showing moderation tools
@@ -1746,12 +1748,15 @@ app.patch('/api/my/:kind/:id', requireUser, asyncRoute(async (req: Request, res:
   // Keep fields only an admin may set
   if (kind === 'cars') { patch.hasCarCheckPass = item.hasCarCheckPass; patch.isGoodPrice = item.isGoodPrice; patch.viewsCount = item.viewsCount; }
   if (kind === 'parts') patch.views = item.views;
-  if (needsReview && item.moderation?.status !== 'pending') {
+  const review = needsReview && kind !== 'parts';
+  if (review && item.moderation?.status !== 'pending') {
     patch.moderation = { status: 'pending', submittedAt: new Date().toISOString(), reason: 'Изменено продавцом' };
   }
+  if (kind === 'parts') patch.moderation = keepOrPublish(item);
   const updated = await updateRecord(kind, item.id, patch);
-  if (needsReview) await notifyAdmin(`✏️ Объявление изменено и ждёт проверки: ${clean.title}`);
-  res.json({ success: true, item: updated, needsReview });
+  if (review) await notifyAdmin(`✏️ Объявление изменено и ждёт проверки: ${clean.title}`);
+  if (kind === 'parts' && updated && !isPublicPart(item) && isPublicPart(updated)) await notifyWatchers([updated]);
+  res.json({ success: true, item: updated, needsReview: review });
 }));
 
 // Price list upload for any seller (companies have their own import in the business cabinet).
@@ -1765,9 +1770,8 @@ app.post('/api/my/import', requireUser, asyncRoute(async (req: Request, res: Res
   if (tooMany(`myimport:${user.id}`, 20, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много загрузок. Попробуйте через час.' });
   const mine = (await listRecords<any>('parts')).filter((p) => p.ownerId === user.id);
   const bySku = new Map(mine.filter((p) => p.sku).map((p) => [p.sku, p]));
-  const trusted = Boolean(user.verifiedSeller || user.company?.status === 'verified');
   const now = new Date().toISOString();
-  const moderation = trusted ? { status: 'approved' as PartStatus, submittedAt: now, reviewedAt: now } : { status: 'pending' as PartStatus, submittedAt: now };
+  const moderation = autoPublished();
   const defaults = { sellerPhone: '+' + user.phone, storeName: user.company?.name || user.name, companyName: user.company?.name, storeCity: user.city };
   const errors: { row: number; error: string }[] = [];
   let created = 0, updated = 0;
@@ -1778,14 +1782,14 @@ app.post('/api/my/import', requireUser, asyncRoute(async (req: Request, res: Res
     if (!part.sellerPhone) part.sellerPhone = defaults.sellerPhone;
     const problem = partProblem(part);
     if (problem) { errors.push({ row: i + 2, error: problem }); continue; }
-    if (prev) { await updateRecord('parts', prev.id, { ...part, views: prev.views, updatedAt: now, ...(trusted ? {} : { moderation }) }); updated++; }
+    if (prev) { await updateRecord('parts', prev.id, { ...part, views: prev.views, updatedAt: now, moderation: keepOrPublish(prev) }); updated++; }
     else { await insertRecord('parts', { id: `part-${randomUUID()}`, ...part, ownerId: user.id, createdAt: now, moderation }); created++; }
   }
   const myParts = (await listRecords<any>('parts')).filter((p) => p.ownerId === user.id);
   const noPhoto = myParts.filter((p) => !p.images?.length).length;
-  if (trusted) await notifyWatchers(myParts.filter((p) => (p.updatedAt || p.createdAt) === now));
-  if (created + updated && !trusted) await notifyAdmin(`📥 Прайс продавца ${user.name}: новых ${created}, обновлено ${updated}
-Проверить: ${SITE_URL}/kabinet → Модерация`);
+  await notifyWatchers(myParts.filter((p) => (p.updatedAt || p.createdAt) === now));
+  if (created + updated) await notifyAdmin(`📥 Прайс продавца ${user.name}: новых ${created}, обновлено ${updated}. На сайте они появятся, когда у товаров будут фото.
+Посмотреть: ${SITE_URL}/kabinet → Модерация`);
   res.json({ success: true, created, updated, errors, noPhoto, moderation: moderation.status });
 }));
 
@@ -2266,12 +2270,8 @@ const companyAudit = (ctx: CompanyContext, actor: UserRecord, action: string, ta
 const companyParts = async (companyId: string) => (await listRecords('parts')).filter((p: any) => p.ownerId === companyId);
 
 // Listings of verified companies are trusted and published right away; others go to moderation
-const initialModeration = (ctx: CompanyContext) => {
-  const now = new Date().toISOString();
-  return ctx.owner.company?.status === 'verified'
-    ? { status: 'approved' as const, submittedAt: now, reviewedAt: now, reason: 'Проверенная компания' }
-    : { status: 'pending' as const, submittedAt: now };
-};
+// Company parts are published right away too (shown once they have a photo and stock)
+const initialModeration = (_ctx: CompanyContext) => autoPublished();
 
 const companyPartDefaults = (ctx: CompanyContext) => ({
   sellerType: 'legal',
@@ -2398,6 +2398,7 @@ app.post('/api/company/parts', requireCompany('catalog.edit'), asyncRoute(async 
   const now = new Date().toISOString();
   const record = { id: `part-${randomUUID()}`, ...part, ownerId: ctx.companyId, createdBy: (req as any).user.id, createdAt: now, moderation: initialModeration(ctx) };
   await insertRecord('parts', record);
+  await notifyWatchers([record]);
   await companyAudit(ctx, (req as any).user, 'part-create', record.id, { title: record.title });
   res.status(201).json({ success: true, part: record });
 }));
@@ -2420,10 +2421,9 @@ app.patch('/api/company/parts/:id', requireCompany(), asyncRoute(async (req: Req
   const quick = ['priceKgs', 'oldPriceKgs', 'stockCount', 'warehouseId', 'inStock', 'stockStatus'];
   const changed = keys.filter((k) => k in clean && JSON.stringify(clean[k]) !== JSON.stringify(item[k]));
   const patch: any = { ...clean, views: item.views, updatedAt: new Date().toISOString() };
-  if (changed.some((k) => !quick.includes(k)) && ctx.owner.company?.status !== 'verified') {
-    patch.moderation = { status: 'pending', submittedAt: new Date().toISOString(), reason: 'Изменено продавцом' };
-  }
+  patch.moderation = keepOrPublish(item);
   const updated = await updateRecord('parts', item.id, patch);
+  if (updated && !isPublicPart(item) && isPublicPart(updated)) await notifyWatchers([updated]);
   await companyAudit(ctx, (req as any).user, 'part-edit', item.id, { fields: changed });
   res.json({ success: true, part: updated });
 }));
@@ -2499,6 +2499,7 @@ async function importCompanyRows(ctx: CompanyContext, actor: UserRecord, rows: a
   const errors: { row: number; error: string }[] = [];
   let created = 0, updated = 0;
   const moderation = initialModeration(ctx);
+  const started = new Date().toISOString();
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i] || {};
     const prev: any = r.sku ? bySku.get(str(r.sku, 60)) : undefined;
@@ -2507,7 +2508,7 @@ async function importCompanyRows(ctx: CompanyContext, actor: UserRecord, rows: a
     if (problem) { errors.push({ row: i + 2, error: problem }); continue; }
     const now = new Date().toISOString();
     if (prev) {
-      await updateRecord('parts', prev.id, { ...part, views: prev.views, updatedAt: now, ...(ctx.owner.company?.status === 'verified' ? {} : { moderation }) });
+      await updateRecord('parts', prev.id, { ...part, views: prev.views, updatedAt: now, moderation: keepOrPublish(prev) });
       updated++;
     } else {
       await insertRecord('parts', { id: `part-${randomUUID()}`, ...part, ownerId: ctx.companyId, createdBy: actor.id, createdAt: now, moderation });
@@ -2516,8 +2517,9 @@ async function importCompanyRows(ctx: CompanyContext, actor: UserRecord, rows: a
   }
   const noPhoto = (await companyParts(ctx.companyId)).filter((p: any) => !p.images?.length).length;
   await companyAudit(ctx, actor, via, ctx.companyId, { created, updated, errors: errors.length });
-  if (created + updated > 0 && moderation.status === 'pending') {
-    await notifyAdmin(`📥 Импорт товаров: ${ctx.owner.company!.name}\nНовых: ${created}, обновлено: ${updated}\nПроверить: ${SITE_URL} → Личный кабинет → Модерация`);
+  if (created + updated > 0) {
+    await notifyWatchers((await companyParts(ctx.companyId)).filter((p: any) => (p.updatedAt || p.createdAt || '') >= started));
+    await notifyAdmin(`📥 Импорт товаров: ${ctx.owner.company!.name}\nНовых: ${created}, обновлено: ${updated}. На сайте появятся товары с фото.\nПосмотреть: ${SITE_URL} → Личный кабинет → Модерация`);
   }
   return { created, updated, errors, moderation: moderation.status, noPhoto };
 }

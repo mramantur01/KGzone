@@ -163,7 +163,7 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
     if (!descEdit) return;
     const value = descEdit.value.trim();
     setDescEdit(null);
-    act(r, () => editMyListing(r.kind, r.item.id, { description: value }), 'Описание сохранено. Его проверит модератор.');
+    act(r, () => editMyListing(r.kind, r.item.id, { description: value }), r.kind === 'parts' ? 'Описание сохранено.' : 'Описание сохранено. Его проверит модератор.');
   };
 
   const addPhotos = (r: Row) => { photoFor.current = r; photoInput.current?.click(); };
@@ -571,7 +571,7 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
                       <div className="flex items-center gap-2 text-sm">
                         <button type="button" onClick={() => saveDescription(r)} className="px-4 py-1.5 rounded-lg bg-[#C8102E] text-white font-bold cursor-pointer">Сохранить</button>
                         <button type="button" onClick={() => setDescEdit(null)} className="px-4 py-1.5 rounded-lg bg-slate-200 text-slate-700 font-bold cursor-pointer">Отмена</button>
-                        <span className="text-xs text-slate-500">Новое описание проверит модератор</span>
+                        {kind !== 'parts' && <span className="text-xs text-slate-500">Новое описание проверит модератор</span>}
                       </div>
                     </div>
                   )}
