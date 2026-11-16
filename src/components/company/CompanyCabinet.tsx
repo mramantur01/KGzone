@@ -49,8 +49,8 @@ export const CompanyCabinet: React.FC<{ info: CompanyInfo; onChanged: () => void
           </div>
         </div>
         {info.role !== 'owner' && (
-          <button type="button" onClick={async () => { if (confirm('Покинуть компанию? Доступ к её кабинету пропадёт.')) { await leaveCompany(); onChanged(); } }} className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold cursor-pointer">
-            Покинуть компанию
+          <button type="button" onClick={async () => { if (confirm('Покинуть магазин? Доступ к его кабинету пропадёт.')) { await leaveCompany(); onChanged(); } }} className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold cursor-pointer">
+            Покинуть магазин
           </button>
         )}
       </div>
@@ -224,7 +224,7 @@ const ImportExport: React.FC<{ info: CompanyInfo }> = ({ info }) => {
         <div className={`${card} flex flex-wrap items-center justify-between gap-2`}>
           <div>
             <div className="font-bold text-sm text-slate-900">Экспорт каталога</div>
-            <div className="text-xs text-slate-500">Все товары компании в CSV (открывается в Excel). Этот же файл можно отредактировать и загрузить обратно.</div>
+            <div className="text-xs text-slate-500">Все товары магазина в CSV (открывается в Excel). Этот же файл можно отредактировать и загрузить обратно.</div>
           </div>
           <button type="button" onClick={() => downloadCompanyExport().catch((e) => setError(e.message))} className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold flex items-center gap-1 cursor-pointer"><Download size={13} />Скачать CSV</button>
         </div>

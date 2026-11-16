@@ -81,7 +81,7 @@ ${kind === 'invoice' ? '<p class="muted">Без НДС. Счёт действи�
 <div class="sign">${kind === 'invoice'
       ? '<div>Руководитель</div><div>Бухгалтер</div>'
       : '<div>Отпустил</div><div>Получил</div>'}</div>
-<p class="muted" style="margin-top:30px;font-size:10px">Документ подготовлен в кабинете компании на KGzone.</p>
+<p class="muted" style="margin-top:30px;font-size:10px">Документ подготовлен в личном кабинете на KGzone.</p>
 </body></html>`;
     const w = window.open('', '_blank');
     if (!w) { alert('Браузер заблокировал новое окно. Разрешите всплывающие окна для этого сайта.'); return; }
@@ -102,7 +102,7 @@ ${kind === 'invoice' ? '<p class="muted">Без НДС. Счёт действи�
           <button type="button" onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-800 cursor-pointer" aria-label="Закрыть"><X size={18} /></button>
         </div>
         <div className="p-4 sm:p-5 space-y-3">
-          {kind === 'invoice' && !c.bankDetails && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">Банковские реквизиты не заполнены (или ваша роль их не видит). Добавьте их в «Данные компании».</p>}
+          {kind === 'invoice' && !c.bankDetails && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">Банковские реквизиты не заполнены (или ваша роль их не видит). Добавьте их в «Данные магазина».</p>}
           <div className="grid grid-cols-2 gap-3">
             <div><label className="block text-xs font-bold text-slate-600 mb-1">Номер</label><input value={number} onChange={(e) => setNumber(e.target.value)} className={input} /></div>
             <div><label className="block text-xs font-bold text-slate-600 mb-1">{kind === 'invoice' ? 'Покупатель' : 'Получатель'}</label><input value={buyer} onChange={(e) => setBuyer(e.target.value)} className={input} data-no-i18n /></div>

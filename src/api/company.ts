@@ -18,7 +18,7 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
 };
 
 export const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
-  owner: 'Полный доступ к компании',
+  owner: 'Полный доступ к магазину',
   shop_admin: 'Товары, импорт, склады, заказы, сообщения и настройки магазина',
   sales_manager: 'Заказы и переписка с покупателями',
   warehouse: 'Остатки и склады',

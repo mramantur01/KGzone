@@ -1157,7 +1157,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
               >
                 <option value="Все">{isKg ? 'Бардыгы' : 'Все продавцы'}</option>
                 <option value="individual">{isKg ? 'Жеке сатуучу' : 'Частный продавец'}</option>
-                <option value="legal">{isKg ? 'Дүкөн / компания' : 'Магазин / компания'}</option>
+                <option value="legal">{isKg ? 'Дүкөн (ИП / ОсОО)' : 'Магазин (ИП / ОсОО)'}</option>
               </select>
             </div>
             <div>

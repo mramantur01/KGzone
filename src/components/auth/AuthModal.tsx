@@ -253,7 +253,7 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
                 <div className="grid grid-cols-2 gap-2">
                   {([
                     { id: 'individual', icon: User, title: 'Физическое лицо', sub: 'Частный продавец или покупатель' },
-                    { id: 'legal', icon: Building2, title: 'Юридическое лицо', sub: 'Магазин, компания или разборка' },
+                    { id: 'legal', icon: Building2, title: 'Юридическое лицо', sub: 'ИП или ОсОО: магазин, разборка' },
                   ] as const).map((o) => (
                     <button
                       key={o.id}
@@ -272,7 +272,7 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
               {accountType === 'legal' && (
                 <div className="space-y-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
                   <div>
-                    <label className={labelCls}>Название компании *</label>
+                    <label className={labelCls}>Название магазина *</label>
                     <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="ОсОО «...»" required maxLength={160} className={inputCls} />
                   </div>
                   <div>
@@ -287,7 +287,7 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
                     <label className={labelCls}>Фактический адрес (склад, магазин)</label>
                     <input value={actualAddress} onChange={(e) => setActualAddress(e.target.value)} maxLength={200} className={inputCls} />
                   </div>
-                  <p className="text-[11px] text-slate-500">После регистрации компания получит статус «Не подтверждена». Отметка «Проверенная компания» появится только после проверки администратором.</p>
+                  <p className="text-[11px] text-slate-500">После регистрации магазин получит статус «Не подтверждён». Отметка «Проверенный магазин» появится только после проверки администратором.</p>
                 </div>
               )}
 

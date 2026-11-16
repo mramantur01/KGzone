@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { VerifiedSellerBadge } from '../common/VerifiedSellerBadge';
+import { VerifiedSellerBadge, OfficialCompanyBadge } from '../common/VerifiedSellerBadge';
 import { RefreshCw, Search, KeyRound, Ban, ShieldCheck, Building2, User } from 'lucide-react';
 import { listAudit, listUsers, resetUserPassword, updateUser, type AdminUser } from '../../api/myListings';
 import { COMPANY_STATUS_LABELS, formatPhone, type CompanyStatus } from '../../api/auth';
@@ -62,7 +62,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-black text-slate-900">Пользователи и компании</h2>
+        <h2 className="text-lg font-black text-slate-900">Пользователи и магазины</h2>
         <button type="button" onClick={load} className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 cursor-pointer">
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           <span>Обновить</span>
@@ -72,12 +72,12 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Имя, телефон, почта, компания, ИНН" className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Имя, телефон, почта, магазин, ИНН" className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm" />
         </div>
         <div className="flex flex-wrap gap-1.5">
           {([
             ['all', `Все (${users.length})`],
-            ['companies', 'Компании'],
+            ['companies', 'Магазины (ИП / ОсОО)'],
             ['pending', `Ждут проверки (${pendingCompanies})`],
             ['blocked', 'Заблокированы'],
             ['staff', 'Сотрудники сайта'],
@@ -102,7 +102,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
                   <div className="flex items-center gap-1.5 font-bold text-slate-900" data-no-i18n>
                     {u.accountType === 'legal' ? <Building2 size={15} className="text-slate-500 shrink-0" /> : <User size={15} className="text-slate-500 shrink-0" />}
                     <span>{u.company?.name || u.name}</span>
-                    {(u.verifiedSeller || u.company?.status === 'verified') && <VerifiedSellerBadge size={14} />}
+                    {u.accountType === 'legal' ? (u.company?.status === 'verified' && <OfficialCompanyBadge compact />) : (u.verifiedSeller && <VerifiedSellerBadge size={14} />)}
                     {u.id === currentUserId && <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">это вы</span>}
                   </div>
                   <div className="text-xs text-slate-500" data-no-i18n>
@@ -173,7 +173,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
                     <input
                       value={comments[u.id] ?? ''}
                       onChange={(e) => setComments((c) => ({ ...c, [u.id]: e.target.value }))}
-                      placeholder="Комментарий для компании (что исправить)"
+                      placeholder="Комментарий для магазина (что исправить)"
                       maxLength={500}
                       className="flex-1 px-2 py-1.5 border border-slate-300 rounded-lg bg-white"
                     />

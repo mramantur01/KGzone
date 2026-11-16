@@ -863,13 +863,16 @@ const autoPublished = () => { const now = new Date().toISOString(); return { sta
 const keepOrPublish = (prev: any) => (prev?.moderation?.status === 'rejected' || (prev?.moderation?.status === 'pending' && /жалоб/i.test(prev?.moderation?.reason || ''))) ? prev.moderation : autoPublished();
 // Parts on the site: published, in stock (no "on order") and with the seller's own photo
 const isPublicPart = (p: any) => isLive(p) && Number(p.stockCount) > 0 && Array.isArray(p.images) && p.images.length > 0;
-// Sellers with the crown: checked by an admin in person, or a company with verified documents
+// Crown: private sellers checked by an admin. ИП / ОсОО get their own "Официальный магазин" badge instead
 const lastSeenMap = async () => new Map((await listRecords<UserRecord>('users')).filter((u) => u.lastSeenAt).map((u) => [u.id, u.lastSeenAt!]));
-// Companies with checked documents: "Официальная компания" badge and a higher place in the catalog
+// Companies with checked documents: "Официальный магазин" badge and a higher place in the catalog
 const officialCompanies = async () =>
   new Set((await listRecords<UserRecord>('users')).filter((u) => !u.blocked && u.accountType === 'legal' && u.company?.status === 'verified').map((u) => u.id));
-const verifiedOwners = async () =>
+/** Anyone checked by KGzone (private seller or ИП/ОсОО) — for cars and offers, which show one trust mark */
+const trustedOwners = async () =>
   new Set((await listRecords<UserRecord>('users')).filter((u) => !u.blocked && (u.verifiedSeller || u.company?.status === 'verified')).map((u) => u.id));
+const verifiedOwners = async () =>
+  new Set((await listRecords<UserRecord>('users')).filter((u) => !u.blocked && u.accountType !== 'legal' && u.verifiedSeller).map((u) => u.id));
 
 app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
   const [parts, verified, ratings, seen, companies] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings(), lastSeenMap(), officialCompanies()]);
@@ -1071,7 +1074,7 @@ const publicCar = ({ moderation, ownerId, ...car }: any, verified?: Set<string>)
 });
 
 app.get('/api/cars', asyncRoute(async (_req: Request, res: Response) => {
-  const [cars, verified] = await Promise.all([listRecords('cars'), verifiedOwners()]);
+  const [cars, verified] = await Promise.all([listRecords('cars'), trustedOwners()]);
   res.json({ success: true, cars: cars.filter(isLive).map((c: any) => publicCar(c, verified)) });
 }));
 
@@ -1445,8 +1448,8 @@ app.post('/api/auth/register', asyncRoute(async (req: Request, res: Response) =>
   let company: CompanyProfile | undefined;
   if (accountType === 'legal') {
     company = sanitizeCompany(b.company);
-    if (!company.name) return res.status(400).json({ success: false, error: 'Укажите название компании' });
-    if (!/^\d{10,14}$/.test(company.inn)) return res.status(400).json({ success: false, error: 'Укажите ИНН компании (10–14 цифр)' });
+    if (!company.name) return res.status(400).json({ success: false, error: 'Укажите название магазина' });
+    if (!/^\d{10,14}$/.test(company.inn)) return res.status(400).json({ success: false, error: 'Укажите ИНН (10–14 цифр)' });
   }
 
   const users = await listRecords<UserRecord>('users');
@@ -1474,7 +1477,7 @@ app.post('/api/auth/register', asyncRoute(async (req: Request, res: Response) =>
   };
   await insertRecord('users', user);
   setSessionCookie(res, user);
-  if (company) await notifyAdmin(`🏢 Новая компания: ${company.name} (ИНН ${company.inn})\n${name}, +${phone}`);
+  if (company) await notifyAdmin(`🏢 Новый магазин (ИП / ОсОО): ${company.name} (ИНН ${company.inn})\n${name}, +${phone}`);
   res.status(201).json({ success: true, user: publicUser(user) });
 }));
 
@@ -1526,8 +1529,8 @@ app.patch('/api/auth/me', requireUser, asyncRoute(async (req: Request, res: Resp
   if (b.shop !== undefined) patch.shop = sanitizeShop(b.shop);
   if (b.company !== undefined && user.accountType === 'legal') {
     const next = sanitizeCompany(b.company, user.company);
-    if (!next.name) return res.status(400).json({ success: false, error: 'Укажите название компании' });
-    if (!/^\d{10,14}$/.test(next.inn)) return res.status(400).json({ success: false, error: 'Укажите ИНН компании (10–14 цифр)' });
+    if (!next.name) return res.status(400).json({ success: false, error: 'Укажите название магазина' });
+    if (!/^\d{10,14}$/.test(next.inn)) return res.status(400).json({ success: false, error: 'Укажите ИНН (10–14 цифр)' });
     // Changing the legal identity of a verified company requires a new check
     if (user.company?.status === 'verified' && (next.name !== user.company.name || next.inn !== user.company.inn)) {
       next.status = 'unverified';
@@ -1587,16 +1590,16 @@ app.post('/api/auth/forgot', (_req: Request, res: Response) => {
 
 app.post('/api/auth/company/submit', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
-  if (user.accountType !== 'legal' || !user.company) return res.status(400).json({ success: false, error: 'Это не аккаунт компании' });
+  if (user.accountType !== 'legal' || !user.company) return res.status(400).json({ success: false, error: 'Это не аккаунт ИП или ОсОО' });
   if (['pending', 'verified', 'blocked'].includes(user.company.status)) {
-    return res.status(400).json({ success: false, error: 'Заявка уже на проверке или компания подтверждена' });
+    return res.status(400).json({ success: false, error: 'Заявка уже на проверке или магазин подтверждён' });
   }
   const c = user.company;
   if (!c.legalAddress || !c.contactPerson) return res.status(400).json({ success: false, error: 'Заполните юридический адрес и контактное лицо' });
   const updated = await updateRecord<UserRecord>('users', user.id, {
     company: { ...c, status: 'pending', submittedAt: new Date().toISOString() },
   });
-  await notifyAdmin(`🏢 Компания отправлена на проверку: ${c.name} (ИНН ${c.inn})\nПроверить: ${SITE_URL} → Личный кабинет → Пользователи`);
+  await notifyAdmin(`🏢 Магазин отправлен на проверку: ${c.name} (ИНН ${c.inn})\nПроверить: ${SITE_URL} → Личный кабинет → Пользователи`);
   res.json({ success: true, user: publicUser(updated!) });
 }));
 
@@ -1881,7 +1884,7 @@ app.patch('/api/admin/users/:id', requireAdminOnly, asyncRoute(async (req: Reque
   }
   if (b.companyStatus !== undefined && target.company) {
     const statuses: CompanyStatus[] = ['unverified', 'pending', 'verified', 'needs_docs', 'rejected', 'blocked'];
-    if (!statuses.includes(b.companyStatus)) return res.status(400).json({ success: false, error: 'Неверный статус компании' });
+    if (!statuses.includes(b.companyStatus)) return res.status(400).json({ success: false, error: 'Неверный статус магазина' });
     patch.company = { ...target.company, status: b.companyStatus, statusComment: str(b.companyComment, 500) || undefined, reviewedAt: new Date().toISOString() };
   }
   const wasVerified = Boolean(target.verifiedSeller); // read before the update (the in-memory store edits in place)
@@ -2246,7 +2249,7 @@ const requireCompany = (perm?: Permission) => (req: Request, res: Response, next
   requireUser(req, res, () => {
     companyContext((req as any).user)
       .then((ctx) => {
-        if (!ctx) return res.status(403).json({ success: false, error: 'Нет доступа к кабинету компании' });
+        if (!ctx) return res.status(403).json({ success: false, error: 'Нет доступа к кабинету магазина' });
         if (perm && !ctx.can(perm)) return res.status(403).json({ success: false, error: 'У вашей роли нет доступа к этому действию' });
         (req as any).company = ctx;
         next();
@@ -2328,10 +2331,10 @@ app.post('/api/company/staff', requireCompany('staff'), asyncRoute(async (req: R
   if (!phone) return res.status(400).json({ success: false, error: 'Укажите телефон сотрудника' });
   const target = (await listRecords<UserRecord>('users')).find((u) => u.phone === phone);
   if (!target) return res.status(404).json({ success: false, error: 'Пользователь с таким телефоном не найден. Попросите сотрудника сначала зарегистрироваться на сайте как физическое лицо.' });
-  if (target.id === ctx.companyId) return res.status(400).json({ success: false, error: 'Это владелец компании' });
+  if (target.id === ctx.companyId) return res.status(400).json({ success: false, error: 'Это владелец магазина' });
   if (target.accountType === 'legal') return res.status(400).json({ success: false, error: 'Сотрудником может быть только аккаунт физического лица' });
   const memberships = await listRecords<Membership>('memberships');
-  if (memberships.some((m) => m.userId === target.id)) return res.status(409).json({ success: false, error: 'Этот пользователь уже работает в компании на KGzone' });
+  if (memberships.some((m) => m.userId === target.id)) return res.status(409).json({ success: false, error: 'Этот пользователь уже работает в другом магазине на KGzone' });
   if (memberships.filter((m) => m.companyId === ctx.companyId).length >= 50) return res.status(400).json({ success: false, error: 'Слишком много сотрудников' });
   const m: Membership = { id: `mem-${randomUUID()}`, companyId: ctx.companyId, userId: target.id, role, addedBy: actor.id, createdAt: new Date().toISOString() };
   await insertRecord('memberships', m);
@@ -2363,7 +2366,7 @@ app.delete('/api/company/staff/:id', requireCompany('staff'), asyncRoute(async (
 app.delete('/api/company/membership', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
   const m = (await listRecords<Membership>('memberships')).find((x) => x.userId === user.id);
-  if (!m) return res.status(404).json({ success: false, error: 'Вы не состоите в компании' });
+  if (!m) return res.status(404).json({ success: false, error: 'Вы не работаете в магазине' });
   await deleteRecord('memberships', m.id);
   res.json({ success: true });
 }));
@@ -2890,7 +2893,7 @@ async function syncPriceFeed(owner: UserRecord): Promise<string> {
   const settings = companySettingsOf(owner);
   if (!settings.priceFeedUrl) return 'Ссылка не указана';
   const ctx = await companyContext(owner);
-  if (!ctx) return 'Нет доступа к компании';
+  if (!ctx) return 'Нет доступа к магазину';
   let result: string;
   try {
     const r = await fetch(settings.priceFeedUrl, { signal: AbortSignal.timeout(20000), redirect: 'follow' });
@@ -3384,7 +3387,7 @@ async function seoPageFor(pathname: string): Promise<SeoPage | null> {
   if (p === '/prodavcam') {
     return {
       title: 'Продавать запчасти на KGzone — бесплатно, без комиссии | KGzone',
-      description: 'Разместите запчасти бесплатно: покупатели звонят и пишут напрямую. Загрузка всего склада из Excel, страница магазина, заявки покупателей, CRM для компаний.',
+      description: 'Разместите запчасти бесплатно: покупатели звонят и пишут напрямую. Загрузка всего склада из Excel, страница магазина, заявки покупателей, CRM для ИП и ОсОО.',
       path: '/prodavcam',
       body: '<h1>Продавать запчасти на KGzone</h1><p>Бесплатно и без комиссии. Покупатели связываются с вами напрямую. Весь склад загружается одним файлом из Excel.</p><p><a href="/kabinet?register" style="color:#fbbf24">Зарегистрироваться</a></p>',
       structured: [],
@@ -3857,7 +3860,7 @@ app.get('/api/part-requests/:id(preq-[A-Za-z0-9-]+)', asyncRoute(async (req: Req
   if (!r || !(requestKeyOk(r, req.query.k) || (viewer && r.userId === viewer.id) || (viewer && isStaff(viewer)))) {
     return res.status(404).json({ success: false, error: 'Заявка не найдена' });
   }
-  const verified = await verifiedOwners();
+  const verified = await trustedOwners();
   res.setHeader('Cache-Control', 'no-store');
   res.json({
     success: true,

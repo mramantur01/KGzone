@@ -90,7 +90,7 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
               {seller.official ? <OfficialCompanyBadge /> : seller.verified && <VerifiedSellerBadge withLabel size={12} />}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
-              <span>{seller.accountType === 'legal' ? 'Магазин / компания' : 'Частный продавец'}</span>
+              <span>{seller.accountType === 'legal' ? 'Магазин (ИП / ОсОО)' : 'Частный продавец'}</span>
               {seller.rating ? <span className="inline-flex items-center gap-1"><Star size={14} className="fill-amber-400 text-amber-400" /><b>{seller.rating}</b> ({seller.reviewsCount})</span> : null}
               <span>На KGzone с {new Date(seller.since).toLocaleDateString('ru-RU')}</span>
               {seen && <span className={seenRecently(seller.lastSeenAt) ? 'text-emerald-600 font-semibold' : ''}>{seen}</span>}

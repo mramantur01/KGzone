@@ -566,7 +566,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                         {part.companyName || part.storeName}
                       </h4>
                       <span className="text-[10px] text-neutral-400 font-semibold flex flex-wrap items-center gap-1.5 mt-0.5">
-                        <span>{part.sellerType === 'legal' ? 'Компания / ИП' : 'Частный продавец'}</span>
+                        <span>{part.sellerType === 'legal' ? 'Магазин (ИП / ОсОО)' : 'Частный продавец'}</span>
                         {part.sellerOfficial ? <OfficialCompanyBadge /> : part.sellerVerified && <VerifiedSellerBadge withLabel />}
                       </span>
                     </div>

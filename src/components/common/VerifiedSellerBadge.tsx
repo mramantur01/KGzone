@@ -1,7 +1,7 @@
 import React from 'react';
-import { Crown, BadgeCheck } from 'lucide-react';
+import { Crown, Store } from 'lucide-react';
 
-// Crown for sellers checked by KGzone (in person, or a company with verified documents)
+// Crown for private sellers checked by KGzone; ИП / ОсОО have the blue "Официальный магазин" badge
 export const VERIFIED_SELLER_HINT = 'Проверенный продавец: администрация KGzone проверила этого продавца — документы и место продажи.';
 
 export const VerifiedSellerBadge: React.FC<{ withLabel?: boolean; size?: number; className?: string }> = ({ withLabel = false, size = 12, className = '' }) =>
@@ -19,12 +19,12 @@ export const VerifiedSellerBadge: React.FC<{ withLabel?: boolean; size?: number;
     </span>
   );
 
-export const OFFICIAL_COMPANY_HINT = 'Официальная компания: юридическое лицо, документы проверены администрацией KGzone.';
+export const OFFICIAL_COMPANY_HINT = 'Официальный магазин: ИП или ОсОО, документы проверены администрацией KGzone.';
 
-/** Blue badge for companies (legal entities) with checked documents */
+/** Blue shop badge for ИП / ОсОО with checked documents (different from the private seller crown) */
 export const OfficialCompanyBadge: React.FC<{ className?: string; compact?: boolean }> = ({ className = '', compact = false }) => (
   <span title={OFFICIAL_COMPANY_HINT} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-600 text-white text-[10px] font-black shadow-sm ${className}`}>
-    <BadgeCheck size={11} />
-    <span>{compact ? 'Компания' : 'Официальная компания'}</span>
+    <Store size={11} />
+    <span>{compact ? 'Магазин' : 'Официальный магазин'}</span>
   </span>
 );

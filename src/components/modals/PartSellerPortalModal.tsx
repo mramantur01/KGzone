@@ -222,7 +222,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
       return;
     }
     if (sellerType === 'legal' && !companyName.trim()) {
-      showNotification('Укажите название магазина или компании');
+      showNotification('Укажите название магазина');
       return;
     }
     if (photoUploading > 0) return;
@@ -349,7 +349,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
             </div>
             <div>
               <span className="text-[11px] font-bold text-amber-400 tracking-wider uppercase">
-                {isKg ? 'Сатуучунун кабинети • Контейнер KGzone' : 'Кабинет продавца • Склады и Контейнеры KGzone'}
+                {isKg ? 'Жеке кабинет • Контейнер KGzone' : 'Личный кабинет • Склады и Контейнеры KGzone'}
               </span>
               <div className="text-xs text-neutral-400">
                 {sellerType === 'legal' ? companyName : 'Частный продавец'} • {market} ({containerInfo})
@@ -645,14 +645,14 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                       onClick={() => setSellerType(t)}
                       className={`px-3 py-2 rounded-xl font-bold cursor-pointer ${sellerType === t ? 'bg-amber-500 text-neutral-950' : 'bg-neutral-950 text-neutral-300 border border-neutral-700'}`}
                     >
-                      {t === 'individual' ? (isKg ? 'Жеке адам' : 'Частное лицо') : (isKg ? 'Дүкөн / компания' : 'Магазин / компания')}
+                      {t === 'individual' ? (isKg ? 'Жеке адам' : 'Частное лицо') : (isKg ? 'Дүкөн (ИП / ОсОО)' : 'Магазин (ИП / ОсОО)')}
                     </button>
                   ))}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {sellerType === 'legal' ? (
                     <div>
-                      <label className="block text-neutral-300 font-semibold mb-1">{isKg ? 'Дүкөндүн аталышы *' : 'Название магазина / компании *'}</label>
+                      <label className="block text-neutral-300 font-semibold mb-1">{isKg ? 'Дүкөндүн аталышы *' : 'Название магазина *'}</label>
                       <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} maxLength={120} className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white" />
                     </div>
                   ) : (
@@ -728,7 +728,7 @@ export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
                 <div>
                   <span className="block text-neutral-300 font-semibold mb-1">Способы оплаты</span>
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-neutral-200">
-                    {['Наличные', 'MBANK', 'О!Деньги', 'Элсом', 'Перевод по счёту (для компаний)'].map((m) => (
+                    {['Наличные', 'MBANK', 'О!Деньги', 'Элсом', 'Перевод по счёту (для ИП и ОсОО)'].map((m) => (
                       <label key={m} className="flex items-center gap-1.5 cursor-pointer">
                         <input type="checkbox" checked={payments.includes(m)} onChange={(e) => setPayments((v) => (e.target.checked ? [...v, m] : v.filter((x) => x !== m)))} className="accent-red-600" />
                         <span>{m}</span>

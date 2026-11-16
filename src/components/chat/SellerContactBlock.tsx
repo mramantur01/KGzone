@@ -119,7 +119,7 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="font-bold text-sm" data-no-i18n>{info.seller.name}</span>
           {info.seller.verified && <VerifiedSellerBadge withLabel />}
-          <span className={`text-xs ${muted}`}>{info.seller.accountType === 'legal' ? 'Магазин / компания' : 'Частный продавец'}</span>
+          <span className={`text-xs ${muted}`}>{info.seller.accountType === 'legal' ? 'Магазин (ИП / ОсОО)' : 'Частный продавец'}</span>
           <span className={`text-xs ${muted}`}>На KGzone с {new Date(info.seller.since).toLocaleDateString('ru-RU')}</span>
           {lastSeenText(info.seller.lastSeenAt) && (
             <span className={`text-xs ${seenRecently(info.seller.lastSeenAt) ? 'text-emerald-500 font-semibold' : muted}`}>{lastSeenText(info.seller.lastSeenAt)}</span>

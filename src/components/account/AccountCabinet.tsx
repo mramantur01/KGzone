@@ -1,3 +1,4 @@
+import { OfficialCompanyBadge } from '../common/VerifiedSellerBadge';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListChecks, Heart, History, Building2, Contact, UserCog, ShieldCheck, Users,
@@ -141,7 +142,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
             <button type="button" onClick={() => onOpenAuth('login')} className="px-6 py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white font-bold text-sm cursor-pointer">Войти</button>
             <button type="button" onClick={() => onOpenAuth('register')} className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm cursor-pointer">Регистрация</button>
           </div>
-          <p className="text-xs text-slate-500">Регистрация для частных лиц и для компаний (магазины, разборки).</p>
+          <p className="text-xs text-slate-500">Регистрация для частных продавцов и для ИП / ОсОО (магазины, разборки).</p>
         </div>
       </div>
     );
@@ -161,8 +162,8 @@ export const AccountCabinet: React.FC<Props> = (props) => {
     // Companies: CRM with clients from chats and orders
     ...(biz.info && (biz.info.permissions.includes('messages') || biz.info.permissions.includes('orders.view')) ? [{ id: 'crm' as Section, label: 'Клиенты (CRM)', icon: Contact }] : []),
     { id: 'requests', label: 'Заявки покупателей', icon: Search, badge: requestsCount || undefined },
-    biz.info ? { id: 'business', label: 'Бизнес-кабинет', icon: Building2 } : { id: 'import', label: 'Загрузить прайс', icon: Upload },
-    ...(isLegal ? [{ id: 'company' as Section, label: 'Данные компании', icon: Building2 }] : []),
+    biz.info ? { id: 'business', label: 'Мой магазин', icon: Building2 } : { id: 'import', label: 'Загрузить прайс', icon: Upload },
+    ...(isLegal ? [{ id: 'company' as Section, label: 'Данные магазина', icon: Building2 }] : []),
     { id: 'profile', label: 'Настройки', icon: Settings },
     ...staffNav,
   ];
@@ -189,7 +190,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   const saveCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     setCompanyMsg(null);
-    try { await updateProfile({ company }); setCompanyMsg({ ok: true, text: 'Данные компании сохранены' }); }
+    try { await updateProfile({ company }); setCompanyMsg({ ok: true, text: 'Данные магазина сохранены' }); }
     catch (err: any) { setCompanyMsg({ ok: false, text: err.message }); }
   };
 
@@ -212,13 +213,13 @@ export const AccountCabinet: React.FC<Props> = (props) => {
           <div className={card}>
             <div className="font-black text-slate-900 flex items-center gap-1.5" data-no-i18n>
               <span>{user.company?.name || user.name}</span>
-              {(user.verifiedSeller || user.company?.status === 'verified') && <Crown size={15} className="text-amber-500 fill-amber-400/30 shrink-0" />}
+              {user.accountType === 'legal' ? (user.company?.status === 'verified' && <OfficialCompanyBadge compact />) : (user.verifiedSeller && <Crown size={15} className="text-amber-500 fill-amber-400/30 shrink-0" />)}
             </div>
             <div className="text-xs text-slate-500" data-no-i18n>{formatPhone(user.phone)} · {user.city}</div>
             <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold">
               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{isLegal ? 'Юридическое лицо' : 'Физическое лицо'}</span>
               {user.role !== 'user' && <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">{user.role === 'admin' ? 'Администратор' : 'Модератор'}</span>}
-              {user.company?.status === 'verified' && <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Проверенная компания</span>}
+              {user.company?.status === 'verified' && <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Проверенный магазин</span>}
               {!isLegal && biz.info && <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800" data-no-i18n>{biz.info.company.name}</span>}
             </div>
           </div>
@@ -340,7 +341,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
           {section === 'company' && isLegal && user.company && (
             <form onSubmit={saveCompany} className={`${card} space-y-4`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-lg font-black text-slate-900">Компания</h2>
+                <h2 className="text-lg font-black text-slate-900">Магазин (ИП / ОсОО)</h2>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${user.company.status === 'verified' ? 'bg-emerald-100 text-emerald-800' : user.company.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
                   {COMPANY_STATUS_LABELS[user.company.status]}
                 </span>
@@ -348,13 +349,13 @@ export const AccountCabinet: React.FC<Props> = (props) => {
               {user.company.statusComment && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">Комментарий администратора: {user.company.statusComment}</p>}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {([
-                  ['name', 'Название компании *'],
+                  ['name', 'Название магазина *'],
                   ['inn', 'ИНН *'],
                   ['legalAddress', 'Юридический адрес *'],
                   ['actualAddress', 'Фактический адрес (склад, магазин)'],
                   ['contactPerson', 'Контактное лицо *'],
-                  ['contactPhone', 'Телефон компании'],
-                  ['contactEmail', 'Почта компании'],
+                  ['contactPhone', 'Телефон магазина'],
+                  ['contactEmail', 'Почта магазина'],
                 ] as [keyof typeof company, string][]).map(([key, label]) => (
                   <div key={key}>
                     <label className={labelCls}>{label}</label>
@@ -372,7 +373,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-500">
-                Изменение названия или ИНН подтверждённой компании потребует повторной проверки. Загрузка документов появится вместе с защищённым хранилищем файлов; пока администратор может запросить их у вас по телефону.
+                Изменение названия или ИНН подтверждённого магазина потребует повторной проверки. Загрузка документов появится вместе с защищённым хранилищем файлов; пока администратор может запросить их у вас по телефону.
               </p>
               {msg(companyMsg)}
               <div className="flex flex-wrap gap-2">
@@ -494,7 +495,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                   <div className="px-3 py-2 flex items-center justify-between">
                     <span className="font-black text-slate-900 flex items-center gap-1.5" data-no-i18n>
                       {user.company?.name || user.name}
-                      {(user.verifiedSeller || user.company?.status === 'verified') && <Crown size={14} className="text-amber-500 fill-amber-400/30" />}
+                      {user.accountType === 'legal' ? (user.company?.status === 'verified' && <OfficialCompanyBadge compact />) : (user.verifiedSeller && <Crown size={14} className="text-amber-500 fill-amber-400/30" />)}
                     </span>
                     <button type="button" onClick={() => setMoreOpen(false)} className="p-1.5 rounded-full hover:bg-slate-100 cursor-pointer" aria-label="Закрыть"><X size={18} /></button>
                   </div>

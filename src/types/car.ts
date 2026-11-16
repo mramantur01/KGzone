@@ -149,7 +149,7 @@ export interface AutoPartItem {
   /** Registered seller (database listings only) */
   sellerId?: string;
   sellerVerified?: boolean;
-  /** Company with checked documents: "Официальная компания" */
+  /** Company with checked documents: "Официальный магазин" */
   sellerOfficial?: boolean;
   sellerLastSeen?: string;
   sellerRating?: number;

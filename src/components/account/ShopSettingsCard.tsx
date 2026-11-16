@@ -59,7 +59,7 @@ export const ShopSettingsCard: React.FC<{ user: Account }> = ({ user }) => {
       </div>
       {isCompany && (
         <div className="space-y-3 pt-2 border-t border-slate-100">
-          <div className="font-bold text-sm text-slate-900">Оформление компании</div>
+          <div className="font-bold text-sm text-slate-900">Оформление магазина</div>
           <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-3">
             {([['logoUrl', 'Логотип', 'w-24 h-24 rounded-2xl'], ['bannerUrl', 'Баннер (широкая картинка)', 'w-full h-24 rounded-xl']] as const).map(([key, label, box]) => (
               <div key={key}>
