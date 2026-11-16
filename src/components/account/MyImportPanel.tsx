@@ -88,7 +88,11 @@ export const MyImportPanel: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           <div>{result.noPhoto > 0 ? 'Товары сохранены. Товары с фото уже на сайте.' : 'Товары опубликованы на сайте.'}</div>
           {result.noPhoto > 0 && <div className="text-amber-700 font-semibold">Без фото: {result.noPhoto}. Они появятся на сайте сразу, как только вы добавите фото в «Моих объявлениях».</div>}
           {result.errors.slice(0, 20).map((e) => <div key={e.row} className="text-red-600">Строка {e.row}: {e.error}</div>)}
-          <button type="button" onClick={onDone} className="mt-1 text-[#1d6fb8] hover:underline font-bold cursor-pointer">Перейти к моим объявлениям →</button>
+          {result.noPhoto > 0 ? (
+            <button type="button" onClick={() => { try { sessionStorage.setItem('kgz-open-nophoto', '1'); } catch { /* private mode */ } onDone(); }} className="mt-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black cursor-pointer">Добавить фото к товарам →</button>
+          ) : (
+            <button type="button" onClick={onDone} className="mt-1 text-[#1d6fb8] hover:underline font-bold cursor-pointer">Перейти к моим объявлениям →</button>
+          )}
         </div>
       )}
     </div>

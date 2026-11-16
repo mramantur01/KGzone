@@ -107,6 +107,9 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
   useEffect(() => {
     if (opened.current || !rows.length) return;
     opened.current = true;
+    let afterImport = false;
+    try { afterImport = sessionStorage.getItem('kgz-open-nophoto') === '1'; sessionStorage.removeItem('kgz-open-nophoto'); } catch { /* private mode */ }
+    if (afterImport && rows.some((r) => bucketOf(r) === 'hidden')) { setBucket('hidden'); return; }
     if (!rows.some((r) => bucketOf(r) === 'active')) {
       const first = BUCKETS.find((b) => rows.some((r) => bucketOf(r) === b.id));
       if (first) setBucket(first.id);
@@ -176,7 +179,7 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
       const urls: string[] = [];
       for (const f of Array.from(files).slice(0, 8 - existing.length)) urls.push(await uploadPhoto(f, 'part'));
       await editMyListing('parts', r.item.id, { images: [...existing, ...urls] });
-      flash('Фото добавлены. Модератор проверит их, и товар появится на сайте.');
+      flash(r.item.stockCount > 0 ? 'Фото добавлено — товар уже на сайте.' : 'Фото добавлено. Укажите количество больше 0, чтобы товар появился на сайте.');
       await load();
     } catch (e: any) { flash(null, e.message); }
     finally { markBusy(r.item.id, false); if (photoInput.current) photoInput.current.value = ''; }
@@ -213,13 +216,14 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
     setBulkPhotoBusy(null);
     if (bulkPhotoInput.current) bulkPhotoInput.current.value = '';
     await load();
-    flash(done ? `Фото добавлены к товарам: ${done}. Модератор проверит их, и товары появятся на сайте.` : null,
+    flash(done ? `Фото добавлены к товарам: ${done}. Товары с фото уже на сайте.` : null,
       unknown.length ? `Не нашли товар для файлов: ${unknown.slice(0, 8).join(', ')}${unknown.length > 8 ? '…' : ''}. Назовите файл как артикул продавца или OEM.` : null);
   };
 
   // ----- filtering -----
   const brands = useMemo(() => [...new Set(rows.map(brandOf).filter(Boolean))].sort(), [rows]);
   const counts = useMemo(() => Object.fromEntries(BUCKETS.map((b) => [b.id, rows.filter((r) => bucketOf(r) === b.id).length])) as Record<Bucket, number>, [rows]);
+  const noPhotoCount = useMemo(() => rows.filter((r) => bucketOf(r) === 'hidden' && hiddenReason(r) === 'photo').length, [rows]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/[\s-]/g, '');
     const list = rows.filter((r) =>
@@ -319,6 +323,21 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
             <span className="sm:hidden">Заявки покупателей: <b>{requestsCount}</b></span>
             <span className="ml-auto font-bold whitespace-nowrap">Посмотреть →</span>
           </button>
+        </div>
+      )}
+
+      {noPhotoCount > 0 && (
+        <div className="mx-3 sm:mx-5 mt-3 p-3 rounded-xl bg-amber-50 border-2 border-amber-300 text-amber-900 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <Camera size={22} className="shrink-0 text-amber-600" />
+          <div className="flex-1 text-sm">
+            <b>Без фото: {noPhotoCount.toLocaleString('ru-RU')}.</b> Покупатели их не видят. Добавьте фото к каждому товару — после этого он сразу появится на сайте.
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            {bucket !== 'hidden' && <button type="button" onClick={() => setBucket('hidden')} className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-black cursor-pointer">Показать товары без фото</button>}
+            <button type="button" onClick={() => bulkPhotoInput.current?.click()} disabled={Boolean(bulkPhotoBusy)} className="px-3 py-1.5 rounded-lg border border-amber-400 bg-white hover:bg-amber-100 text-amber-900 text-xs font-bold cursor-pointer inline-flex items-center gap-1" title="Назовите файлы как артикул или OEM: A-001.jpg, A-001_2.jpg">
+              <Images size={13} />{bulkPhotoBusy || 'Фото пачкой'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -456,7 +475,7 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
                       )}
                       <div className="text-xs text-slate-500 truncate" data-no-i18n>{meta}</div>
                       {b === 'hidden' && reason === 'photo' && (
-                        <button type="button" onClick={() => addPhotos(r)} className="text-xs font-bold text-amber-700 hover:underline cursor-pointer">Нет фото — покупатели не видят. Добавить фото →</button>
+                        <button type="button" onClick={() => addPhotos(r)} disabled={isBusy} className="mt-1 px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-black cursor-pointer inline-flex items-center gap-1"><Camera size={13} />Добавить фото — тогда товар появится на сайте</button>
                       )}
                       {b === 'hidden' && reason === 'stock' && <div className="text-xs font-bold text-amber-700">Закончился — скрыт с сайта</div>}
                       {b === 'pending' && <div className="text-xs text-sky-700">На проверке у модератора</div>}

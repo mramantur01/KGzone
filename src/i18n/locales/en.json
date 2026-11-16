@@ -4146,5 +4146,12 @@
  "📦 Новая запчасть опубликована {} OEM {} · {} сом": "📦 New part published {} OEM {} · {} som",
  "Скрыть при нарушении: {}/kabinet → Модерация": "Hide if it breaks the rules: {}/kabinet → Moderation",
  "📥 Прайс продавца {}: новых {}, обновлено {}. На сайте они появятся, когда у товаров будут фото. Посмотреть: {}/kabinet → Модерация": "📥 Seller price list {}: new {}, updated {}. They appear on the site once the items have photos. View: {}/kabinet → Moderation",
- "📥 Импорт товаров: {} Новых: {}, обновлено: {}. На сайте появятся товары с фото. Посмотреть: {} → Личный кабинет → Модерация": "📥 Item import: {} New: {}, updated: {}. Items with photos will appear on the site. View: {} → Personal cabinet → Moderation"
+ "📥 Импорт товаров: {} Новых: {}, обновлено: {}. На сайте появятся товары с фото. Посмотреть: {} → Личный кабинет → Модерация": "📥 Item import: {} New: {}, updated: {}. Items with photos will appear on the site. View: {} → Personal cabinet → Moderation",
+ "Добавить фото к товарам →": "Add photos to items →",
+ "Фото добавлено — товар уже на сайте.": "Photo added — the item is on the site.",
+ "Фото добавлено. Укажите количество больше 0, чтобы товар появился на сайте.": "Photo added. Set the quantity above 0 so the item appears on the site.",
+ "Фото добавлены к товарам: {}. Товары с фото уже на сайте.": "Photos added to items: {}. Items with photos are on the site.",
+ "Покупатели их не видят. Добавьте фото к каждому товару — после этого он сразу появится на сайте.": "Buyers cannot see them. Add a photo to each item — it then appears on the site right away.",
+ "Показать товары без фото": "Show items without photos",
+ "Добавить фото — тогда товар появится на сайте": "Add a photo — then the item appears on the site"
 }
