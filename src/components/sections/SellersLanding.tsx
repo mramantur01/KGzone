@@ -31,15 +31,13 @@ const FAQ: [string, string][] = [
 export const SellersLanding: React.FC<{ onRegister: () => void; onOpenParts: () => void }> = ({ onRegister, onOpenParts }) => (
   <div className="bg-slate-50">
     <section className="kgz-themed bg-neutral-950 text-white">
-      <div className="max-w-5xl mx-auto px-4 py-12 sm:py-16">
-        <div className="text-amber-400 font-bold text-sm uppercase tracking-wide">Для продавцов запчастей</div>
-        <h1 className="mt-2 text-3xl sm:text-5xl font-black leading-tight">Продавайте запчасти на KGzone <span className="text-amber-400">бесплатно</span></h1>
-        <p className="mt-4 text-neutral-300 max-w-2xl">Кудайберген, Дордой Моторс, Ош, Каракол — покупатели со всего Кыргызстана ищут запчасти здесь. Разместите свой склад за 10 минут.</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button type="button" onClick={onRegister} className="px-6 py-3.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white font-black cursor-pointer">Начать продавать — бесплатно</button>
-          <button type="button" onClick={onOpenParts} className="px-6 py-3.5 rounded-xl border border-neutral-700 hover:bg-neutral-900 text-white font-bold cursor-pointer">Посмотреть каталог</button>
+      <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="text-amber-400 font-bold text-[10px] uppercase tracking-wide">Для продавцов запчастей</div>
+          <h1 className="mt-0.5 text-lg sm:text-2xl font-black leading-tight">Продавайте запчасти на KGzone <span className="text-amber-400">бесплатно</span></h1>
+          <p className="mt-0.5 text-xs text-neutral-400">Без комиссии. Покупатели звонят и пишут вам напрямую.</p>
         </div>
-        <p className="mt-3 text-xs text-neutral-500">Кыргызча: Тетиктерди KGzone'до акысыз сатыңыз — сатып алуучулар сизге түз чалышат.</p>
+        <button type="button" onClick={onRegister} className="shrink-0 self-start sm:self-auto px-4 py-2 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-black cursor-pointer">Начать продавать</button>
       </div>
     </section>
 
