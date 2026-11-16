@@ -1,4 +1,7 @@
 import { partQuestion } from '../../utils/waMessages';
+import { oemKey, hhmm, isActiveUntil } from '../../api/market';
+import { recordContact } from '../../utils/viewHistory';
+import { DealsStrip, TopSellersStrip } from './PartsExtras';
 import React, { useState, useMemo } from 'react';
 import {
   POPULAR_BRANDS,
@@ -128,6 +131,22 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     () => storeParts.map((p) => (stockOverrides[p.id] ? { ...p, ...stockOverrides[p.id] } : p)),
     [storeParts, stockOverrides]
   );
+  // The same part (same OEM number) from different sellers: "Ещё N предложений от X сом"
+  const offersByOem = useMemo(() => {
+    const m = new Map<string, AutoPartItem[]>();
+    for (const p of partsList) {
+      const k = oemKey(p.partNumber);
+      if (k.length < 5) continue;
+      const a = m.get(k) || [];
+      a.push(p);
+      m.set(k, a);
+    }
+    return m;
+  }, [partsList]);
+  const showOffers = (part: AutoPartItem) => {
+    setSearchQuery(part.partNumber);
+    document.getElementById('parts-search-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   // View mode: Grid vs Drom-style Rows
   const [viewMode, setViewMode] = useState<'grid' | 'rows'>('grid');
@@ -835,6 +854,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
   const handleWhatsAppOrder = (part: AutoPartItem) => {
     if (demoBlocked(part)) return;
+    recordContact('part', part.id, 'whatsapp');
     const cleanPhone = part.sellerPhone.replace(/[^0-9]/g, '');
     const sellerWhatsappNumber = part.sellerWhatsapp || cleanPhone;
     const text = encodeURIComponent(partQuestion(language, { title: part.title, partNumber: part.partNumber, priceKgs: part.priceKgs, market: part.market, spot: part.containerInfo || part.storeLocation, storeName: part.storeName }));
@@ -880,6 +900,9 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
+            <a href="/rynki" className="text-[11px] font-bold text-neutral-300 hover:text-amber-300 underline underline-offset-2">
+              {isKg ? 'Базарлар жана сатуучулар' : 'Рынки и продавцы'}
+            </a>
             <button
               onClick={() => openSellerPortal()}
               className="py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-[11px] flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer hover:scale-102"
@@ -1358,6 +1381,10 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
           </div>
         </div>
 
+        {/* Sellers' discounts and the best shops */}
+        <DealsStrip parts={partsList} isKg={isKg} onOpen={(p) => setSelectedPartForDetail(p)} />
+        <TopSellersStrip isKg={isKg} />
+
         {/* 5. MAIN CONTENT LAYOUT: SIDEBAR WITH POPULAR MAKES + LISTINGS */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
           
@@ -1582,12 +1609,27 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                             <div className="text-[10px] text-neutral-400 mt-1">
                               ~ ${priceUsd.toLocaleString()} USD
                             </div>
+                            {(() => {
+                              const others = (offersByOem.get(oemKey(part.partNumber)) || []).filter((p) => p.id !== part.id);
+                              if (!others.length) return null;
+                              const min = Math.min(...others.map((p) => p.priceKgs));
+                              return (
+                                <button type="button" onClick={() => showOffers(part)} className="mt-1 text-[11px] font-bold text-sky-400 hover:text-sky-300 hover:underline cursor-pointer text-left">
+                                  {isKg ? `Дагы ${others.length} сунуш, ${min.toLocaleString('ru-RU')} сомдон` : `Ещё ${others.length} предлож. от ${min.toLocaleString('ru-RU')} сом`}
+                                </button>
+                              );
+                            })()}
                           </div>
 
                           <div className="text-right">
                             <span className="text-[10px] bg-neutral-950 text-emerald-400 border border-emerald-900/60 px-2 py-0.5 rounded-md font-bold block mb-0.5">
                               {part.stockStatus} ({part.stockCount} шт.)
                             </span>
+                            {isActiveUntil(part.reservedUntil) && (
+                              <span className="text-[10px] bg-amber-400/15 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md font-bold block mb-0.5">
+                                {isKg ? `Брондолгон ${hhmm(part.reservedUntil)} чейин` : `Бронь до ${hhmm(part.reservedUntil)}`}
+                              </span>
+                            )}
                             {part.views ? (
                               <span className="text-[9px] text-neutral-500 font-mono">👁️ {part.views}</span>
                             ) : null}
@@ -1639,7 +1681,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           </button>
                           <a
                             href={'tel:+' + part.sellerPhone.replace(/[^0-9]/g, '')}
-                            onClick={(e) => { if (demoBlocked(part)) e.preventDefault(); }}
+                            onClick={(e) => { if (demoBlocked(part)) e.preventDefault(); else recordContact('part', part.id, 'call'); }}
                             className="py-2.5 px-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
                             title="Позвонить продавцу"
                           >
@@ -1744,6 +1786,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           ) : (
                             <a
                               href={`tel:${cleanPhone}`}
+                              onClick={() => recordContact('part', part.id, 'call')}
                               className="px-2.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-mono font-bold text-xs flex items-center gap-1 transition-colors"
                             >
                               <Phone size={13} />

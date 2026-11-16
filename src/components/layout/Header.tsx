@@ -1,3 +1,4 @@
+import { InstallAppButton } from '../common/InstallAppButton';
 import React, { useState } from 'react';
 import { ShyrdakRibbon, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { Currency, Language } from '../../types/car';
@@ -474,6 +475,8 @@ export const Header: React.FC<HeaderProps> = ({
               <User size={20} className="text-amber-400 shrink-0" strokeWidth={1.8} />
               <span className="text-white font-bold text-sm">{userName ? 'Личный кабинет' : 'Войти или зарегистрироваться'}</span>
             </button>
+
+            <InstallAppButton onDone={() => setMobileMenuOpen(false)} className="w-full p-3 rounded-2xl border border-amber-400/60 bg-amber-400/10 text-amber-300 font-bold text-sm" />
 
             {/* Панель управления сайтом в мобильном меню */}
             {onOpenControlPanel && (

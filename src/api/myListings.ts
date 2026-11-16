@@ -15,6 +15,8 @@ interface Owned {
   contactsCount?: number;
   viewsByDay?: Record<string, number>; // YYYY-MM-DD -> count, last 30 days
   contactsByDay?: Record<string, number>;
+  /** Which buttons buyers pressed */
+  contactChannels?: { whatsapp?: number; call?: number; cart?: number };
 }
 export type MyPart = AutoPartItem & Owned;
 export type MyCar = Car & Owned;
@@ -69,3 +71,8 @@ export const updateUser = (id: string, patch: Record<string, unknown>) =>
 export const resetUserPassword = (id: string) =>
   call<{ tempPassword: string }>(`/api/admin/users/${encodeURIComponent(id)}/reset-password`, { method: 'POST' }, true).then((d) => d.tempPassword);
 export const listAudit = () => call<{ entries: any[] }>('/api/admin/audit', {}, true).then((d) => d.entries);
+
+/** Discount for 1–14 days; the old price comes back by itself */
+export const setMySale = (id: string, percent: number, days: number) => after(call<{ part: MyPart }>(`/api/my/parts/${encodeURIComponent(id)}/sale`, { method: 'POST', body: JSON.stringify({ percent, days }) }));
+export const cancelMySale = (id: string) => after(call<{ part: MyPart }>(`/api/my/parts/${encodeURIComponent(id)}/sale`, { method: 'POST', body: JSON.stringify({ cancel: true }) }));
+export const releaseMyReservation = (id: string) => after(call(`/api/my/parts/${encodeURIComponent(id)}/unreserve`, { method: 'POST' }));

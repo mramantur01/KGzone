@@ -1,52 +1,64 @@
 import React, { useEffect, useState } from 'react';
-import { Smartphone } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Download, Share, PlusSquare, X } from 'lucide-react';
 
-// "Install as an app" — shown only when the browser offers installation (Android Chrome, desktop
-// Chrome/Edge). On iPhone the user adds the site via Share → "На экран «Домой»".
-type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
+// "Установить приложение": puts the KGzone icon on the phone's home screen (no app store needed).
+// Android/Chrome give an install prompt; on iPhone we show how to do it via "Поделиться".
 
-let deferred: InstallEvent | null = null;
+type PromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
+let saved: PromptEvent | null = null;
+// The iPhone help lives outside the button: the phone menu closes (and unmounts the button) on tap
+let iosHelpOpen = false;
 const listeners = new Set<() => void>();
 if (typeof window !== 'undefined') {
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferred = e as InstallEvent;
-    listeners.forEach((l) => l());
-  });
-  window.addEventListener('appinstalled', () => { deferred = null; listeners.forEach((l) => l()); });
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); saved = e as PromptEvent; listeners.forEach((l) => l()); });
+  window.addEventListener('appinstalled', () => { saved = null; listeners.forEach((l) => l()); });
 }
+const installed = () => typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true);
+const isIos = () => typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) && !(window.navigator as any).standalone;
+const setIosHelp = (v: boolean) => { iosHelpOpen = v; listeners.forEach((l) => l()); };
 
-export const InstallAppButton: React.FC<{ className?: string }> = ({ className = '' }) => {
-  const [, force] = useState(0);
-  const [iosHint, setIosHint] = useState(false);
-  useEffect(() => {
-    const l = () => force((n) => n + 1);
-    listeners.add(l);
-    return () => { listeners.delete(l); };
-  }, []);
+/** host: the one always-mounted copy (in the footer) that shows the iPhone help */
+export const InstallAppButton: React.FC<{ className?: string; onDone?: () => void; host?: boolean }> = ({ className = '', onDone, host = false }) => {
+  const [, tick] = useState(0);
+  const iosHelp = host && iosHelpOpen;
+  useEffect(() => { const l = () => tick((n) => n + 1); listeners.add(l); return () => { listeners.delete(l); }; }, []);
 
-  if (!deferred && !isIos()) return null;
+  if (installed() || (!saved && !isIos())) return null;
 
   const install = async () => {
-    if (deferred) {
-      await deferred.prompt();
-      await deferred.userChoice.catch(() => undefined);
-      deferred = null;
-      force((n) => n + 1);
-    } else {
-      setIosHint((v) => !v);
-    }
+    if (saved) {
+      await saved.prompt();
+      await saved.userChoice.catch(() => undefined);
+      saved = null;
+      tick((n) => n + 1);
+      onDone?.();
+    } else { setIosHelp(true); onDone?.(); }
   };
 
   return (
-    <div className={className}>
-      <button type="button" onClick={install} className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold text-xs transition-colors cursor-pointer">
-        <Smartphone size={14} />
-        <span>Установить приложение</span>
+    <>
+      <button type="button" onClick={install} className={`inline-flex items-center justify-center gap-2 cursor-pointer ${className}`}>
+        <Download size={16} />
+        <span>Установить приложение KGzone</span>
       </button>
-      {iosHint && <p className="text-[11px] text-slate-400 mt-1.5">В Safari нажмите «Поделиться» → «На экран „Домой“».</p>}
-    </div>
+      {iosHelp && createPortal(
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-end sm:items-center justify-center p-3" onClick={() => setIosHelp(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-4 text-slate-800 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <b className="text-slate-900">Установить на iPhone</b>
+              <button type="button" onClick={() => setIosHelp(false)} aria-label="Закрыть" className="p-1 rounded-full hover:bg-slate-100 cursor-pointer"><X size={18} /></button>
+            </div>
+            <ol className="space-y-2 text-sm">
+              <li className="flex items-center gap-2">1. Нажмите <Share size={16} className="text-[#1d6fb8]" /> «Поделиться» внизу Safari</li>
+              <li className="flex items-center gap-2">2. Выберите <PlusSquare size={16} /> «На экран Домой»</li>
+              <li>3. Нажмите «Добавить» — значок KGzone появится на экране</li>
+            </ol>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 };

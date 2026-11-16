@@ -1,6 +1,7 @@
 import { partQuestion } from '../../utils/waMessages';
 import React, { useEffect, useState } from 'react';
 import { recordView, recordContact } from '../../utils/viewHistory';
+import { ReservePart } from './ReservePart';
 import { ReportListingButton } from '../common/ReportListingButton';
 import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import { SellerContactBlock } from '../chat/SellerContactBlock';
@@ -95,7 +96,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
   const handleRevealPhone = () => {
     if (isDemo) return;
     setIsPhoneRevealed(true);
-    recordContact('part', part.id);
+    recordContact('part', part.id, 'call');
   };
 
   const cleanPhone = part.sellerPhone.replace(/[^0-9]/g, '');
@@ -478,7 +479,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                   <a
                     href={isDemo ? undefined : whatsappUrl}
                     aria-disabled={isDemo || undefined}
-                    onClick={() => recordContact('part', part.id)}
+                    onClick={() => recordContact('part', part.id, 'whatsapp')}
                     target="_blank"
                     rel="noreferrer"
                     className="py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 transition-all cursor-pointer"
@@ -487,6 +488,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                     <span>WhatsApp</span>
                   </a>
                 </div>
+                {part.sellerId && !isDemo && <ReservePart part={part} isKg={isKg} />}
               </div>
 
               {/* Description */}

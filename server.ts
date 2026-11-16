@@ -439,6 +439,99 @@ app.post('/api/orders', asyncRoute(async (req: Request, res: Response) => {
 }));
 
 // Cart: one order with several parts of the same seller; the seller gets one notice with the buyer's phone
+// ---- Reserve a part for 2 hours: the seller gets the buyer's name and phone and puts the part aside
+app.post('/api/parts/:id/reserve', asyncRoute(async (req: Request, res: Response) => {
+  if (tooMany(`reserve:${clientIp(req)}`, 5, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много броней. Попробуйте позже.' });
+  const buyer = await getSessionUser(req);
+  const name = str(req.body?.name, 80);
+  const phone = str(req.body?.phone, 30);
+  if (!name || phone.replace(/\D/g, '').length < 9) return res.status(400).json({ success: false, error: 'Укажите имя и телефон' });
+  const part: any = await getRecord('parts', req.params.id);
+  if (!part || !isPublicPart(part) || !part.ownerId) return res.status(404).json({ success: false, error: 'Товар не найден или уже снят с продажи' });
+  if (part.reservedUntil && Date.parse(part.reservedUntil) > Date.now()) return res.status(409).json({ success: false, error: 'Этот товар уже забронирован. Попробуйте позже или выберите другого продавца.' });
+  const until = new Date(Date.now() + 2 * 3_600_000).toISOString();
+  await updateRecord('parts', part.id, { reservedUntil: until });
+  const now = new Date().toISOString();
+  const number = `KGZ-B${Math.floor(1000 + Math.random() * 9000)}`;
+  await insertRecord('orders', {
+    id: `ord-${randomUUID()}`, orderNumber: number, createdAt: now, customerName: name, customerPhone: phone,
+    partId: part.id, partTitle: part.title, partNumber: part.partNumber, storeName: part.storeName, storeLocation: part.storeLocation || '',
+    priceKgs: part.priceKgs, qty: 1, deliveryType: 'pickup', deliveryAddress: 'Самовывоз', status: 'Новый',
+    comment: `Бронь на 2 часа (до ${new Date(until).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bishkek' })})`, ...(buyer ? { userId: buyer.id } : {}),
+  } as OrderRecord);
+  await notifyUser(part.ownerId, `⏳ Бронь ${number}: ${part.title} (OEM ${part.partNumber})\nПокупатель: ${name}, ${phone}\nОтложите товар на 2 часа — покупатель едет к вам.`);
+  res.status(201).json({ success: true, reservedUntil: until, orderNumber: number });
+}));
+
+// Seller takes the reservation off (the buyer did not come)
+app.post('/api/my/parts/:id/unreserve', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const part: any = await getRecord('parts', req.params.id);
+  if (!part || part.ownerId !== user.id) return res.status(404).json({ success: false, error: 'Товар не найден' });
+  await updateRecord('parts', part.id, { reservedUntil: undefined });
+  res.json({ success: true });
+}));
+
+// ---- Seller's discount for a few days: shown in "Скидки дня"; the old price comes back by itself
+app.post('/api/my/parts/:id/sale', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const part: any = await getRecord('parts', req.params.id);
+  if (!part || part.ownerId !== user.id) return res.status(404).json({ success: false, error: 'Товар не найден' });
+  if (req.body?.cancel) {
+    if (!part.saleUntil) return res.json({ success: true, part });
+    const updated = await updateRecord('parts', part.id, { priceKgs: part.oldPriceKgs || part.priceKgs, oldPriceKgs: undefined, saleUntil: undefined, updatedAt: new Date().toISOString() });
+    return res.json({ success: true, part: updated });
+  }
+  const pct = Math.round(Number(req.body?.percent));
+  const days = Math.round(Number(req.body?.days));
+  if (!(pct >= 5 && pct <= 70)) return res.status(400).json({ success: false, error: 'Скидка — от 5 до 70%' });
+  if (!(days >= 1 && days <= 14)) return res.status(400).json({ success: false, error: 'Срок — от 1 до 14 дней' });
+  const base = part.saleUntil && part.oldPriceKgs ? part.oldPriceKgs : part.priceKgs;
+  const price = Math.max(1, Math.round(base * (1 - pct / 100) * 100) / 100);
+  const updated = await updateRecord('parts', part.id, { oldPriceKgs: base, priceKgs: price, saleUntil: new Date(Date.now() + days * 86_400_000).toISOString(), updatedAt: new Date().toISOString() });
+  if (updated) await notifyWatchers([updated]);
+  res.json({ success: true, part: updated });
+}));
+
+/** Ended discounts: put the old price back (checked when the catalog is read) */
+async function endExpiredSales(parts: any[]) {
+  const now = Date.now();
+  for (const p of parts) {
+    if (p.saleUntil && Date.parse(p.saleUntil) <= now) {
+      const back = { priceKgs: p.oldPriceKgs || p.priceKgs, oldPriceKgs: undefined, saleUntil: undefined };
+      await updateRecord('parts', p.id, back);
+      Object.assign(p, back);
+    }
+  }
+}
+
+// ---- Best shops: rating from buyers' reviews, then the number of parts on the site
+app.get('/api/sellers/top', asyncRoute(async (_req: Request, res: Response) => {
+  const [users, parts, reviews] = await Promise.all([listRecords<UserRecord>('users'), listRecords('parts'), listRecords<SellerReview>('sellerReviews')]);
+  const live = new Map<string, number>();
+  const storeName = new Map<string, string>();
+  for (const p of parts.filter(isPublicPart) as any[]) if (p.ownerId) { live.set(p.ownerId, (live.get(p.ownerId) || 0) + 1); if (p.storeName && !storeName.has(p.ownerId)) storeName.set(p.ownerId, p.storeName); }
+  const rate = new Map<string, { sum: number; count: number }>();
+  for (const r of reviews.filter((x) => !x.hidden)) { const v = rate.get(r.sellerId) || { sum: 0, count: 0 }; v.sum += r.rating; v.count++; rate.set(r.sellerId, v); }
+  const top = users.filter((u) => !u.blocked && live.get(u.id))
+    .map((u) => {
+      const r = rate.get(u.id);
+      const rating = r ? r.sum / r.count : 0;
+      return {
+        id: u.id, name: u.company?.name || storeName.get(u.id) || u.name, city: u.city, avatarUrl: u.avatarUrl || u.shop?.logoUrl || undefined,
+        official: u.accountType === 'legal' && u.company?.status === 'verified',
+        verified: u.accountType !== 'legal' && Boolean(u.verifiedSeller),
+        market: u.shop?.market || '', rating: r ? Math.round(rating * 10) / 10 : null, reviewsCount: r?.count || 0, partsCount: live.get(u.id) || 0,
+        score: (r ? rating * Math.log2(r.count + 1) * 10 : 0) + Math.log2((live.get(u.id) || 0) + 1),
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
+    .map(({ score, ...x }) => x);
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=300');
+  res.json({ success: true, sellers: top });
+}));
+
 app.post('/api/cart/checkout', asyncRoute(async (req: Request, res: Response) => {
   if (tooMany(`cart:${clientIp(req)}`, 10, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много заказов. Попробуйте позже.' });
   const buyer = await getSessionUser(req);
@@ -843,10 +936,11 @@ const partProblem = (p: ReturnType<typeof sanitizePart>) => {
 };
 
 // Public: approved parts only, without moderation details
-const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>, seen?: Map<string, string>, companies?: Set<string>) => {
+const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, contactChannels, reservedUntil, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>, seen?: Map<string, string>, companies?: Set<string>) => {
   const r = ownerId ? ratings?.get(ownerId) : undefined;
   return {
     ...part,
+    reservedUntil: reservedUntil && Date.parse(reservedUntil) > Date.now() ? reservedUntil : undefined,
     sellerId: ownerId || undefined,
     sellerLastSeen: ownerId ? seen?.get(ownerId) : undefined,
     sellerVerified: Boolean(ownerId && verified?.has(ownerId)),
@@ -876,6 +970,7 @@ const verifiedOwners = async () =>
 
 app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
   const [parts, verified, ratings, seen, companies] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings(), lastSeenMap(), officialCompanies()]);
+  await endExpiredSales(parts);
   res.json({ success: true, parts: parts.filter(isPublicPart).map((p: any) => publicPart(p, verified, ratings, seen, companies)) });
 }));
 
@@ -1720,9 +1815,11 @@ const listingKind = (v: string): ListingKind | null => (v === 'parts' || v === '
 app.get('/api/my/listings', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
   const [parts, cars] = await Promise.all([listRecords('parts'), listRecords('cars')]);
+  const mine = parts.filter((p: any) => p.ownerId === user.id);
+  await endExpiredSales(mine);
   res.json({
     success: true,
-    parts: parts.filter((p: any) => p.ownerId === user.id),
+    parts: mine,
     cars: cars.filter((c: any) => c.ownerId === user.id),
   });
 }));
@@ -1834,8 +1931,9 @@ app.delete('/api/my/:kind/:id', requireUser, asyncRoute(async (req: Request, res
 app.post('/api/stats/:kind/:id', asyncRoute(async (req: Request, res: Response) => {
   const kind = listingKind(req.params.kind);
   const type = req.body?.type === 'contact' ? 'contact' : 'view';
+  const channel = ['whatsapp', 'call', 'cart'].includes(req.body?.channel) ? String(req.body.channel) : '';
   if (!kind) return res.status(404).json({ success: false });
-  if (tooMany(`stat:${type}:${kind}:${req.params.id}:${clientIp(req)}`, 1, 60 * 60_000)) return res.json({ success: true });
+  if (tooMany(`stat:${type}:${channel}:${kind}:${req.params.id}:${clientIp(req)}`, 1, 60 * 60_000)) return res.json({ success: true });
   const item: any = await getRecord(kind, req.params.id);
   if (!item) return res.json({ success: true });
   const field = type === 'contact' ? 'contactsCount' : kind === 'cars' ? 'viewsCount' : 'views';
@@ -1844,7 +1942,8 @@ app.post('/api/stats/:kind/:id', asyncRoute(async (req: Request, res: Response) 
   const days: Record<string, number> = { ...(item[dayField] || {}) };
   days[today] = (days[today] || 0) + 1;
   for (const d of Object.keys(days).sort().slice(0, -30)) delete days[d];
-  await updateRecord(kind, item.id, { [field]: (item[field] || 0) + 1, [dayField]: days });
+  const channels = channel ? { ...(item.contactChannels || {}), [channel]: ((item.contactChannels || {})[channel] || 0) + 1 } : item.contactChannels;
+  await updateRecord(kind, item.id, { [field]: (item[field] || 0) + 1, [dayField]: days, ...(channel ? { contactChannels: channels } : {}) });
   res.json({ success: true });
 }));
 
@@ -3379,6 +3478,7 @@ async function seoPageFor(pathname: string): Promise<SeoPage | null> {
     '/sto': ['Автосервис — раздел в разработке | KGzone', 'Раздел автосервисов KGzone готовится к запуску. Когда к сайту подключатся сервисы-партнёры, здесь появится запись.', 'Автосервис'],
     '/pravila': ['Пользовательское соглашение | KGzone', 'Правила использования сайта KGzone: размещение объявлений, модерация, безопасность сделок и ответственность сторон.', 'Пользовательское соглашение'],
     '/konfidencialnost': ['Политика конфиденциальности | KGzone', 'Какие персональные данные собирает KGzone, как они используются, хранятся и удаляются.', 'Политика конфиденциальности'],
+    '/rynki': ['Рынки автозапчастей Бишкека: Кудайберген, Дордой-Авто — продавцы и контейнеры | KGzone', 'Какие продавцы запчастей стоят на рынках Кудайберген и Дордой-Авто: ряды, контейнеры и товары на KGzone.', 'Рынки и продавцы'],
     '/faq': ['Частые вопросы — покупка авто и запчастей в Кыргызстане | KGzone', 'Ответы на вопросы о покупке и продаже авто и запчастей, растаможке и проверке автомобилей в КР.', 'Частые вопросы'],
     '/akcii': ['Акции и скидки на автозапчасти и сервис | KGzone', 'Актуальные акции и скидки на автозапчасти и обслуживание автомобилей в Кыргызстане.', 'Акции и скидки'],
     '/otzyvy': ['Отзывы автовладельцев Кыргызстана | KGzone', 'Отзывы владельцев автомобилей о машинах, запчастях и сервисе в Кыргызстане.', 'Отзывы автовладельцев'],
@@ -3421,6 +3521,7 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
     { loc: '/zapchasti', priority: '0.9' },
     { loc: '/avto', priority: '0.8' },
     { loc: '/prodavcam', priority: '0.7' },
+    { loc: '/rynki', priority: '0.6' },
     ...SEO_CATEGORIES.map((c) => ({ loc: `/zapchasti/${c.slug}`, priority: '0.7' })),
     ...SEO_BRANDS.map((b) => ({ loc: `/zapchasti/marka/${seoSlugify(b)}`, priority: '0.7' })),
     ...['/sto', '/akcii', '/faq', '/otzyvy', '/novosti', '/pravila', '/konfidencialnost'].map((loc) => ({ loc, priority: '0.5' })),
@@ -3440,7 +3541,7 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
 }));
 
 // Page requests (not files, not API): send prepared HTML when we have it
-app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet|pravila|konfidencialnost|magazin|prodavcam|zayavka)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
+app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet|pravila|konfidencialnost|magazin|prodavcam|zayavka|rynki)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
   if (!isProd) return next();
   seoPageFor(req.path)
     .then((page) => {

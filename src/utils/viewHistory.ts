@@ -40,11 +40,11 @@ export function recordView(item: Omit<ViewedItem, 'at'>) {
   }).catch(() => undefined);
 }
 
-export function recordContact(kind: 'part' | 'car', id: string) {
+export function recordContact(kind: 'part' | 'car', id: string, channel?: 'whatsapp' | 'call' | 'cart') {
   fetch(`/api/stats/${kind === 'part' ? 'parts' : 'cars'}/${encodeURIComponent(id)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'contact' }),
+    body: JSON.stringify({ type: 'contact', channel }),
   }).catch(() => undefined);
 }
 

@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Plus, Minus, Camera, Search, MoreHorizontal, Download, SlidersHorizontal, Images, Store } from 'lucide-react';
 import {
-  deleteMyListing, editMyListing, listMyListings, raiseMyListing, setMyListingStatus,
+  deleteMyListing, editMyListing, listMyListings, raiseMyListing, setMyListingStatus, setMySale, cancelMySale, releaseMyReservation,
   type ListingKind, type MyCar, type MyPart,
 } from '../../api/myListings';
 import { uploadPhoto } from '../../api/upload';
+import { hhmm, isActiveUntil } from '../../api/market';
+import { SellerStatsCard } from './SellerStatsCard';
 import { partPath, carPath, openShop } from '../../seo/routes';
 import { useAuth } from '../../api/auth';
 
@@ -148,6 +150,24 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
       patchLocal(r.item.id, { stockCount: prev, inStock: prev > 0 });
       flash(null, e.message);
     }
+  };
+
+  const makeSale = async (r: Row) => {
+    if (!isPart(r)) return;
+    const pct = Number(window.prompt('Скидка в процентах (от 5 до 70):', '10'));
+    if (!pct) return;
+    const days = Number(window.prompt('Сколько дней действует скидка (от 1 до 14)? Потом цена вернётся сама.', '3'));
+    if (!days) return;
+    try { await setMySale(r.item.id, pct, days); flash(`Скидка −${pct}% на ${days} дн. Товар попал в «Скидки дня».`); await load(); }
+    catch (e: any) { flash(null, e.message); }
+  };
+  const stopSale = async (r: Row) => {
+    try { await cancelMySale(r.item.id); flash('Скидка отменена, вернулась прежняя цена.'); await load(); }
+    catch (e: any) { flash(null, e.message); }
+  };
+  const unreserve = async (r: Row) => {
+    try { await releaseMyReservation(r.item.id); flash('Бронь снята — товар снова свободен.'); await load(); }
+    catch (e: any) { flash(null, e.message); }
   };
 
   const savePrice = async (r: Row) => {
@@ -302,6 +322,8 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
         </div>
       )}
 
+      <SellerStatsCard parts={rows.filter(isPart).map((r) => r.item as MyPart)} />
+
       {/* Search and filters */}
       <div className="px-3 sm:px-5 mt-3 flex flex-col sm:flex-row gap-2">
         <div className="flex gap-2 flex-1">
@@ -437,6 +459,12 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
                       )}
                       {b === 'hidden' && reason === 'stock' && <div className="text-xs font-bold text-amber-700">Закончился — скрыт с сайта</div>}
                       {b === 'pending' && <div className="text-xs text-sky-700">На проверке у модератора</div>}
+                      {isPart(r) && r.item.saleUntil && isActiveUntil(r.item.saleUntil) && (
+                        <div className="text-xs font-bold text-red-600">Скидка до {new Date(r.item.saleUntil).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} · <button type="button" onClick={() => stopSale(r)} className="underline font-normal cursor-pointer">отменить</button></div>
+                      )}
+                      {isPart(r) && isActiveUntil(r.item.reservedUntil) && (
+                        <div className="text-xs font-bold text-amber-700">Забронировано до {hhmm(r.item.reservedUntil)} · <button type="button" onClick={() => unreserve(r)} className="underline font-normal cursor-pointer">снять бронь</button></div>
+                      )}
                       {b === 'rejected' && <div className="text-xs text-red-600">Отклонено: {item.moderation?.reason || 'не соответствует правилам'}</div>}
                       {/* price and stock on phones */}
                       <div className="sm:hidden mt-1.5 flex items-center justify-between gap-2">
@@ -505,6 +533,8 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
                       {menuFor === item.id && (
                         <div onClick={(e) => e.stopPropagation()} className="absolute right-0 top-9 z-20 w-56 bg-white border border-slate-200 rounded-lg shadow-lg py-1 text-sm">
                           {isPart(r) && b !== 'sold' && <button type="button" onClick={() => { setMenuFor(null); addPhotos(r); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer flex items-center gap-2"><Camera size={14} />{r.item.images?.length ? `Добавить фото (${r.item.images.length}/8)` : 'Добавить фото'}</button>}
+                          {isPart(r) && b === 'active' && !r.item.saleUntil && <button type="button" onClick={() => { setMenuFor(null); makeSale(r); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer flex items-center gap-2 text-red-600 font-bold">% Сделать скидку на несколько дней</button>}
+                          {isPart(r) && r.item.saleUntil && <button type="button" onClick={() => { setMenuFor(null); stopSale(r); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer flex items-center gap-2">Отменить скидку</button>}
                           {b !== 'sold' && <button type="button" onClick={() => { setMenuFor(null); setDescEdit({ id: item.id, value: item.description && item.description !== '—' ? item.description : '' }); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer">Изменить описание</button>}
                           {b === 'active' && <button type="button" onClick={() => { setMenuFor(null); act(r, () => raiseMyListing(kind, item.id), 'Объявление поднято в поиске'); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer">Поднять в поиске</button>}
                           <button type="button" onClick={() => { setMenuFor(null); setStatsFor(statsFor === item.id ? null : item.id); }} className="w-full text-left px-3 py-2 hover:bg-slate-50 cursor-pointer">Статистика за 2 недели</button>

@@ -1,3 +1,4 @@
+import { recordContact } from './viewHistory';
 import { useSyncExternalStore } from 'react';
 import type { AutoPartItem } from '../types/car';
 
@@ -15,6 +16,7 @@ const save = (next: CartLine[]) => {
 export const useCart = () => useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, () => lines, () => lines);
 export const inCart = (id: string) => lines.some((l) => l.partId === id);
 export function addToCart(id: string, qty = 1) {
+  recordContact('part', id, 'cart');
   const cur = lines.find((l) => l.partId === id);
   save(cur ? lines.map((l) => (l.partId === id ? { ...l, qty: Math.min(999, l.qty + qty) } : l)) : [...lines, { partId: id, qty, addedAt: new Date().toISOString() }].slice(-100));
   window.dispatchEvent(new CustomEvent('kgz:cart-added'));

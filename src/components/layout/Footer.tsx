@@ -73,7 +73,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <span>Написать в WhatsApp</span>
               </a>
             )}
-            <InstallAppButton className="mt-2" />
+            <InstallAppButton host className="mt-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold text-xs transition-colors" />
           </div>
 
           {/* Колонка 2: Сервисы и услуги */}
@@ -184,6 +184,8 @@ export const Footer: React.FC<FooterProps> = ({
             >
               Проверка авто
             </button>
+            <span>·</span>
+            <a href="/rynki" className="hover:text-slate-300 transition-colors">Рынки и продавцы</a>
             <span>·</span>
             <a href="/prodavcam" className="text-amber-400 hover:text-amber-300 font-bold transition-colors">
               Продавцам: разместить запчасти бесплатно

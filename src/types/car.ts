@@ -136,6 +136,10 @@ export interface AutoPartItem {
   manufacturer?: string;
   warehouseId?: string;
   oldPriceKgs?: number;
+  /** Seller discount ends at this time (then the old price comes back) */
+  saleUntil?: string;
+  /** Reserved by a buyer until this time */
+  reservedUntil?: string;
   /** Left / right and front / rear (also read from the title) */
   side?: 'left' | 'right';
   axle?: 'front' | 'rear';
