@@ -537,6 +537,7 @@ export default function App() {
         setSelectedCity={setSelectedCity}
         favoritesCount={favorites.length}
         userName={account?.name || ''}
+        userAvatar={account?.avatarUrl || account?.shop?.logoUrl || ''}
         unreadCount={unreadMessages}
         usdRate={rates.usd}
         rateDate={rates.official ? rates.date : ''}

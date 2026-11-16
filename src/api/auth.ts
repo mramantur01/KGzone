@@ -63,6 +63,8 @@ export interface Account {
   verifiedSeller?: boolean;
   shop?: ShopInfo;
   lastSeenAt?: string;
+  /** Profile photo or shop logo */
+  avatarUrl?: string;
 }
 
 export const COMPANY_STATUS_LABELS: Record<CompanyStatus, string> = {
@@ -140,7 +142,7 @@ export async function logout() {
   set({ user: null });
 }
 
-export const updateProfile = (patch: Partial<Pick<Account, 'name' | 'city' | 'email'>> & { company?: Partial<CompanyProfile>; shop?: ShopInfo }) =>
+export const updateProfile = (patch: Partial<Pick<Account, 'name' | 'city' | 'email' | 'avatarUrl'>> & { company?: Partial<CompanyProfile>; shop?: ShopInfo }) =>
   withUser(call('/api/auth/me', { method: 'PATCH', body: JSON.stringify(patch) }));
 
 export const changePassword = (current: string, next: string) =>

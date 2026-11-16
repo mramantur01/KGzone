@@ -15,6 +15,8 @@ interface SellerProfile {
   accountType: 'individual' | 'legal';
   verified: boolean;
   official?: boolean;
+  /** Profile photo or shop logo */
+  avatarUrl?: string;
   wholesale?: { discountPct: number; fromKgs: number } | null;
   city: string;
   since: string;
@@ -81,8 +83,8 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
         {seller.shop?.bannerUrl && <img src={seller.shop.bannerUrl} alt="" className="w-full h-32 sm:h-48 object-cover" />}
         <div className="p-4 sm:p-6">
         <div className="flex flex-wrap items-start gap-4">
-          {seller.shop?.logoUrl
-            ? <img src={seller.shop.logoUrl} alt="" className={`w-16 h-16 rounded-2xl object-cover bg-white border border-slate-200 shrink-0 ${seller.shop?.bannerUrl ? '-mt-12 sm:-mt-14 shadow-lg' : ''}`} />
+          {seller.avatarUrl
+            ? <img src={seller.avatarUrl} alt="" className={`w-16 h-16 rounded-full object-cover bg-white border border-slate-200 shrink-0 ${seller.shop?.bannerUrl ? '-mt-12 sm:-mt-14 shadow-lg' : ''}`} />
             : <div className="w-14 h-14 rounded-2xl bg-[#C8102E] text-white flex items-center justify-center shrink-0"><Store size={26} /></div>}
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 flex flex-wrap items-center gap-2" data-no-i18n>

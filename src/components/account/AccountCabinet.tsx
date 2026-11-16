@@ -36,6 +36,7 @@ import { TelegramCard } from './TelegramCard';
 import { DeleteAccountCard } from './DeleteAccountCard';
 import { SearchMissesPanel } from '../catalog/SearchMissesPanel';
 import { ShopSettingsCard } from './ShopSettingsCard';
+import { AvatarPicker } from './AvatarPicker';
 
 export interface PartsSearchPreset {
   brand?: string;
@@ -211,6 +212,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
         {/* Navigation */}
         <aside className="hidden lg:block lg:col-span-3 space-y-3">
           <div className={card}>
+            <div className="mb-3"><AvatarPicker user={user} /></div>
             <div className="font-black text-slate-900 flex items-center gap-1.5" data-no-i18n>
               <span>{user.company?.name || user.name}</span>
               {user.accountType === 'legal' ? (user.company?.status === 'verified' && <OfficialCompanyBadge compact />) : (user.verifiedSeller && <Crown size={15} className="text-amber-500 fill-amber-400/30 shrink-0" />)}
@@ -389,6 +391,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
             <div className="space-y-4">
               <form onSubmit={saveProfile} className={`${card} space-y-3`}>
                 <h2 className="text-lg font-black text-slate-900">Профиль</h2>
+                <AvatarPicker user={user} size="lg" />
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className={labelCls}>{isLegal ? 'Контактное лицо' : 'Имя'}</label>

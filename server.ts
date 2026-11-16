@@ -1240,6 +1240,8 @@ const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
 
 interface UserRecord {
   companySettings?: CompanySettings;
+  /** Profile photo or shop logo (any seller) */
+  avatarUrl?: string;
   id: string;
   accountType: AccountType;
   name: string;
@@ -1527,6 +1529,7 @@ app.patch('/api/auth/me', requireUser, asyncRoute(async (req: Request, res: Resp
     patch.email = email;
   }
   if (b.shop !== undefined) patch.shop = sanitizeShop(b.shop);
+  if (b.avatarUrl !== undefined) patch.avatarUrl = b.avatarUrl ? imageUrl(b.avatarUrl) || user.avatarUrl : undefined;
   if (b.company !== undefined && user.accountType === 'legal') {
     const next = sanitizeCompany(b.company, user.company);
     if (!next.name) return res.status(400).json({ success: false, error: 'Укажите название магазина' });
@@ -2104,7 +2107,8 @@ app.get('/api/sellers/:id', asyncRoute(async (req: Request, res: Response) => {
       id: seller.id,
       name: seller.company?.name || seller.name,
       accountType: seller.accountType,
-      verified: Boolean(seller.verifiedSeller || seller.company?.status === 'verified'),
+      verified: seller.accountType !== 'legal' && Boolean(seller.verifiedSeller),
+      avatarUrl: seller.avatarUrl || seller.shop?.logoUrl || undefined,
       official: seller.accountType === 'legal' && seller.company?.status === 'verified',
       wholesale: seller.accountType === 'legal' && seller.companySettings?.wholesale?.discountPct ? seller.companySettings.wholesale : null,
       city: seller.city,

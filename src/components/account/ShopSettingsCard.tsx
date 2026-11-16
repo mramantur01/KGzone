@@ -31,7 +31,8 @@ export const ShopSettingsCard: React.FC<{ user: Account }> = ({ user }) => {
     e.preventDefault();
     setMsg(null);
     try {
-      const u = await updateProfile({ shop: form });
+      // The logo is managed by the avatar picker; keep its current value
+      const u = await updateProfile({ shop: { ...form, logoUrl: user.shop?.logoUrl || '' } });
       if (form.mapUrl && !u.shop?.mapUrl) setMsg({ ok: false, text: 'Сохранено, но ссылку на карту не приняли: вставьте ссылку из 2ГИС, Яндекс или Google Карт.' });
       else setMsg({ ok: true, text: 'Страница магазина сохранена' });
     } catch (err: any) { setMsg({ ok: false, text: err.message }); }
@@ -60,8 +61,9 @@ export const ShopSettingsCard: React.FC<{ user: Account }> = ({ user }) => {
       {isCompany && (
         <div className="space-y-3 pt-2 border-t border-slate-100">
           <div className="font-bold text-sm text-slate-900">Оформление магазина</div>
-          <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-3">
-            {([['logoUrl', 'Логотип', 'w-24 h-24 rounded-2xl'], ['bannerUrl', 'Баннер (широкая картинка)', 'w-full h-24 rounded-xl']] as const).map(([key, label, box]) => (
+          <p className="text-xs text-slate-500">Логотип загружается как аватарка — в разделе «Профиль» или в карточке слева.</p>
+          <div className="grid grid-cols-1 gap-3">
+            {([['bannerUrl', 'Баннер (широкая картинка)', 'w-full h-24 rounded-xl']] as const).map(([key, label, box]) => (
               <div key={key}>
                 <label className={labelCls}>{label}</label>
                 <label className={`${box} border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center overflow-hidden cursor-pointer hover:border-[#1d6fb8] relative`}>

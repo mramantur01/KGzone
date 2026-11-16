@@ -4206,5 +4206,11 @@
  "Этот пользователь уже работает в другом магазине на KGzone": "This user already works in another shop on KGzone",
  "Вы не работаете в магазине": "You do not work in a shop",
  "Нет доступа к магазину": "No access to the shop",
- "Разместите запчасти бесплатно: покупатели звонят и пишут напрямую. Загрузка всего склада из Excel, страница магазина, заявки покупателей, CRM для ИП и ОсОО.": "List parts for free: buyers call and message you directly. Whole-stock upload from Excel, a shop page, buyer requests, CRM for sole traders and LLCs."
+ "Разместите запчасти бесплатно: покупатели звонят и пишут напрямую. Загрузка всего склада из Excel, страница магазина, заявки покупателей, CRM для ИП и ОсОО.": "List parts for free: buyers call and message you directly. Whole-stock upload from Excel, a shop page, buyer requests, CRM for sole traders and LLCs.",
+ "Сменить логотип": "Change logo",
+ "Сменить фото": "Change photo",
+ "Загрузить логотип": "Upload logo",
+ "Загрузить фото": "Upload photo",
+ "Видно покупателям на вашей странице": "Buyers see it on your page",
+ "Логотип загружается как аватарка — в разделе «Профиль» или в карточке слева.": "The logo is uploaded as your avatar — in “Profile” or in the card on the left."
 }

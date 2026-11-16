@@ -23,6 +23,8 @@ interface HeaderProps {
   setSelectedCity: (city: string) => void;
   favoritesCount: number;
   userName?: string;
+  /** Profile photo or shop logo */
+  userAvatar?: string;
   unreadCount?: number;
   usdRate?: number;
   /** Date of the official NBKR rate; empty while it is loading / unavailable */
@@ -50,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   setSelectedCity,
   favoritesCount,
   userName = '',
+  userAvatar = '',
   unreadCount = 0,
   usdRate = 0,
   rateDate = '',
@@ -311,10 +314,14 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {userName ? (
               <>
-                {/* Signed in: first letter in a circle + first name */}
-                <span className="w-7 h-7 rounded-full bg-amber-400 text-neutral-950 text-sm font-black flex items-center justify-center shrink-0" data-no-i18n>
-                  {userName.trim().charAt(0).toUpperCase()}
-                </span>
+                {/* Signed in: photo/logo (or first letter) in a circle + first name */}
+                {userAvatar ? (
+                  <img src={userAvatar} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 bg-white" />
+                ) : (
+                  <span className="w-7 h-7 rounded-full bg-amber-400 text-neutral-950 text-sm font-black flex items-center justify-center shrink-0" data-no-i18n>
+                    {userName.trim().charAt(0).toUpperCase()}
+                  </span>
+                )}
                 <span className="hidden sm:inline text-white font-bold text-sm max-w-[110px] truncate" data-no-i18n>{userName.split(' ')[0]}</span>
               </>
             ) : (
