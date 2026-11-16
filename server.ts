@@ -753,6 +753,8 @@ app.post('/api/reviews', asyncRoute(async (req: Request, res: Response) => {
 type PartStatus = 'pending' | 'approved' | 'rejected';
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+/** Price in som with tyiyn (2 decimals), e.g. 7800.5 */
+const money = (v: unknown) => Math.round(num(v, 0, 100_000_000) * 100) / 100;
 const num = (v: unknown, min: number, max: number) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : 0;
@@ -785,7 +787,7 @@ function sanitizePart(body: any) {
     generation: str(body.generation, 80) || undefined,
     bodyCode: str(body.bodyCode, 80) || undefined,
     partNumber: str(body.partNumber, 60).toUpperCase(),
-    priceKgs: Math.round(num(body.priceKgs, 0, 100_000_000)),
+    priceKgs: money(body.priceKgs),
     condition: PART_CONDITIONS.includes(body.condition) ? body.condition : 'Новый',
     inStock: stockCount > 0,
     stockCount,
@@ -807,9 +809,9 @@ function sanitizePart(body: any) {
       .map((x: unknown) => str(x, 40).toUpperCase()).filter(Boolean).slice(0, 30),
     manufacturer: str(body.manufacturer, 60) || undefined,
     warehouseId: str(body.warehouseId, 60) || undefined,
-    oldPriceKgs: (() => { const o = Math.round(num(body.oldPriceKgs, 0, 100_000_000)); return o > num(body.priceKgs, 0, 100_000_000) ? o : undefined; })(),
+    oldPriceKgs: (() => { const o = money(body.oldPriceKgs); return o > num(body.priceKgs, 0, 100_000_000) ? o : undefined; })(),
     // Wholesale: a lower price from N pieces (companies)
-    wholesalePriceKgs: (() => { const w = Math.round(num(body.wholesalePriceKgs, 0, 100_000_000)); return w > 0 && w < num(body.priceKgs, 0, 100_000_000) ? w : undefined; })(),
+    wholesalePriceKgs: (() => { const w = money(body.wholesalePriceKgs); return w > 0 && w < num(body.priceKgs, 0, 100_000_000) ? w : undefined; })(),
     wholesaleMinQty: (() => { const w = Math.round(num(body.wholesalePriceKgs, 0, 100_000_000)); return w > 0 && w < num(body.priceKgs, 0, 100_000_000) ? Math.round(num(body.wholesaleMinQty, 2, 10000)) || 2 : undefined; })(),
     sellerType: body.sellerType === 'legal' ? 'legal' : 'individual',
     companyName: str(body.companyName, 120) || undefined,
@@ -3056,7 +3058,7 @@ const jsonLd = (data: unknown) => `<script type="application/ld+json">${JSON.str
 const absUrl = (p: string) => (p.startsWith('http') ? p : `${SITE_URL}${p}`);
 const partUrl = (p: any) => `/zapchast/${encodeURIComponent(p.id)}/${seoSlugify(p.title)}`;
 const carUrl = (c: any) => `/avto/${encodeURIComponent(c.id)}/${seoSlugify(c.title)}`;
-const fmtKgs = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} сом`;
+const fmtKgs = (n: number) => `${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} сом`;
 
 const partInSeoCategory = (p: any, cat: (typeof SEO_CATEGORIES)[number]) => {
   const text = `${p.category} ${p.subcategory || ''} ${p.title}`.toLowerCase();
