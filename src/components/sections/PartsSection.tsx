@@ -1,3 +1,4 @@
+import { partQuestion } from '../../utils/waMessages';
 import React, { useState, useMemo } from 'react';
 import {
   POPULAR_BRANDS,
@@ -836,13 +837,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     if (demoBlocked(part)) return;
     const cleanPhone = part.sellerPhone.replace(/[^0-9]/g, '');
     const sellerWhatsappNumber = part.sellerWhatsapp || cleanPhone;
-    const text = encodeURIComponent(
-      `Саламатсызбы! Мен KGzone сайтындагы тетикти көрдүм:\n` +
-      `📦 ${part.title} (OEM: ${part.partNumber})\n` +
-      `🏢 Базар: ${part.market} (${part.containerInfo || part.storeLocation})\n` +
-      `💰 Баасы: ${part.priceKgs} сом.\n\n` +
-      `Азыр боксуңузда барбы? Барып текшерүүгө болобу?`
-    );
+    const text = encodeURIComponent(partQuestion(language, { title: part.title, partNumber: part.partNumber, priceKgs: part.priceKgs, market: part.market, spot: part.containerInfo || part.storeLocation, storeName: part.storeName }));
     window.open(`https://wa.me/${sellerWhatsappNumber}?text=${text}`, '_blank');
   };
 
@@ -1544,7 +1539,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
                         {/* Compatibility */}
                         <div className="text-[11px] text-neutral-400 mb-1 truncate">
-                          Шайкештик: <span className="text-neutral-200 font-semibold">{part.brand} {part.model}{part.generation ? ' (' + part.generation + ')' : ''}</span>
+                          {isKg ? 'Шайкештик' : language === 'en' ? 'Fits' : 'Подходит'}: <span className="text-neutral-200 font-semibold">{part.brand} {part.model}{part.generation ? ' (' + part.generation + ')' : ''}</span>
                         </div>
                         <div className="text-[11px] text-neutral-400 space-y-0.5">
                           <div className="flex items-center gap-1 min-w-0">

@@ -1,3 +1,4 @@
+import { partOrder } from '../../utils/waMessages';
 import React, { useState } from 'react';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
@@ -72,16 +73,16 @@ export const PartOrderModal: React.FC<PartOrderModalProps> = ({
     'Баткен': { time: '18-20 часов', station: 'Западный автовокзал' },
   };
 
-  const whatsappOrderText = encodeURIComponent(
-    `Саламатсызбы! KGzone аркылуу буйрутма бергим келет:\n\n` +
-    `📦 Товар: ${part.title}\n` +
-    `🔢 OEM: ${part.partNumber}\n` +
-    `🏢 Дүкөн/Рынок: ${part.market} (${part.containerInfo || part.storeLocation})\n` +
-    `💰 Баасы: ${priceSom} сом (~$${priceUsd})\n` +
-    `🚚 Жеткирүү: ${deliveryType === 'pickup' ? 'Самовывоз из бокса' : deliveryType === 'bishkek' ? 'Яндекс Доставка Бишкек' : `Попутный бусик (${selectedRegion})`}\n` +
-    `💳 Төлөм: ${paymentLabels[paymentMethod]}\n\n` +
-    `Сураныч, бар экенин тастыктап бериңиз!`
-  );
+  const deliveryText = deliveryType === 'pickup'
+    ? (isKg ? 'Контейнерден өзүм алып кетем' : language === 'en' ? 'Pickup from the container' : 'Самовывоз из контейнера')
+    : deliveryType === 'bishkek'
+    ? (isKg ? 'Бишкек боюнча жеткирүү' : language === 'en' ? 'Delivery in Bishkek' : 'Доставка по Бишкеку')
+    : (isKg ? `Жолоочу бусик (${selectedRegion})` : language === 'en' ? `Minibus to ${selectedRegion}` : `Попутный бусик (${selectedRegion})`);
+  const whatsappOrderText = encodeURIComponent(partOrder(language, {
+    title: part.title, partNumber: part.partNumber, priceKgs: Number(priceSom) || part.priceKgs, priceUsd: Number(priceUsd) || 0,
+    where: [part.market, part.containerInfo || part.storeLocation].filter(Boolean).join(', '),
+    delivery: deliveryText, payment: paymentLabels[paymentMethod],
+  }));
 
   const whatsappUrl = `https://wa.me/${sellerWhatsappNumber}?text=${whatsappOrderText}`;
 

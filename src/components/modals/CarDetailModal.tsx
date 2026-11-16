@@ -1,3 +1,4 @@
+import { carQuestion } from '../../utils/waMessages';
 import React, { useEffect, useState } from 'react';
 import { Car, Currency, Language } from '../../types/car';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
@@ -78,7 +79,7 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
 
   const cleanPhone = car.sellerPhone.replace(/[^0-9]/g, '');
   const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-    `Саламатсызбы! Мен сиздин KGzone сайтындагы ${car.title} (${car.year} г., $${formattedPriceUsd}) жарыяңыз боюнча байланышып жатам.`
+    carQuestion(language, { title: car.title, year: car.year, priceUsd: String(formattedPriceUsd) })
   )}`;
 
   const handleCopyLink = () => {

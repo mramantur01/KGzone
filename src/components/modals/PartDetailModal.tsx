@@ -1,3 +1,4 @@
+import { partQuestion } from '../../utils/waMessages';
 import React, { useEffect, useState } from 'react';
 import { recordView, recordContact } from '../../utils/viewHistory';
 import { ReportListingButton } from '../common/ReportListingButton';
@@ -100,7 +101,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
   const cleanPhone = part.sellerPhone.replace(/[^0-9]/g, '');
   const sellerWhatsappNumber = part.sellerWhatsapp || cleanPhone;
   const whatsappUrl = `https://wa.me/${sellerWhatsappNumber}?text=${encodeURIComponent(
-    `Саламатсызбы! KGzone сайтынан көрдүм: ${part.title} (OEM: ${part.partNumber}, Дүкөн: ${part.storeName}, Рынok: ${part.market}, Баасы: ${part.priceKgs} сом). Барбы? Контейнериңизге барып алып кетсем болобу?`
+    partQuestion(language, { title: part.title, partNumber: part.partNumber, priceKgs: part.priceKgs, market: part.market, spot: part.containerInfo || part.storeLocation, storeName: part.storeName })
   )}`;
 
   // Other listings from the same seller (same phone number)
@@ -160,13 +161,17 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
                 {isKg ? 'KGzone • Автотетик паспорту' : 'KGzone • Паспорт автозапчасти'}
               </span>
               <div className="text-xs text-neutral-400 flex items-center gap-2 flex-wrap">
-                <span>{part.market}</span>
-                <span>•</span>
-                <span>{part.containerInfo || part.storeLocation}</span>
-                <span>•</span>
-                {viewsCount > 0 && <span className="text-neutral-400 font-mono">👁️ {viewsCount}</span>}
-                <span>•</span>
-                <span className="text-neutral-400">{part.createdAt || 'Сегодня'}</span>
+                {[
+                  part.market,
+                  part.containerInfo || part.storeLocation,
+                  viewsCount > 0 ? `👁️ ${viewsCount}` : '',
+                  (() => {
+                    const d = part.createdAt ? new Date(part.createdAt) : null;
+                    return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString(isKg ? 'ky-KG' : language === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+                  })(),
+                ].filter(Boolean).map((x, i) => (
+                  <React.Fragment key={i}>{i > 0 && <span>•</span>}<span>{x}</span></React.Fragment>
+                ))}
               </div>
             </div>
           </div>
