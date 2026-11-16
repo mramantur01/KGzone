@@ -3478,6 +3478,7 @@ async function seoPageFor(pathname: string): Promise<SeoPage | null> {
     '/sto': ['Автосервис — раздел в разработке | KGzone', 'Раздел автосервисов KGzone готовится к запуску. Когда к сайту подключатся сервисы-партнёры, здесь появится запись.', 'Автосервис'],
     '/pravila': ['Пользовательское соглашение | KGzone', 'Правила использования сайта KGzone: размещение объявлений, модерация, безопасность сделок и ответственность сторон.', 'Пользовательское соглашение'],
     '/konfidencialnost': ['Политика конфиденциальности | KGzone', 'Какие персональные данные собирает KGzone, как они используются, хранятся и удаляются.', 'Политика конфиденциальности'],
+    '/reklama': ['Реклама на KGzone — слайдеры в каталоге автозапчастей и автосервиса | KGzone', 'Разместите рекламу магазина, СТО или услуги на KGzone: слайдер в каталоге запчастей и на странице автосервиса. Заявка онлайн.', 'Реклама на KGzone'],
     '/rynki': ['Рынки автозапчастей Бишкека: Кудайберген, Дордой-Авто — продавцы и контейнеры | KGzone', 'Какие продавцы запчастей стоят на рынках Кудайберген и Дордой-Авто: ряды, контейнеры и товары на KGzone.', 'Рынки и продавцы'],
     '/faq': ['Частые вопросы — покупка авто и запчастей в Кыргызстане | KGzone', 'Ответы на вопросы о покупке и продаже авто и запчастей, растаможке и проверке автомобилей в КР.', 'Частые вопросы'],
     '/akcii': ['Акции и скидки на автозапчасти и сервис | KGzone', 'Актуальные акции и скидки на автозапчасти и обслуживание автомобилей в Кыргызстане.', 'Акции и скидки'],
@@ -3522,6 +3523,7 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
     { loc: '/avto', priority: '0.8' },
     { loc: '/prodavcam', priority: '0.7' },
     { loc: '/rynki', priority: '0.6' },
+    { loc: '/reklama', priority: '0.5' },
     ...SEO_CATEGORIES.map((c) => ({ loc: `/zapchasti/${c.slug}`, priority: '0.7' })),
     ...SEO_BRANDS.map((b) => ({ loc: `/zapchasti/marka/${seoSlugify(b)}`, priority: '0.7' })),
     ...['/sto', '/akcii', '/faq', '/otzyvy', '/novosti', '/pravila', '/konfidencialnost'].map((loc) => ({ loc, priority: '0.5' })),
@@ -3541,7 +3543,7 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
 }));
 
 // Page requests (not files, not API): send prepared HTML when we have it
-app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet|pravila|konfidencialnost|magazin|prodavcam|zayavka|rynki)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
+app.get(/^\/(zapchasti|zapchast|avto|sto|faq|akcii|otzyvy|novosti|kabinet|pravila|konfidencialnost|magazin|prodavcam|zayavka|rynki|reklama)(\/.*)?$/, (req: Request, res: Response, next: () => void) => {
   if (!isProd) return next();
   seoPageFor(req.path)
     .then((page) => {
@@ -4367,12 +4369,120 @@ function sanitizeBanner(b: any) {
       image: imageUrl(x?.image) || undefined,
       color: SLIDE_COLORS.includes(x?.color) ? x.color : 'amber',
       icon: SLIDE_ICONS.includes(x?.icon) ? x.icon : 'megaphone',
+      // Shown only between these days (Bishkek time); empty = always
+      startDate: /^\d{4}-\d{2}-\d{2}$/.test(String(x?.startDate || '')) ? String(x.startDate) : undefined,
+      endDate: /^\d{4}-\d{2}-\d{2}$/.test(String(x?.endDate || '')) ? String(x.endDate) : undefined,
     })),
   };
 }
 // place=sto: the same kind of slider on the car service page
 const bannerKey = (place: unknown) => (place === 'sto' ? `${BANNER_KEY}:sto` : BANNER_KEY);
 const memoryBanners: Record<string, unknown> = {};
+
+// ---- Small key-value store for ads (Redis, or memory on a local copy)
+const memoryKv: Record<string, unknown> = {};
+const kvGet = async <T,>(key: string): Promise<T | null> => (redis ? ((await redis.get(key)) as T | null) : ((memoryKv[key] as T) ?? null));
+const kvSet = async (key: string, value: unknown) => { if (redis) await redis.set(key, value); else memoryKv[key] = value; };
+const AD_PRICES_KEY = 'kgzone:adPrices';
+const AD_REQUESTS_KEY = 'kgzone:adRequests';
+const adStatsKey = (place: string) => `kgzone:bannerStats:${place === 'sto' ? 'sto' : 'parts'}`;
+const bishkekToday = () => new Date(Date.now() + 6 * 3_600_000).toISOString().slice(0, 10);
+const addDays = (day: string, n: number) => new Date(Date.parse(day + 'T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
+const AD_PERIODS: Record<string, { days: number; label: string }> = { week: { days: 7, label: '1 неделя' }, '2weeks': { days: 14, label: '2 недели' }, month: { days: 30, label: '1 месяц' } };
+interface AdPrices { partsWeek: number; partsMonth: number; stoWeek: number; stoMonth: number; note: string }
+const sanitizePrices = (b: any): AdPrices => ({
+  partsWeek: Math.max(0, Math.round(Number(b?.partsWeek) || 0)), partsMonth: Math.max(0, Math.round(Number(b?.partsMonth) || 0)),
+  stoWeek: Math.max(0, Math.round(Number(b?.stoWeek) || 0)), stoMonth: Math.max(0, Math.round(Number(b?.stoMonth) || 0)),
+  note: str(b?.note, 300),
+});
+
+// Prices the owner set (0 = "по договорённости")
+app.get('/api/ads/prices', asyncRoute(async (_req: Request, res: Response) => {
+  res.json({ success: true, prices: (await kvGet<AdPrices>(AD_PRICES_KEY)) || sanitizePrices({}) });
+}));
+app.put('/api/admin/ads/prices', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  const prices = sanitizePrices(req.body);
+  await kvSet(AD_PRICES_KEY, prices);
+  res.json({ success: true, prices });
+}));
+
+// Request from an advertiser (no payment on the site: the owner agrees and takes the money)
+app.post('/api/ads/request', asyncRoute(async (req: Request, res: Response) => {
+  if (tooMany(`adreq:${clientIp(req)}`, 3, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много заявок. Попробуйте через час.' });
+  const b = req.body || {};
+  const name = str(b.name, 80);
+  const phone = str(b.phone, 30);
+  if (!name || phone.replace(/\D/g, '').length < 9) return res.status(400).json({ success: false, error: 'Укажите имя и телефон' });
+  const place = b.place === 'sto' ? 'sto' : 'parts';
+  const period = AD_PERIODS[b.period] ? b.period : 'week';
+  const today = bishkekToday();
+  const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(b.startDate || '')) && b.startDate >= today ? String(b.startDate) : today;
+  const href = str(b.href, 400);
+  const request = {
+    id: `adr-${randomUUID()}`, createdAt: new Date().toISOString(), status: 'new',
+    name, phone, business: str(b.business, 80), place, period, startDate,
+    title: str(b.title, 90), text: str(b.text, 220),
+    href: /^https:\/\/[^\s"'<>]+$/.test(href) ? href : '',
+    image: imageUrl(b.image) || undefined, comment: str(b.comment, 500),
+  };
+  const list = (await kvGet<any[]>(AD_REQUESTS_KEY)) || [];
+  await kvSet(AD_REQUESTS_KEY, [request, ...list].slice(0, 300));
+  await notifyAdmin(`📣 Заявка на рекламу: ${request.business || request.name}\n${place === 'sto' ? 'Слайдер «Сервис»' : 'Слайдер «Автозапчасти»'} · ${AD_PERIODS[period].label} с ${startDate}\n${name}, ${phone}\nПосмотреть: ${SITE_URL}/kabinet → Модерация → Заявки на рекламу`);
+  res.status(201).json({ success: true });
+}));
+app.get('/api/admin/ads/requests', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
+  res.json({ success: true, requests: (await kvGet<any[]>(AD_REQUESTS_KEY)) || [] });
+}));
+app.patch('/api/admin/ads/requests/:id', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  const status = ['new', 'paid', 'rejected', 'published'].includes(req.body?.status) ? req.body.status : null;
+  if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
+  const list = (await kvGet<any[]>(AD_REQUESTS_KEY)) || [];
+  const item = list.find((x) => x.id === req.params.id);
+  if (!item) return res.status(404).json({ success: false, error: 'Заявка не найдена' });
+  item.status = status;
+  await kvSet(AD_REQUESTS_KEY, list);
+  res.json({ success: true, request: item });
+}));
+// Turn a request into a slide with dates (start..start+period) in the chosen slider
+app.post('/api/admin/ads/requests/:id/publish', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  const list = (await kvGet<any[]>(AD_REQUESTS_KEY)) || [];
+  const item = list.find((x) => x.id === req.params.id);
+  if (!item) return res.status(404).json({ success: false, error: 'Заявка не найдена' });
+  const key = bannerKey(item.place);
+  const current: any = (redis ? await redis.get(key) : memoryBanners[key]) || { intervalSec: 3, showOffers: true, slides: [] };
+  const endDate = addDays(item.startDate, (AD_PERIODS[item.period]?.days || 7) - 1);
+  const slide = {
+    id: `ad-${item.id.slice(4, 16)}`, enabled: true, badge: 'Реклама', title: item.title || item.business || 'Реклама', text: item.text,
+    // No link in the request: the button opens the advertiser's WhatsApp
+    cta: 'Подробнее', href: item.href || (item.phone.replace(/\D/g, '').length >= 9 ? `https://wa.me/${item.phone.replace(/\D/g, '').replace(/^0/, '996')}` : '/prodavcam'), image: item.image, color: 'amber', icon: 'megaphone', startDate: item.startDate, endDate,
+  };
+  const banner = sanitizeBanner({ ...current, slides: [slide, ...(current.slides || []).filter((x: any) => x.id !== slide.id)] });
+  if (redis) await redis.set(key, banner); else memoryBanners[key] = banner;
+  item.status = 'published';
+  await kvSet(AD_REQUESTS_KEY, list);
+  await audit((req as any).actor || 'admin', 'banner.ad-published', 'banner', { key, request: item.id });
+  res.json({ success: true, banner, request: item });
+}));
+
+// Views and clicks of ad slides (one per visitor per slide per half hour)
+app.post('/api/banner/stat', asyncRoute(async (req: Request, res: Response) => {
+  const place = req.body?.place === 'sto' ? 'sto' : 'parts';
+  const slideId = str(req.body?.slideId, 40);
+  const type = req.body?.type === 'click' ? 'clicks' : 'views';
+  if (!slideId) return res.json({ success: true });
+  if (tooMany(`bstat:${place}:${slideId}:${type}:${clientIp(req)}`, 1, 30 * 60_000)) return res.json({ success: true });
+  const stats = (await kvGet<Record<string, { views: number; clicks: number }>>(adStatsKey(place))) || {};
+  const cur = stats[slideId] || { views: 0, clicks: 0 };
+  cur[type]++;
+  stats[slideId] = cur;
+  const ids = Object.keys(stats);
+  if (ids.length > 200) for (const id of ids.slice(0, ids.length - 200)) delete stats[id];
+  await kvSet(adStatsKey(place), stats);
+  res.json({ success: true });
+}));
+app.get('/api/admin/banner/stats', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+  res.json({ success: true, stats: (await kvGet(adStatsKey(String(req.query.place || '')))) || {} });
+}));
 app.get('/api/banner', asyncRoute(async (req: Request, res: Response) => {
   const key = bannerKey(req.query.place);
   const banner = redis ? await redis.get(key) : memoryBanners[key];

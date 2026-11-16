@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { GalleryHorizontal, ArrowUp, ArrowDown, Trash2, Plus, Loader2, ImagePlus, Eye, EyeOff, RotateCcw, ExternalLink } from 'lucide-react';
 import { defaultBanner, loadBanner, resetBanner, saveBanner, type BannerPlace } from '../../api/banner';
+import { loadBannerStats, slideDateState } from '../../api/ads';
 import { uploadPhoto } from '../../api/upload';
 import {
   SLIDE_COLOR_NAMES, SLIDE_GRADIENTS, SLIDE_ICON_NAMES,
@@ -22,7 +23,9 @@ export const BannerSlidesPanel: React.FC<{ place?: BannerPlace }> = ({ place = '
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [stats, setStats] = useState<Record<string, { views: number; clicks: number }>>({});
   useEffect(() => { loadBanner(true, place).then((b) => setCfg(JSON.parse(JSON.stringify(b)))); }, [place]);
+  useEffect(() => { loadBannerStats(place).then(setStats).catch(() => setStats({})); }, [place]);
   if (!cfg) return <div className="p-4 rounded-2xl bg-white border border-slate-200 text-sm text-slate-400"><Loader2 className="animate-spin" /></div>;
 
   const setSlide = (id: string, patch: Partial<BannerSlide>) => setCfg({ ...cfg, slides: cfg.slides.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
@@ -83,6 +86,14 @@ export const BannerSlidesPanel: React.FC<{ place?: BannerPlace }> = ({ place = '
               <button type="button" onClick={() => setOpen(open === sl.id ? null : sl.id)} className="flex-1 min-w-0 text-left cursor-pointer">
                 <div className="font-bold text-slate-900 truncate" data-no-i18n>{i + 1 + (cfg.showOffers ? 1 : 0)}. {sl.title}</div>
                 <div className="text-[11px] text-slate-500 truncate" data-no-i18n>{sl.badge} · {sl.href}</div>
+                <div className="text-[11px] flex flex-wrap gap-x-3">
+                  {(sl.startDate || sl.endDate) && (() => {
+                    const st = slideDateState(sl);
+                    const range = `${sl.startDate ? 'с ' + sl.startDate.split('-').reverse().join('.') : ''} ${sl.endDate ? 'по ' + sl.endDate.split('-').reverse().join('.') : ''}`.trim();
+                    return <span className={st === 'live' ? 'text-emerald-700 font-bold' : st === 'future' ? 'text-sky-700 font-bold' : 'text-slate-400 font-bold'}>{st === 'live' ? 'Показывается' : st === 'future' ? 'Ещё не началась' : 'Закончилась'} · <span data-no-i18n>{range}</span></span>;
+                  })()}
+                  <span className="text-slate-500">Показы: <b>{stats[sl.id]?.views || 0}</b> · Нажатия: <b>{stats[sl.id]?.clicks || 0}</b></span>
+                </div>
               </button>
               <button type="button" onClick={() => setSlide(sl.id, { enabled: !sl.enabled })} title={sl.enabled ? 'Скрыть слайд' : 'Показать слайд'} className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer">{sl.enabled ? <Eye size={16} /> : <EyeOff size={16} />}</button>
               <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title="Выше" className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer disabled:opacity-30"><ArrowUp size={16} /></button>
@@ -108,6 +119,9 @@ export const BannerSlidesPanel: React.FC<{ place?: BannerPlace }> = ({ place = '
                     {(Object.keys(SLIDE_ICON_NAMES) as SlideIcon[]).map((c) => <option key={c} value={c}>{SLIDE_ICON_NAMES[c]}</option>)}
                   </select>
                 </div>
+                <div><label className={labelCls}>Показывать с (необязательно)</label><input type="date" value={sl.startDate || ''} onChange={(e) => setSlide(sl.id, { startDate: e.target.value || undefined })} className={inputCls} /></div>
+                <div><label className={labelCls}>Показывать по (включительно)</label><input type="date" value={sl.endDate || ''} onChange={(e) => setSlide(sl.id, { endDate: e.target.value || undefined })} className={inputCls} /></div>
+                <p className="sm:col-span-2 text-[11px] text-slate-500 -mt-1">Реклама сама включится в первый день и сама выключится после последнего. Без дат — показывается всегда.</p>
                 <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
                   <label className="px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 font-bold text-slate-700 inline-flex items-center gap-1.5 cursor-pointer">
                     {busy === `img-${sl.id}` ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}{sl.image ? 'Заменить картинку' : 'Загрузить картинку'}

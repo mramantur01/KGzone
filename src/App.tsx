@@ -52,6 +52,7 @@ const INITIAL_ROUTE: Route = typeof window !== 'undefined' ? parseRoute(window.l
 const TAB_TITLES: Record<string, string> = {
   sellers: 'Продавать запчасти на KGzone — бесплатно',
   markets: 'Рынки и продавцы запчастей',
+  advertise: 'Реклама на KGzone',
   request: 'Заявка на запчасть — предложения продавцов',
   cars: 'KGzone — Автомобильный портал Кыргызстана | Автобазар КР',
   parts: 'Автозапчасти в Кыргызстане — новые, б/у и контрактные',
@@ -74,6 +75,7 @@ const ReviewsSection = lazy(() => import('./components/sections/ReviewsSection')
 const ShopPage = lazy(() => import('./components/sections/ShopPage').then((m) => ({ default: m.ShopPage })));
 const FavoritePriceWatch = lazy(() => import('./components/catalog/PriceDropNotice').then((m) => ({ default: m.FavoritePriceWatch })));
 const RequestPage = lazy(() => import('./components/sections/RequestPage').then((m) => ({ default: m.RequestPage })));
+const AdvertisePage = lazy(() => import('./components/sections/AdvertisePage').then((m) => ({ default: m.AdvertisePage })));
 const MarketsPage = lazy(() => import('./components/sections/MarketsPage').then((m) => ({ default: m.MarketsPage })));
 const SellersLanding = lazy(() => import('./components/sections/SellersLanding').then((m) => ({ default: m.SellersLanding })));
 const LegalSection = lazy(() => import('./components/sections/LegalSection').then((m) => ({ default: m.LegalSection })));
@@ -800,6 +802,8 @@ export default function App() {
         <Suspense fallback={null}><FavoritePriceWatch /></Suspense>
 
         {activeTab === 'request' && requestId && <RequestPage requestId={requestId} />}
+
+        {activeTab === 'advertise' && <AdvertisePage language={language} />}
 
         {activeTab === 'markets' && <MarketsPage language={language} onOpenParts={() => { setActiveTab('parts'); window.scrollTo({ top: 0 }); }} />}
 

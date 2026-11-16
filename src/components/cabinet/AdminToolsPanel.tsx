@@ -7,6 +7,7 @@ import { PRICE_FILE_ACCEPT, readPriceFile } from '../../utils/xlsx';
 import { formatPhone } from '../../api/auth';
 import { SiteStatsCard } from './SiteStatsCard';
 import { BannerSlidesPanel } from './BannerSlidesPanel';
+import { AdRequestsPanel } from './AdRequestsPanel';
 
 const card = 'p-4 rounded-2xl bg-white border border-slate-200 text-sm space-y-3';
 const btn = 'px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60';
@@ -202,6 +203,7 @@ export const AdminToolsPanel: React.FC = () => (
     <SiteStatsCard />
     <BannerSlidesPanel />
     <BannerSlidesPanel place="sto" />
+    <AdRequestsPanel />
     <TelegramBotCard />
     <ChannelCard />
     <ImportForSellerCard />

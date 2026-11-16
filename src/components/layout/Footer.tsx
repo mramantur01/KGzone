@@ -187,6 +187,8 @@ export const Footer: React.FC<FooterProps> = ({
             <span>·</span>
             <a href="/rynki" className="hover:text-slate-300 transition-colors">Рынки и продавцы</a>
             <span>·</span>
+            <a href="/reklama" className="hover:text-slate-300 transition-colors">Реклама на сайте</a>
+            <span>·</span>
             <a href="/prodavcam" className="text-amber-400 hover:text-amber-300 font-bold transition-colors">
               Продавцам: разместить запчасти бесплатно
             </a>

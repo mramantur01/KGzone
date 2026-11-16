@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useBanner, type BannerPlace } from '../../api/banner';
+import { sendBannerStat, slideLiveToday } from '../../api/ads';
 import { SLIDE_GRADIENTS, type SlideIcon } from '../../data/bannerDefaults';
 import { Disc3, Droplets } from 'lucide-react';
 import { Language } from '../../types/car';
@@ -68,7 +69,8 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
   const isKg = language === 'kg';
   // Slides come from the owner's settings (cabinet → «Слайды в каталоге»): first the three offers, then the ads
   const banner = useBanner(place);
-  const ads = banner.slides.filter((s) => s.enabled);
+  // Enabled slides whose dates include today (ads switch on and off by themselves)
+  const ads = banner.slides.filter((s) => s.enabled && slideLiveToday(s));
   const offset = banner.showOffers ? 1 : 0;
   const total = offset + ads.length;
   const [current, setCurrent] = useState(0);
@@ -79,6 +81,11 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
     const t = window.setInterval(() => setCurrent((c) => (c + 1) % total), Math.max(2, banner.intervalSec) * 1000);
     return () => window.clearInterval(t);
   }, [paused, total, banner.intervalSec]);
+  // Count a view of the ad slide that is on screen
+  useEffect(() => {
+    const ad = ads[current - offset];
+    if (ad) sendBannerStat(place, ad.id, 'view');
+  }, [current, offset, ads, place]);
   const pad = (n: number) => String(n).padStart(2, '0');
   const ICONS: Record<SlideIcon, React.ElementType> = { tire: Disc3, oil: Droplets, wrench: Wrench, truck: Truck, store: Store, megaphone: Megaphone };
   const go = (d: number) => setCurrent((c) => (c + d + total) % total);
@@ -246,6 +253,7 @@ export const PartsSliderBanner: React.FC<PartsSliderBannerProps> = ({
             rel="noopener noreferrer sponsored"
             aria-hidden={!shown}
             tabIndex={shown ? 0 : -1}
+            onClick={() => sendBannerStat(place, ad.id, 'click')}
             className={`[grid-area:1/1] relative overflow-hidden flex items-center p-5 sm:p-7 transition-opacity duration-500 ${shown ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'} ${ad.image ? '' : `bg-gradient-to-br ${SLIDE_GRADIENTS[ad.color] || SLIDE_GRADIENTS.amber}`}`}
           >
             {ad.image && <img src={ad.image} alt={ad.title} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />}

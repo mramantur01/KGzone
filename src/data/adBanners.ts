@@ -16,7 +16,8 @@ export interface AdBanner {
   badge?: string;
 }
 
-const AD_CONTACT = siteWhatsApp('Здравствуйте! Хочу разместить рекламу на KGzone.') || '/kabinet';
+// Advertisers fill in the request form
+const AD_CONTACT = '/reklama';
 
 // Photos from Unsplash (free to use, unsplash.com/license); no brands or shop signs in them
 const tallPhoto = (id: string) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=600&h=1200&q=70`;

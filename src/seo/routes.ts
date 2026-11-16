@@ -54,6 +54,7 @@ export const TAB_PATHS: Record<string, string> = {
   privacy: '/konfidencialnost',
   sellers: '/prodavcam',
   markets: '/rynki',
+  advertise: '/reklama',
 };
 
 export interface Route {

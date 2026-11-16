@@ -16,6 +16,9 @@ export interface BannerSlide {
   image?: string;
   color: SlideColor;
   icon: SlideIcon;
+  /** Shown only from / until this day (YYYY-MM-DD, Bishkek); empty = always */
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface BannerConfig {
@@ -46,7 +49,7 @@ export const SLIDE_ICON_NAMES: Record<SlideIcon, string> = {
 const photo = (id: string) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=2000&h=500&q=70`;
 
 const sample = (id: string, color: SlideColor, icon: SlideIcon, title: string, text: string, image?: string): BannerSlide => ({
-  id, enabled: true, badge: 'Пример рекламы', title, text, cta: 'Разместить свою рекламу', href: '/prodavcam', color, icon, image,
+  id, enabled: true, badge: 'Пример рекламы', title, text, cta: 'Разместить свою рекламу', href: '/reklama', color, icon, image,
 });
 
 // Made-up sample ads (no real companies) so the slots look filled until real advertisers come
