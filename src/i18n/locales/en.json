@@ -4132,5 +4132,19 @@
  "Нет. Скачайте в кабинете шаблон, заполните его в Excel и загрузите — товары добавятся сразу. Фото можно загрузить пачкой, назвав файлы по артикулу. Компании могут подключить Google-таблицу: цены и остатки будут обновляться сами каждую ночь.": "No. Download the template in your cabinet, fill it in Excel and upload it — items are added at once. Photos can be uploaded in bulk, named by SKU. Companies can connect a Google Sheet: prices and stock update by themselves every night.",
  "Бизнес-кабинет: сотрудники с ролями, склады, CRM клиентов, касса, отчёты, счета и накладные, оптовые цены, рассылка клиентам и прайс из Google-таблицы, который обновляется сам.": "Business cabinet: staff with roles, warehouses, customer CRM, cash desk, reports, invoices and delivery notes, wholesale prices, customer mailings and a price list from a Google Sheet that updates itself.",
  "Это старый формат Excel (.xls). Откройте файл в Excel и сохраните как «Книга Excel (.xlsx)».": "This is the old Excel format (.xls). Open the file in Excel and save it as \"Excel Workbook (.xlsx)\".",
- "Не удалось прочитать файл Excel. Сохраните его заново как «Книга Excel (.xlsx)» и попробуйте ещё раз.": "Could not read the Excel file. Save it again as \"Excel Workbook (.xlsx)\" and try once more."
+ "Не удалось прочитать файл Excel. Сохраните его заново как «Книга Excel (.xlsx)» и попробуйте ещё раз.": "Could not read the Excel file. Save it again as \"Excel Workbook (.xlsx)\" and try once more.",
+ "Товары сохранены. Товары с фото уже на сайте.": "Items saved. Items with photos are already on the site.",
+ "Товары опубликованы на сайте.": "Items are published on the site.",
+ ". Они появятся на сайте сразу, как только вы добавите фото в «Моих объявлениях».": ". They appear on the site as soon as you add photos in \"My listings\".",
+ "Описание сохранено.": "Description saved.",
+ "· Товары появляются на сайте сразу, как только у них есть фото": "· Items appear on the site as soon as they have a photo",
+ ". Они появятся на сайте сразу после того, как вы добавите фото в разделе «Каталог» (кнопка «Добавить фото»).": ". They appear on the site right after you add photos in \"Catalog\" (the \"Add photo\" button).",
+ "Запчасть «{}» опубликована и уже видна в каталоге.": "Part \"{}\" is published and already visible in the catalog.",
+ "Публикация": "Publishing",
+ "сразу с фото": "right away with a photo",
+ "Слишком много новых объявлений. Попробуйте через час.": "Too many new listings. Try again in an hour.",
+ "📦 Новая запчасть опубликована {} OEM {} · {} сом": "📦 New part published {} OEM {} · {} som",
+ "Скрыть при нарушении: {}/kabinet → Модерация": "Hide if it breaks the rules: {}/kabinet → Moderation",
+ "📥 Прайс продавца {}: новых {}, обновлено {}. На сайте они появятся, когда у товаров будут фото. Посмотреть: {}/kabinet → Модерация": "📥 Seller price list {}: new {}, updated {}. They appear on the site once the items have photos. View: {}/kabinet → Moderation",
+ "📥 Импорт товаров: {} Новых: {}, обновлено: {}. На сайте появятся товары с фото. Посмотреть: {} → Личный кабинет → Модерация": "📥 Item import: {} New: {}, updated: {}. Items with photos will appear on the site. View: {} → Personal cabinet → Moderation"
 }
