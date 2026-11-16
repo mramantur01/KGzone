@@ -4212,5 +4212,7 @@
  "Загрузить логотип": "Upload logo",
  "Загрузить фото": "Upload photo",
  "Видно покупателям на вашей странице": "Buyers see it on your page",
- "Логотип загружается как аватарка — в разделе «Профиль» или в карточке слева.": "The logo is uploaded as your avatar — in “Profile” or in the card on the left."
+ "Логотип загружается как аватарка — в разделе «Профиль» или в карточке слева.": "The logo is uploaded as your avatar — in “Profile” or in the card on the left.",
+ "Покупатели их не видят. Добавьте фото к каждому товару (можно до 8 фото) — после этого он сразу появится на сайте.": "Buyers cannot see them. Add photos to each item (up to 8) — it then appears on the site right away.",
+ "Нет. Скачайте в кабинете шаблон, заполните его в Excel и загрузите — товары добавятся сразу. Затем добавьте фото к каждому товару — до 8 фото на товар. ИП и ОсОО могут подключить Google-таблицу: цены и остатки будут обновляться сами каждую ночь.": "No. Download the template in your cabinet, fill it in Excel and upload it — items are added at once. Then add photos to each item — up to 8 per item. Sole traders and LLCs can connect a Google Sheet: prices and stock update by themselves every night."
 }

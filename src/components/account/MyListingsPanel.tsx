@@ -83,8 +83,6 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
   const [bulkBusy, setBulkBusy] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false); // phones: filters folded behind a button
   const photoInput = useRef<HTMLInputElement>(null);
-  const bulkPhotoInput = useRef<HTMLInputElement>(null);
-  const [bulkPhotoBusy, setBulkPhotoBusy] = useState<string | null>(null);
   const [statsFor, setStatsFor] = useState<string | null>(null);
   const { user } = useAuth();
   const photoFor = useRef<Row | null>(null);
@@ -185,41 +183,6 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
     finally { markBusy(r.item.id, false); if (photoInput.current) photoInput.current.value = ''; }
   };
 
-  // Photos in bulk: files named by seller SKU or OEM ("A-001.jpg", "A-001_2.jpg", "04465-33471.jpg")
-  // are matched to items and added to them.
-  const onBulkPhotos = async (files: FileList | null) => {
-    if (!files?.length) return;
-    const key = (v?: string) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const parts = rows.filter(isPart);
-    const groups = new Map<string, { r: Row & { kind: 'parts'; item: MyPart }; files: File[] }>();
-    const unknown: string[] = [];
-    for (const file of Array.from(files)) {
-      const base = key(file.name.replace(/\.[^.]+$/, '').replace(/[ _-]\d{1,2}$/, ''));
-      const r = parts.find((p) => (p.item.sku && key(p.item.sku) === base) || key(p.item.partNumber) === base);
-      if (!r) { unknown.push(file.name); continue; }
-      const g = groups.get(r.item.id) || { r, files: [] };
-      g.files.push(file);
-      groups.set(r.item.id, g);
-    }
-    let done = 0;
-    flash(null);
-    for (const { r, files: list } of groups.values()) {
-      setBulkPhotoBusy(`Загружаем фото: ${done + 1} из ${groups.size}`);
-      try {
-        const existing = r.item.images || [];
-        const urls: string[] = [];
-        for (const f of list.slice(0, 8 - existing.length)) urls.push(await uploadPhoto(f, 'part'));
-        if (urls.length) await editMyListing('parts', r.item.id, { images: [...existing, ...urls] });
-        done++;
-      } catch (e: any) { unknown.push(`${r.item.title}: ${e.message}`); }
-    }
-    setBulkPhotoBusy(null);
-    if (bulkPhotoInput.current) bulkPhotoInput.current.value = '';
-    await load();
-    flash(done ? `Фото добавлены к товарам: ${done}. Товары с фото уже на сайте.` : null,
-      unknown.length ? `Не нашли товар для файлов: ${unknown.slice(0, 8).join(', ')}${unknown.length > 8 ? '…' : ''}. Назовите файл как артикул продавца или OEM.` : null);
-  };
-
   // ----- filtering -----
   const brands = useMemo(() => [...new Set(rows.map(brandOf).filter(Boolean))].sort(), [rows]);
   const counts = useMemo(() => Object.fromEntries(BUCKETS.map((b) => [b.id, rows.filter((r) => bucketOf(r) === b.id).length])) as Record<Bucket, number>, [rows]);
@@ -295,7 +258,6 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
   return (
     <div className="bg-white rounded-2xl border border-slate-200">
       <input ref={photoInput} type="file" accept="image/*" multiple className="hidden" onChange={(e) => onPhotoFiles(e.target.files)} />
-      <input ref={bulkPhotoInput} type="file" accept="image/*" multiple className="hidden" onChange={(e) => onBulkPhotos(e.target.files)} />
 
       {/* Heading */}
       <div className="flex items-center justify-between gap-3 px-3 sm:px-5 pt-3 sm:pt-4">
@@ -330,14 +292,13 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
         <div className="mx-3 sm:mx-5 mt-3 p-3 rounded-xl bg-amber-50 border-2 border-amber-300 text-amber-900 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
           <Camera size={22} className="shrink-0 text-amber-600" />
           <div className="flex-1 text-sm">
-            <b>Без фото: {noPhotoCount.toLocaleString('ru-RU')}.</b> Покупатели их не видят. Добавьте фото к каждому товару — после этого он сразу появится на сайте.
+            <b>Без фото: {noPhotoCount.toLocaleString('ru-RU')}.</b> Покупатели их не видят. Добавьте фото к каждому товару (можно до 8 фото) — после этого он сразу появится на сайте.
           </div>
-          <div className="flex flex-wrap gap-2 shrink-0">
-            {bucket !== 'hidden' && <button type="button" onClick={() => setBucket('hidden')} className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-black cursor-pointer">Показать товары без фото</button>}
-            <button type="button" onClick={() => bulkPhotoInput.current?.click()} disabled={Boolean(bulkPhotoBusy)} className="px-3 py-1.5 rounded-lg border border-amber-400 bg-white hover:bg-amber-100 text-amber-900 text-xs font-bold cursor-pointer inline-flex items-center gap-1" title="Назовите файлы как артикул или OEM: A-001.jpg, A-001_2.jpg">
-              <Images size={13} />{bulkPhotoBusy || 'Фото пачкой'}
-            </button>
-          </div>
+          {bucket !== 'hidden' && (
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <button type="button" onClick={() => setBucket('hidden')} className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-black cursor-pointer">Показать товары без фото</button>
+            </div>
+          )}
         </div>
       )}
 
@@ -374,9 +335,6 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
         </label>
         <span className="sm:ml-auto flex flex-wrap gap-x-4 gap-y-1">
           {user && <button type="button" onClick={() => openShop(user.id)} className={`${linkCls} inline-flex items-center gap-1`}><Store size={13} />Моя страница магазина</button>}
-          <button type="button" onClick={() => bulkPhotoInput.current?.click()} disabled={Boolean(bulkPhotoBusy)} className={`${linkCls} inline-flex items-center gap-1`} title="Назовите файлы как артикул или OEM: A-001.jpg, A-001_2.jpg">
-            <Images size={13} />{bulkPhotoBusy || 'Фото пачкой'}
-          </button>
           {onOpenImport && <button type="button" onClick={onOpenImport} className={linkCls}>Загрузить прайс</button>}
           <button type="button" onClick={exportCsv} className={`${linkCls} inline-flex items-center gap-1`}><Download size={13} />Скачать в Excel</button>
         </span>
