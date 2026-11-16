@@ -6,7 +6,8 @@ import {
   type CompanyInfo, type StaffMember, type StaffRole, type Warehouse,
 } from '../../api/company';
 import { formatPhone } from '../../api/auth';
-import { IMPORT_TEMPLATE, parseCsv, readCsvFile, rowsToParts } from '../../utils/csv';
+import { IMPORT_TEMPLATE, rowsToParts } from '../../utils/csv';
+import { PRICE_FILE_ACCEPT, readPriceFile } from '../../utils/xlsx';
 import { CompanyCatalog } from './CompanyCatalog';
 import { CashDesk, CompanyReportsPanel, CompanySettingsPanel } from './CompanyTools';
 
@@ -141,10 +142,9 @@ const ImportExport: React.FC<{ info: CompanyInfo }> = ({ info }) => {
   const readFile = async (file: File | undefined) => {
     setResult(null); setError(null); setPreview(null);
     if (!file) return;
-    if (/\.xlsx?$/i.test(file.name)) { setError('Сохраните файл в Excel как «CSV UTF-8» (Файл → Сохранить как) и загрузите его.'); return; }
-    if (file.size > 5_000_000) { setError('Файл больше 5 МБ. Разделите его на части.'); return; }
+    let table: string[][];
+    try { table = await readPriceFile(file); } catch (e: any) { setError(e.message); return; }
     setFileName(file.name);
-    const table = parseCsv(await readCsvFile(file));
     if (table.length < 2) { setError('В файле нет строк с товарами'); return; }
     setPreview(rowsToParts(table, info.company.warehouses));
   };
@@ -179,13 +179,13 @@ const ImportExport: React.FC<{ info: CompanyInfo }> = ({ info }) => {
           <ol className="text-xs text-slate-600 list-decimal pl-4 space-y-0.5">
             <li>Скачайте шаблон и заполните его в Excel (одна строка — один товар).</li>
             <li>Обязательные колонки: Название, Марка, OEM, Цена.</li>
-            <li>Сохраните как «CSV UTF-8» и загрузите сюда. Строки с тем же «Артикулом продавца» обновят существующие товары.</li>
+            <li>Сохраните файл и загрузите сюда — подойдёт обычный файл Excel (.xlsx) или CSV. Строки с тем же «Артикулом продавца» обновят существующие товары.</li>
           </ol>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={downloadTemplate} className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 cursor-pointer"><Download size={13} />Скачать шаблон</button>
             <label className="px-3 py-2 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-xs font-bold flex items-center gap-1 cursor-pointer">
-              <Upload size={13} />Выбрать файл CSV
-              <input type="file" accept=".csv,text/csv,.xlsx,.xls" className="hidden" onChange={(e) => { readFile(e.target.files?.[0]); e.target.value = ''; }} />
+              <Upload size={13} />Выбрать файл Excel
+              <input type="file" accept={PRICE_FILE_ACCEPT} className="hidden" onChange={(e) => { readFile(e.target.files?.[0]); e.target.value = ''; }} />
             </label>
           </div>
           {error && <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}

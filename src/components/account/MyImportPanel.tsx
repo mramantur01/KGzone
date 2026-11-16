@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Upload, Download, Loader2, FileSpreadsheet } from 'lucide-react';
 import { importMyParts } from '../../api/myListings';
-import { IMPORT_TEMPLATE, parseCsv, readCsvFile, rowsToParts } from '../../utils/csv';
+import { IMPORT_TEMPLATE, rowsToParts } from '../../utils/csv';
+import { PRICE_FILE_ACCEPT, readPriceFile } from '../../utils/xlsx';
 
 type Result = { created: number; updated: number; errors: { row: number; error: string }[]; noPhoto: number; moderation: string };
 
-// Seller uploads a whole price list from Excel (saved as CSV) instead of adding parts one by one
+// Seller uploads a whole price list from Excel (.xlsx) or CSV instead of adding parts one by one
 export const MyImportPanel: React.FC<{ onDone: () => void }> = ({ onDone }) => {
   const [preview, setPreview] = useState<ReturnType<typeof rowsToParts> | null>(null);
   const [fileName, setFileName] = useState('');
@@ -16,10 +17,9 @@ export const MyImportPanel: React.FC<{ onDone: () => void }> = ({ onDone }) => {
   const readFile = async (file?: File) => {
     setError(null); setResult(null); setPreview(null);
     if (!file) return;
-    if (/\.xlsx?$/i.test(file.name)) { setError('Сохраните файл в Excel как CSV: Файл → Сохранить как → «CSV (разделители — точка с запятой)».'); return; }
-    if (file.size > 5_000_000) { setError('Файл больше 5 МБ. Разделите его на части.'); return; }
+    let table: string[][];
+    try { table = await readPriceFile(file); } catch (e: any) { setError(e.message); return; }
     setFileName(file.name);
-    const table = parseCsv(await readCsvFile(file));
     if (table.length < 2) { setError('В файле нет строк с товарами'); return; }
     setPreview(rowsToParts(table, []));
   };
@@ -60,15 +60,14 @@ export const MyImportPanel: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           Скачайте шаблон и заполните его в Excel. Обязательные колонки: <b>Название, Марка, OEM, Цена</b>. Укажите и <b>Количество</b> — товары с нулём не показываются.
           <button type="button" onClick={template} className="ml-2 text-[#1d6fb8] hover:underline cursor-pointer inline-flex items-center gap-1"><Download size={13} />Скачать шаблон</button>
         </li>
-        <li>В Excel: Файл → Сохранить как → «CSV (разделители — точка с запятой)».</li>
-        <li>Выберите файл ниже. Фото можно добавить позже, с телефона — товары без фото скрыты, пока их нет.</li>
+        <li>Сохраните файл и выберите его ниже — подойдёт обычный файл Excel (.xlsx) или CSV. Фото можно добавить позже, с телефона — товары без фото скрыты, пока их нет.</li>
       </ol>
 
       <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed border-slate-300 hover:border-[#1d6fb8] hover:bg-sky-50/40 cursor-pointer text-center">
         <FileSpreadsheet size={28} className="text-slate-400" />
-        <span className="font-bold text-slate-800">{fileName || 'Выбрать файл CSV'}</span>
+        <span className="font-bold text-slate-800">{fileName || 'Выбрать файл Excel'}</span>
         <span className="text-xs text-slate-500">до 5 МБ</span>
-        <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { readFile(e.target.files?.[0]); e.target.value = ''; }} />
+        <input type="file" accept={PRICE_FILE_ACCEPT} className="hidden" onChange={(e) => { readFile(e.target.files?.[0]); e.target.value = ''; }} />
       </label>
 
       {preview && (

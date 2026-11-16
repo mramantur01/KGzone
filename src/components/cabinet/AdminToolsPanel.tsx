@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Send, Download, Upload, Loader2, RefreshCw } from 'lucide-react';
 import { call } from '../../api/admin';
 import { listUsers, type AdminUser } from '../../api/myListings';
-import { parseCsv, readCsvFile, rowsToParts, IMPORT_TEMPLATE } from '../../utils/csv';
+import { rowsToParts, IMPORT_TEMPLATE } from '../../utils/csv';
+import { PRICE_FILE_ACCEPT, readPriceFile } from '../../utils/xlsx';
 import { formatPhone } from '../../api/auth';
 import { SiteStatsCard } from './SiteStatsCard';
 import { BannerSlidesPanel } from './BannerSlidesPanel';
@@ -112,7 +113,7 @@ const ImportForSellerCard: React.FC = () => {
   const onFile = async (file?: File) => {
     setResult(null);
     if (!file) return setPreview(null);
-    setPreview(rowsToParts(parseCsv(await readCsvFile(file)), []));
+    try { setPreview(rowsToParts(await readPriceFile(file), [])); } catch (e: any) { alert(e.message); }
   };
 
   const upload = async () => {
@@ -157,8 +158,8 @@ const ImportForSellerCard: React.FC = () => {
         {owner && <p className="text-xs text-emerald-700 mt-1" data-no-i18n>✓ {owner.company?.name || owner.name}, {formatPhone(owner.phone)}</p>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <input type="file" accept=".csv,text/csv" onChange={(e) => onFile(e.target.files?.[0])} className="text-xs" />
-        <button type="button" onClick={template} className="text-xs underline text-slate-600 cursor-pointer">Скачать шаблон (Excel → CSV)</button>
+        <input type="file" accept={PRICE_FILE_ACCEPT} onChange={(e) => onFile(e.target.files?.[0])} className="text-xs" />
+        <button type="button" onClick={template} className="text-xs underline text-slate-600 cursor-pointer">Скачать шаблон</button>
       </div>
       {preview && (
         <div className="text-xs text-slate-600 space-y-1">

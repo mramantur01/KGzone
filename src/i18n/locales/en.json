@@ -4124,5 +4124,13 @@
  "Ваш автосервис — здесь": "Your car service — here",
  "Покажите свой автосервис каждому, кто ищет ремонт на KGzone. Формат 1200×300.": "Show your garage to everyone looking for repairs on KGzone. Size 1200×300.",
  "Без комиссии. Покупатели звонят и пишут вам напрямую.": "No commission. Buyers call and message you directly.",
- "Начать продавать": "Start selling"
+ "Начать продавать": "Start selling",
+ "Сохраните файл и выберите его ниже — подойдёт обычный файл Excel (.xlsx) или CSV. Фото можно добавить позже, с телефона — товары без фото скрыты, пока их нет.": "Save the file and choose it below — a regular Excel file (.xlsx) or CSV will do. Photos can be added later from your phone — items without photos stay hidden until then.",
+ "Выбрать файл Excel": "Choose an Excel file",
+ "Сохраните файл и загрузите сюда — подойдёт обычный файл Excel (.xlsx) или CSV. Строки с тем же «Артикулом продавца» обновят существующие товары.": "Save the file and upload it here — a regular Excel file (.xlsx) or CSV will do. Rows with the same \"Seller SKU\" update existing items.",
+ "Заполните таблицу Excel и загрузите её — сразу сотни запчастей. Загрузили снова — обновились цены и количество.": "Fill in an Excel sheet and upload it — hundreds of parts at once. Upload it again and prices and quantities update.",
+ "Нет. Скачайте в кабинете шаблон, заполните его в Excel и загрузите — товары добавятся сразу. Фото можно загрузить пачкой, назвав файлы по артикулу. Компании могут подключить Google-таблицу: цены и остатки будут обновляться сами каждую ночь.": "No. Download the template in your cabinet, fill it in Excel and upload it — items are added at once. Photos can be uploaded in bulk, named by SKU. Companies can connect a Google Sheet: prices and stock update by themselves every night.",
+ "Бизнес-кабинет: сотрудники с ролями, склады, CRM клиентов, касса, отчёты, счета и накладные, оптовые цены, рассылка клиентам и прайс из Google-таблицы, который обновляется сам.": "Business cabinet: staff with roles, warehouses, customer CRM, cash desk, reports, invoices and delivery notes, wholesale prices, customer mailings and a price list from a Google Sheet that updates itself.",
+ "Это старый формат Excel (.xls). Откройте файл в Excel и сохраните как «Книга Excel (.xlsx)».": "This is the old Excel format (.xls). Open the file in Excel and save it as \"Excel Workbook (.xlsx)\".",
+ "Не удалось прочитать файл Excel. Сохраните его заново как «Книга Excel (.xlsx)» и попробуйте ещё раз.": "Could not read the Excel file. Save it again as \"Excel Workbook (.xlsx)\" and try once more."
 }
