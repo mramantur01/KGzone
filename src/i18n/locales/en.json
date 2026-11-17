@@ -4700,5 +4700,6 @@
  "Помощник ИИ пока не подключён. Напишите описание сами.": "The AI helper is not connected yet. Write the description yourself.",
  "Слишком много запросов. Попробуйте через час.": "Too many requests. Try again in an hour.",
  "Сначала напишите название запчасти": "Write the part name first",
- "Не получилось написать описание. Попробуйте ещё раз.": "Could not write a description. Try again."
+ "Не получилось написать описание. Попробуйте ещё раз.": "Could not write a description. Try again.",
+ "Выберите из списка или напишите": "Choose from the list or type"
 }

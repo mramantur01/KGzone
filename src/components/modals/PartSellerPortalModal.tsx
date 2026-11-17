@@ -7,7 +7,7 @@ import { call } from '../../api/admin';
 import { checkPhoto } from '../../utils/photoQuality';
 import { useAuth } from '../../api/auth';
 import { OemHint } from '../catalog/OemHint';
-import { USD_TO_KGS_RATE } from '../../data/mockData';
+import { USD_TO_KGS_RATE, ALL_CAR_BRANDS, getModelsForBrand, useCarCatalog } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
 import {
   X,
@@ -83,6 +83,11 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
   const [partGeneration, setPartGeneration] = useState('');
   const [partBodyCode, setPartBodyCode] = useState('');
   const [partOEM, setPartOEM] = useState('');
+  // Make typed in any case («toyota») is matched to the catalog; its models are offered in the next field
+  useCarCatalog();
+  const GENERIC_MODELS = ['Все модели', 'Стандарт', 'Седан', 'Кроссовер', 'Внедорожник', 'Минивэн'];
+  const brandCanon = ALL_CAR_BRANDS.find((b) => b.toLowerCase() === partBrand.trim().toLowerCase()) || '';
+  const brandModels = brandCanon ? getModelsForBrand(brandCanon).filter((m) => !GENERIC_MODELS.includes(m)) : [];
   const [partPriceKgs, setPartPriceKgs] = useState<number>(0);
   const [priceCurrency, setPriceCurrency] = useState<'KGS' | 'USD'>('KGS');
   const [priceInput, setPriceInput] = useState('');
@@ -502,7 +507,9 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                   </select>
                 </div>
 
-                {/* Brand & Model */}
+                {/* Brand & Model: suggestions from the site's catalog of makes and models */}
+                <datalist id="kgz-brand-list">{ALL_CAR_BRANDS.map((b) => <option key={b} value={b} />)}</datalist>
+                <datalist id="kgz-model-list">{brandModels.map((m) => <option key={m} value={m} />)}</datalist>
                 <div>
                   <label className="block text-neutral-300 font-semibold mb-1">
                     {isKg ? 'Авто маркасы' : 'Марка автомобиля'}
@@ -511,6 +518,9 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                     type="text"
                     value={partBrand}
                     onChange={(e) => setPartBrand(e.target.value)}
+                    onBlur={() => { if (brandCanon && brandCanon !== partBrand) setPartBrand(brandCanon); }}
+                    list="kgz-brand-list"
+                    autoComplete="off"
                     placeholder="Toyota, Honda, Lexus, Mercedes, BMW..."
                     className="w-full px-3.5 py-2.5 bg-neutral-900 border border-neutral-700 rounded-xl text-white"
                   />
@@ -524,7 +534,9 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                     type="text"
                     value={partModel}
                     onChange={(e) => setPartModel(e.target.value)}
-                    placeholder="Camry XV50/70, Fit GE8, RX350..."
+                    list="kgz-model-list"
+                    autoComplete="off"
+                    placeholder={brandCanon ? (isKg ? 'Тизмеден тандаңыз же жазыңыз' : 'Выберите из списка или напишите') : 'Camry XV50/70, Fit GE8, RX350...'}
                     className="w-full px-3.5 py-2.5 bg-neutral-900 border border-neutral-700 rounded-xl text-white"
                   />
                 </div>
@@ -651,7 +663,7 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                     </button>
                   </div>
                   <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={1200} placeholder="Состояние, что в комплекте, на какие машины подходит" className="w-full px-3.5 py-2.5 bg-neutral-900 border border-neutral-700 rounded-xl text-white" />
-                  {descNote && <p className="text-[11px] text-violet-300 mt-1">{descNote}</p>}
+                  {descNote && <p className="text-[11px] text-violet-700 dark:text-violet-300 mt-1">{descNote}</p>}
                 </div>
 
                 {/* Stock Control (+ / -) */}
@@ -901,7 +913,7 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                     <button type="button" disabled={aiBusy} onClick={fillFromPhoto} className="px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black cursor-pointer disabled:opacity-60">
                       {aiBusy ? 'Смотрю фото…' : '✨ Заполнить по фото'}
                     </button>
-                    {aiNote && <span className="text-[11px] text-violet-200">{aiNote}</span>}
+                    {aiNote && <span className="text-[11px] text-violet-700 dark:text-violet-200">{aiNote}</span>}
                   </div>
                 )}
                 <p className="text-[11px] text-neutral-500">
