@@ -5,6 +5,7 @@ import {
   LogOut, Loader2, Trash2, Search, MessageSquare, Upload, Settings, Crown, Menu, X, ShoppingBag,
 } from 'lucide-react';
 import { MySalesPanel } from './MySalesPanel';
+import { can, type StaffPerm } from '../../api/staffPerms';
 import { listMySales } from '../../api/myListings';
 import { call } from '../../api/admin';
 import { MyImportPanel } from './MyImportPanel';
@@ -158,8 +159,8 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
   type NavItem = { id: Section; label: string; icon: React.ElementType; badge?: number; muted?: boolean };
   const staffNav: NavItem[] = [
-    ...(staff ? [{ id: 'moderation' as Section, label: 'Модерация', icon: ShieldCheck }] : []),
-    ...(user.role === 'admin' ? [{ id: 'users' as Section, label: 'Пользователи', icon: Users }] : []),
+    ...(staff && can(user, 'listings', 'reports', 'reviews', 'requests', 'ads', 'stats', 'settings') ? [{ id: 'moderation' as Section, label: 'Модерация', icon: ShieldCheck }] : []),
+    ...(can(user, 'users.roles', 'users.crown', 'users.shops', 'users.block', 'users.password') ? [{ id: 'users' as Section, label: 'Пользователи', icon: Users }] : []),
   ];
   const nav: NavItem[] = [
     { id: 'listings', label: 'Мои объявления', icon: ListChecks, badge: myCount || undefined, muted: true },
@@ -472,17 +473,15 @@ export const AccountCabinet: React.FC<Props> = (props) => {
           {section === 'moderation' && staff && (
             <div className="space-y-4">
               <h2 className="text-lg font-black text-slate-900">Модерация</h2>
-              {user.role === 'admin' && <AdminToolsPanel />}
-              <PartRequestsPanel />
-              <ReviewsModerationPanel />
-              <CatalogStatusCard />
-              <CarsModerationPanel />
-              <PartsModerationPanel />
-              <ReportsPanel />
+              <AdminToolsPanel perms={user.perms} />
+              {can(user, 'requests') && <PartRequestsPanel />}
+              {can(user, 'reviews') && <ReviewsModerationPanel />}
+              {can(user, 'listings') && <><CatalogStatusCard /><CarsModerationPanel /><PartsModerationPanel /></>}
+              {can(user, 'reports') && <ReportsPanel />}
             </div>
           )}
 
-          {section === 'users' && user.role === 'admin' && <AdminUsersPanel currentUserId={user.id} />}
+          {section === 'users' && can(user, 'users.roles', 'users.crown', 'users.shops', 'users.block', 'users.password') && <AdminUsersPanel currentUserId={user.id} myPerms={(user.perms || []) as StaffPerm[]} />}
         </main>
       </div>
 

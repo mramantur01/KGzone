@@ -3,17 +3,30 @@ import { VerifiedSellerBadge, OfficialCompanyBadge } from '../common/VerifiedSel
 import { RefreshCw, Search, KeyRound, Ban, ShieldCheck, Building2, User } from 'lucide-react';
 import { listAudit, listUsers, resetUserPassword, updateUser, type AdminUser } from '../../api/myListings';
 import { COMPANY_STATUS_LABELS, formatPhone, type CompanyStatus } from '../../api/auth';
+import { ALL_PERMS, presetFor, type StaffPerm } from '../../api/staffPerms';
+import { PermsEditor } from './PermsEditor';
 
 const ROLE_LABELS = { user: 'Пользователь', moderator: 'Модератор', admin: 'Администратор' } as const;
 const ACTION_LABELS: Record<string, string> = {
   'claim-admin': 'Получил права администратора',
   'update-user': 'Изменил пользователя',
   'reset-password': 'Сбросил пароль',
+  'auto-crown': 'Корона по правилам сайта',
 };
 
 type Filter = 'all' | 'companies' | 'pending' | 'blocked' | 'staff';
 
-export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUserId }) => {
+export const AdminUsersPanel: React.FC<{ currentUserId: string; myPerms: StaffPerm[] }> = ({ currentUserId, myPerms }) => {
+  const has = (x: StaffPerm) => myPerms.includes(x);
+  // Person whose powers are being ticked right now (after choosing a role or «Изменить права»)
+  const [editing, setEditing] = useState<{ id: string; role: string; perms: StaffPerm[] } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savePerms = async (id: string, role: string, perms: StaffPerm[]) => {
+    setSaving(true);
+    await act(() => updateUser(id, { role, perms }));
+    setSaving(false);
+    setEditing(null);
+  };
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [audit, setAudit] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +41,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
     setLoading(true);
     setError(null);
     try {
-      const [u, a] = await Promise.all([listUsers(), listAudit()]);
+      const [u, a] = await Promise.all([listUsers(), has('audit') ? listAudit() : Promise.resolve([])]);
       setUsers(u);
       setAudit(a);
     } catch (e: any) {
@@ -36,7 +49,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [myPerms.join()]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
 
@@ -114,14 +127,28 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <select
-                    value={u.role}
-                    onChange={(e) => act(() => updateUser(u.id, { role: e.target.value }))}
-                    className="px-2 py-1.5 border border-slate-300 rounded-lg bg-white font-bold"
-                  >
-                    {Object.entries(ROLE_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-                  </select>
-                  {u.id !== currentUserId && (
+                  {has('users.roles') && !u.isOwner && u.id !== currentUserId && (
+                    <select
+                      value={editing?.id === u.id ? editing.role : u.role}
+                      onChange={(e) => {
+                        const role = e.target.value;
+                        if (role === 'user') {
+                          if (u.role === 'user') { setEditing(null); return; }
+                          if (confirm(`Снять с ${u.name} все права сотрудника?`)) act(() => updateUser(u.id, { role: 'user' }));
+                          setEditing(null);
+                          return;
+                        }
+                        setEditing({ id: u.id, role, perms: u.role === role && u.perms?.length ? (u.perms as StaffPerm[]) : presetFor(role) });
+                      }}
+                      className="px-2 py-1.5 border border-slate-300 rounded-lg bg-white font-bold"
+                    >
+                      {Object.entries(ROLE_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                    </select>
+                  )}
+                  {(u.isOwner || u.id === currentUserId || !has('users.roles')) && u.role !== 'user' && (
+                    <span className="px-2 py-1.5 rounded-lg bg-amber-100 text-amber-800 font-bold">{u.isOwner ? 'Владелец сайта' : ROLE_LABELS[u.role as keyof typeof ROLE_LABELS]}</span>
+                  )}
+                  {has('users.block') && u.id !== currentUserId && !u.isOwner && (
                     <button
                       type="button"
                       onClick={() => { if (u.blocked || confirm(`Заблокировать ${u.name}? Все его сеансы будут закрыты.`)) act(() => updateUser(u.id, { blocked: !u.blocked })); }}
@@ -130,7 +157,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
                       <Ban size={12} /><span>{u.blocked ? 'Разблокировать' : 'Заблокировать'}</span>
                     </button>
                   )}
-                  {u.accountType !== 'legal' && <button
+                  {has('users.crown') && u.accountType !== 'legal' && <button
                     type="button"
                     onClick={() => act(() => updateUser(u.id, { verifiedSeller: !u.verifiedSeller }))}
                     title="Сайт сам даёт корону продавцам, которые выполнили все условия. Вручную — если лично проверили продавца. Снятая вручную корона сама не вернётся."
@@ -138,15 +165,38 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
                   >
                     <span>👑</span><span>{u.verifiedSeller ? (u.verifiedBy === 'auto' ? 'Проверенный (сайт) · снять' : 'Проверенный · снять') : u.verifiedLocked ? 'Снята вручную · вернуть' : 'Отметить проверенным'}</span>
                   </button>}
-                  <button
+                  {has('users.password') && !u.isOwner && <button
                     type="button"
                     onClick={() => { if (confirm(`Сбросить пароль для ${u.name}? Сделайте это, только если проверили, что номер принадлежит этому человеку.`)) act(async () => setTempPassword({ id: u.id, value: await resetUserPassword(u.id) })); }}
                     className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center gap-1 cursor-pointer"
                   >
                     <KeyRound size={12} /><span>Сбросить пароль</span>
-                  </button>
+                  </button>}
                 </div>
               </div>
+
+              {/* Staff: which powers they have, and the ticks to change them */}
+              {u.role !== 'user' && !u.isOwner && editing?.id !== u.id && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-slate-600">Права: <b>{u.perms?.length || 0} из {ALL_PERMS.length}</b></span>
+                  {has('users.roles') && u.id !== currentUserId && (
+                    <button type="button" onClick={() => setEditing({ id: u.id, role: u.role, perms: (u.perms || []) as StaffPerm[] })} className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold cursor-pointer">
+                      Изменить права
+                    </button>
+                  )}
+                </div>
+              )}
+              {editing?.id === u.id && (
+                <PermsEditor
+                  name={u.name}
+                  role={editing.role}
+                  initial={editing.perms}
+                  allowed={myPerms}
+                  busy={saving}
+                  onConfirm={(perms) => savePerms(u.id, editing.role, perms)}
+                  onCancel={() => setEditing(null)}
+                />
+              )}
 
               {tempPassword?.id === u.id && (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
@@ -169,7 +219,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
                     {u.company.submittedAt && <span className="text-slate-400">подана {new Date(u.company.submittedAt).toLocaleDateString('ru-RU')}</span>}
                   </div>
                   {u.company.statusComment && <div className="text-slate-500">Комментарий: {u.company.statusComment}</div>}
-                  <div className="flex flex-col sm:flex-row gap-2">
+                  {has('users.shops') && <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       value={comments[u.id] ?? ''}
                       onChange={(e) => setComments((c) => ({ ...c, [u.id]: e.target.value }))}
@@ -188,7 +238,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
                       <option value="">Изменить статус…</option>
                       {(Object.keys(COMPANY_STATUS_LABELS) as CompanyStatus[]).map((s) => <option key={s} value={s}>{COMPANY_STATUS_LABELS[s]}</option>)}
                     </select>
-                  </div>
+                  </div>}
                 </div>
               )}
             </div>
@@ -196,7 +246,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
         </div>
       )}
 
-      <div className="pt-2">
+      {has('audit') && <div className="pt-2">
         <button type="button" onClick={() => setShowAudit((v) => !v)} className="text-xs font-bold text-slate-600 underline cursor-pointer">
           {showAudit ? 'Скрыть журнал действий' : `Журнал действий администраторов (${audit.length})`}
         </button>
@@ -216,7 +266,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 };

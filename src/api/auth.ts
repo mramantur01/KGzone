@@ -61,6 +61,8 @@ export interface Account {
   telegramLinked?: boolean;
   termsAcceptedAt?: string;
   verifiedSeller?: boolean;
+  /** Staff powers (only for site staff) */
+  perms?: string[];
   /** Crown given by the site rules or by an admin */
   verifiedBy?: 'auto' | 'admin';
   /** An admin took the crown off: the rules do not give it back */
@@ -116,7 +118,7 @@ export function useAuth(): AuthState {
   );
 }
 
-export const isStaff = (u: Account | null) => u?.role === 'admin' || u?.role === 'moderator';
+export const isStaff = (u: Account | null) => Boolean(u?.perms?.length);
 
 const withUser = async (p: Promise<{ user: Account }>) => {
   const r = await p;

@@ -198,16 +198,40 @@ const ChannelCard: React.FC = () => {
   );
 };
 
-export const AdminToolsPanel: React.FC = () => (
-  <div className="space-y-4">
-    <SiteStatsCard />
-    <BannerSlidesPanel />
-    <BannerSlidesPanel place="sto" />
-    <BannerSlidesPanel place="side" />
-    <AdRequestsPanel />
-    <TelegramBotCard />
-    <ChannelCard />
-    <ImportForSellerCard />
-    <BackupCard />
-  </div>
-);
+// The week in numbers: the same text the owner gets in Telegram on Monday mornings
+const WeeklyReportCard: React.FC = () => {
+  const [text, setText] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const get = async (send: boolean) => {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await call<{ text: string }>('/api/admin/weekly-report' + (send ? '?send=1' : ''));
+      setText(r.text);
+      if (send) setMsg('Отправлено в Telegram (если бот подключён).');
+    } catch (e: any) { setMsg(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <div className={card}>
+      <div className="font-black text-slate-900">📊 Отчёт за неделю</div>
+      <p className="text-xs text-slate-500">Каждый понедельник утром сайт сам присылает его вам в Telegram. Здесь можно посмотреть в любой момент.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={busy} onClick={() => get(false)} className={`${btn} bg-slate-100 hover:bg-slate-200 text-slate-800`}>{busy ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}Показать</button>
+        <button type="button" disabled={busy} onClick={() => get(true)} className={`${btn} bg-sky-600 hover:bg-sky-500 text-white`}><Send size={13} />Отправить в Telegram</button>
+      </div>
+      {msg && <p className="text-xs text-slate-600">{msg}</p>}
+      {text && <pre className="whitespace-pre-wrap text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 font-sans text-slate-800" data-no-i18n>{text}</pre>}
+    </div>
+  );
+};
+
+export const AdminToolsPanel: React.FC<{ perms?: string[] }> = ({ perms = [] }) => {
+  const has = (x: string) => perms.includes(x);
+  return (
+    <div className="space-y-4">
+      {has('stats') && <><WeeklyReportCard /><SiteStatsCard /></>}
+      {has('ads') && <><BannerSlidesPanel /><BannerSlidesPanel place="sto" /><BannerSlidesPanel place="side" /><AdRequestsPanel /></>}
+      {has('settings') && <><TelegramBotCard /><ChannelCard /><ImportForSellerCard /><BackupCard /></>}
+    </div>
+  );
+};

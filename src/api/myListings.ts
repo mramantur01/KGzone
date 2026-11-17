@@ -75,6 +75,8 @@ export interface AdminUser {
   company?: import('./auth').CompanyProfile;
   listingsCount: number;
   verifiedSeller?: boolean;
+  perms?: string[];
+  isOwner?: boolean;
   verifiedBy?: 'auto' | 'admin';
   verifiedLocked?: boolean;
 }

@@ -160,6 +160,31 @@ const isAdmin = (req: Request) => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
+// ---- Staff powers. The owner (and the admin password) has all of them; others get ticks from the owner.
+const STAFF_PERMS = ['listings', 'reports', 'reviews', 'requests', 'orders', 'users.roles', 'users.crown', 'users.shops', 'users.block', 'users.password', 'ads', 'vip', 'stats', 'settings', 'audit'] as const;
+type StaffPerm = typeof STAFF_PERMS[number];
+const MODERATOR_PERMS: StaffPerm[] = ['listings', 'reports', 'reviews', 'requests', 'orders'];
+/** Powers of a user: ticks set by the owner; old accounts without ticks get the defaults of their role */
+const userPerms = (u: any): StaffPerm[] => {
+  if (!u || u.blocked) return [];
+  if (u.isOwner) return [...STAFF_PERMS];
+  if (u.role === 'admin') return Array.isArray(u.perms) ? u.perms.filter((x: any) => STAFF_PERMS.includes(x)) : [...STAFF_PERMS];
+  if (u.role === 'moderator') return Array.isArray(u.perms) ? u.perms.filter((x: any) => STAFF_PERMS.includes(x)) : [...MODERATOR_PERMS];
+  return [];
+};
+const actorPerms = (actor: any): StaffPerm[] => (actor === 'admin-token' ? [...STAFF_PERMS] : userPerms(actor));
+/** Lets the request through when the user has at least one of the powers */
+const requirePerm = (...need: StaffPerm[]) => (req: Request, res: Response, next: () => void) => {
+  if (isAdmin(req)) { (req as any).actor = 'admin-token'; return next(); }
+  getSessionUser(req)
+    .then((user) => {
+      const mine = userPerms(user);
+      if (user && need.some((x) => mine.includes(x))) { (req as any).actor = user; return next(); }
+      res.status(401).json({ success: false, error: user && mine.length ? 'У вас нет этого права. Попросите владельца сайта.' : 'Требуется доступ администратора' });
+    })
+    .catch(() => res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' }));
+};
+
 // Admin password header, or a signed-in admin/moderator account (see the accounts section below)
 const requireAdmin = (req: Request, res: Response, next: () => void) => {
   if (isAdmin(req)) { (req as any).actor = 'admin-token'; return next(); }
@@ -387,7 +412,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 // Orders API
 const SEED_ORDER_IDS = new Set(seedOrders.map((o) => o.id));
-app.get('/api/orders', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/orders', requirePerm('orders'), asyncRoute(async (_req: Request, res: Response) => {
   res.json({
     success: true,
     orders: (await listRecords<OrderRecord>('orders')).filter((o) => !SEED_ORDER_IDS.has(o.id)),
@@ -761,8 +786,137 @@ async function sweepCrowns() {
   }
 }
 
+// ---- Automations that keep the catalog clean (run with the sweep below) ----
+const normTitle = (v: unknown) => String(v ?? '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim();
+/** Same seller + same OEM + same name + same condition (+ same warehouse for shops) = the same item */
+const dupKey = (x: any) => [x.ownerId || '', normOem(x.partNumber), normTitle(x.title), normTitle(x.condition), x.warehouseId || ''].join('|');
+const SLEEP_DAYS = Number(process.env.SLEEP_DAYS ?? 60);
+const SLEEP_WARN_DAYS = Number(process.env.SLEEP_WARN_DAYS ?? 7);
+const PRICE_FACTOR = 5;
+const median = (xs: number[]) => { const a = [...xs].sort((m, n) => m - n); const h = a.length >> 1; return a.length % 2 ? a[h] : (a[h - 1] + a[h]) / 2; };
+
+async function sweepCatalog(parts: any[]) {
+  const now = Date.now();
+  const iso = new Date().toISOString();
+  const notices = new Map<string, string[]>();
+  const tell = (owner: string, text: string) => { notices.set(owner, [...(notices.get(owner) || []), text]); };
+
+  // 1. Duplicates: keep the most recently updated one, hide the rest
+  const groups = new Map<string, any[]>();
+  for (const x of parts) {
+    if (!x.ownerId || !isLive(x) || normOem(x.partNumber).length < 4) continue;
+    const k = dupKey(x);
+    groups.set(k, [...(groups.get(k) || []), x]);
+  }
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => (Date.parse(b.updatedAt || b.createdAt) || 0) - (Date.parse(a.updatedAt || a.createdAt) || 0));
+    const [keep, ...extra] = list;
+    for (const x of extra) {
+      await updateRecord('parts', x.id, { listingStatus: 'inactive', duplicateOf: keep.id, updatedAt: iso });
+      x.listingStatus = 'inactive';
+      await audit('admin-token', 'auto-hide', x.id, { reason: 'duplicate', keep: keep.id });
+    }
+    tell(keep.ownerId, `• «${keep.title}» было выложено ${list.length} раза — оставили одно объявление, лишние сняты.`);
+  }
+
+  // 2. Suspicious price: 5 times cheaper than other sellers of the same OEM -> hidden until a moderator looks
+  const byOem = new Map<string, any[]>();
+  for (const x of parts) if (isLive(x) && Number(x.stockCount) > 0 && normOem(x.partNumber).length >= 4) byOem.set(normOem(x.partNumber) + '|' + normTitle(x.condition), [...(byOem.get(normOem(x.partNumber) + '|' + normTitle(x.condition)) || []), x]);
+  for (const list of byOem.values()) {
+    for (const x of list) {
+      if (!x.ownerId || x.moderation?.reviewedBy !== 'auto') continue; // a moderator already approved this one
+      const others = list.filter((o) => o.ownerId !== x.ownerId).map((o) => Number(o.priceKgs)).filter((n) => n > 0);
+      if (new Set(list.filter((o) => o.ownerId !== x.ownerId).map((o) => o.ownerId)).size < 3) continue;
+      const mid = median(others);
+      if (!(Number(x.priceKgs) > 0 && Number(x.priceKgs) * PRICE_FACTOR < mid)) continue;
+      const reason = `Подозрительно низкая цена: ${Number(x.priceKgs).toLocaleString('ru-RU')} сом, у других продавцов обычно около ${Math.round(mid).toLocaleString('ru-RU')} сом`;
+      await updateRecord('parts', x.id, { moderation: { ...x.moderation, status: 'pending', reason, reviewedBy: 'auto-price', reviewedAt: iso } });
+      x.moderation = { ...x.moderation, status: 'pending' };
+      await audit('admin-token', 'auto-hide', x.id, { reason: 'price', price: x.priceKgs, usual: Math.round(mid) });
+      await notifyStaff('listings', `🚩 Подозрительно низкая цена — объявление скрыто до проверки\n${x.title} (OEM ${x.partNumber})\n${reason}\nПроверьте: Личный кабинет → Модерация`);
+      tell(x.ownerId, `• «${x.title}»: цена ${Number(x.priceKgs).toLocaleString('ru-RU')} сом намного ниже, чем у других. Объявление на проверке у модератора. Если это ошибка — исправьте цену.`);
+    }
+  }
+
+  // 3. Sleeping private sellers: not on the site for 60 days -> their parts are hidden until they come back
+  const users = await listRecords<UserRecord>('users');
+  const sleepy = new Set<string>();
+  for (const u of users as any[]) {
+    if (u.accountType === 'legal' || u.isOwner) continue;
+    const seen = Math.max(Date.parse(u.lastSeenAt || '') || 0, Date.parse(u.lastLoginAt || '') || 0, Date.parse(u.createdAt || '') || 0) || now;
+    const idle = (now - seen) / 86_400_000;
+    const warned = Date.parse(u.sleepWarnedAt || '') || 0;
+    if (idle < SLEEP_DAYS - SLEEP_WARN_DAYS) {
+      if (u.sleepWarnedAt || u.sleptAt) await updateRecord('users', u.id, { sleepWarnedAt: undefined, sleptAt: undefined } as any);
+      continue;
+    }
+    // Always a warning first, and at least 7 days before anything is hidden
+    if (!warned || warned < seen) {
+      if (parts.some((x) => x.ownerId === u.id && isLive(x))) {
+        await updateRecord('users', u.id, { sleepWarnedAt: iso } as any);
+        await notifyUser(u.id, `💤 Вы давно не заходили на KGzone. Через 7 дней ваши товары скроются с сайта, чтобы покупатели не звонили зря.\nПросто зайдите в Личный кабинет — и всё останется как есть.\n${SITE_URL}/kabinet`);
+      }
+      continue;
+    }
+    if (idle >= SLEEP_DAYS && now - warned >= SLEEP_WARN_DAYS * 86_400_000) sleepy.add(u.id);
+  }
+  for (const x of parts) {
+    if (!x.ownerId) continue;
+    const want = sleepy.has(x.ownerId);
+    if (Boolean(x.sleeping) === want) continue;
+    await updateRecord('parts', x.id, { sleeping: want || undefined });
+    x.sleeping = want || undefined;
+  }
+  for (const u of users as any[]) {
+    if (sleepy.has(u.id) && !u.sleptAt && parts.some((x) => x.ownerId === u.id && x.sleeping)) {
+      await updateRecord('users', u.id, { sleptAt: iso } as any);
+      await audit('admin-token', 'auto-hide', u.id, { reason: 'sleeping' });
+      await notifyUser(u.id, `💤 Ваши товары скрыты с KGzone: вы долго не заходили. Зайдите в Личный кабинет — товары снова появятся на сайте.\n${SITE_URL}/kabinet`);
+    }
+  }
+
+  for (const [owner, lines] of notices) await notifyUser(owner, `🤖 KGzone навёл порядок в ваших объявлениях:\n${lines.join('\n')}`);
+}
+
+/** Telegram message to staff who have this power (and to TELEGRAM_CHAT_ID) */
+async function notifyStaff(perm: StaffPerm, text: string) {
+  if (!process.env.TELEGRAM_BOT_TOKEN) return;
+  const ids = new Set<string>();
+  if (process.env.TELEGRAM_CHAT_ID) ids.add(process.env.TELEGRAM_CHAT_ID);
+  for (const u of await listRecords<any>('users')) if (u.telegramChatId && userPerms(u).includes(perm)) ids.add(u.telegramChatId);
+  await Promise.all([...ids].map((id) => tgSend(id, text).catch((err) => console.warn('[Telegram] staff notify failed:', err))));
+}
+
+/** The week in numbers, for the owner (sent on Mondays with the nightly job) */
+async function weeklyReportText() {
+  const since = Date.now() - 7 * 86_400_000;
+  const after = (v: any) => (Date.parse(v) || 0) > since;
+  const [orders, users, parts, reports, auditLog, reviews] = await Promise.all([
+    listRecords<any>('orders'), listRecords<UserRecord>('users'), listRecords<any>('parts'), listRecords<any>('reports'), listRecords<any>('audit'), listRecords<any>('sellerReviews'),
+  ]);
+  const o = orders.filter((x) => !SEED_ORDER_IDS.has(x.id) && x.source !== 'offline' && after(x.createdAt));
+  const crowns = auditLog.filter((a) => a.action === 'auto-crown' && after(a.at));
+  const hidden = auditLog.filter((a) => a.action === 'auto-hide' && after(a.at));
+  const n = (r: string) => hidden.filter((a) => a.details?.reason === r).length;
+  const open = orders.filter((x) => isOpenOrder(x) && !SEED_ORDER_IDS.has(x.id) && x.source !== 'offline').length;
+  return [
+    `📊 KGzone за неделю (${new Date(since).toLocaleDateString('ru-RU')} — ${new Date().toLocaleDateString('ru-RU')})`,
+    '',
+    `🛒 Заказов: ${o.length} · продано: ${o.filter((x) => x.status === 'Выполнен').length} · ждут ответа продавца: ${open}`,
+    `👤 Новых людей: ${users.filter((u) => after(u.createdAt)).length} · из них магазинов ИП/ОсОО: ${users.filter((u) => after(u.createdAt) && u.accountType === 'legal').length}`,
+    `🧩 Новых запчастей: ${parts.filter((x) => after(x.createdAt)).length} · всего на сайте: ${parts.filter(isPublicPart).length}`,
+    `⭐ Новых отзывов: ${reviews.filter((r) => after(r.createdAt)).length}`,
+    `⚠️ Жалоб: ${reports.filter((r) => after(r.createdAt)).length} · ждут решения: ${reports.filter((r) => r.status === 'new').length}`,
+    `🏬 Магазинов ждут проверки: ${users.filter((u) => u.company?.status === 'pending').length}`,
+    `👑 Корона: получили ${crowns.filter((a) => a.details?.given).length} · потеряли ${crowns.filter((a) => a.details && !a.details.given).length}`,
+    `🤖 Сайт сам убрал: дублей ${n('duplicate')} · подозрительных цен ${n('price')} · уснувших продавцов ${n('sleeping')}`,
+  ].join('\n');
+}
+
 /** Every 10 minutes (when the catalog is read): remind sellers about unanswered orders and old stock */
 let lastSalesSweep = 0;
+let lastCatalogSweep = 0;
 async function sweepSales(parts: any[]) {
   if (Date.now() - lastSalesSweep < 10 * 60_000) return;
   lastSalesSweep = Date.now();
@@ -793,7 +947,7 @@ async function sweepSales(parts: any[]) {
 }
 
 // Update order status
-app.patch('/api/orders/:id/status', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/orders/:id/status', requirePerm('orders'), asyncRoute(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { status } = req.body;
 
@@ -903,7 +1057,7 @@ const seedBookings: any[] = [
   },
 ];
 
-app.get('/api/workshop/bookings', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/workshop/bookings', requirePerm('orders'), asyncRoute(async (_req: Request, res: Response) => {
   const seedIds = new Set(seedBookings.map((b: any) => b.id));
   res.json({ success: true, bookings: (await listRecords('bookings')).filter((b: any) => !seedIds.has(b.id)) });
 }));
@@ -1008,11 +1162,11 @@ app.get('/api/reviews', asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, reviews });
 }));
 
-app.get('/api/admin/reviews', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/admin/reviews', requirePerm('reviews'), asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, reviews: (await listRecords('reviews')).filter(isRealReview) });
 }));
 
-app.patch('/api/admin/reviews/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/admin/reviews/:id', requirePerm('reviews'), asyncRoute(async (req: Request, res: Response) => {
   const status = ['approved', 'rejected'].includes(req.body?.status) ? req.body.status : null;
   if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
   const updated = await updateRecord('reviews', req.params.id, { status });
@@ -1175,7 +1329,7 @@ const autoPublished = () => { const now = new Date().toISOString(); return { sta
 /** On an update keep a moderator's decision (rejected / hidden after complaints); otherwise publish */
 const keepOrPublish = (prev: any) => (prev?.moderation?.status === 'rejected' || (prev?.moderation?.status === 'pending' && /жалоб/i.test(prev?.moderation?.reason || ''))) ? prev.moderation : autoPublished();
 // Parts on the site: published, in stock (no "on order") and with the seller's own photo
-const isPublicPart = (p: any) => isLive(p) && Number(p.stockCount) > 0 && Array.isArray(p.images) && p.images.length > 0;
+const isPublicPart = (p: any) => isLive(p) && !p.sleeping && Number(p.stockCount) > 0 && Array.isArray(p.images) && p.images.length > 0;
 // Crown: private sellers checked by an admin. ИП / ОсОО get their own "Официальный магазин" badge instead
 const lastSeenMap = async () => new Map((await listRecords<UserRecord>('users')).filter((u) => u.lastSeenAt).map((u) => [u.id, u.lastSeenAt!]));
 // Companies with checked documents: "Официальный магазин" badge and a higher place in the catalog
@@ -1192,6 +1346,7 @@ app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
   await endExpiredSales(parts);
   try { await sweepSales(parts); } catch (err) { console.warn('[Sales] sweep failed:', err); }
   try { await sweepCrowns(); } catch (err) { console.warn('[Crown] sweep failed:', err); }
+  try { if (Date.now() - lastCatalogSweep >= Number(process.env.CATALOG_SWEEP_MS ?? 10 * 60_000)) { lastCatalogSweep = Date.now(); await sweepCatalog(parts); } } catch (err) { console.warn('[Catalog] sweep failed:', err); }
   res.json({ success: true, parts: parts.filter(isPublicPart).map((p: any) => publicPart(p, verified, ratings, seen, companies)) });
 }));
 
@@ -1203,6 +1358,12 @@ app.post('/api/parts', requireUser, asyncRoute(async (req: Request, res: Respons
     || (!part.images?.length ? 'Добавьте хотя бы одно своё фото этой детали' : null)
     || (part.stockCount < 1 ? 'Укажите количество в наличии: товары под заказ на сайте не публикуются' : null);
   if (problem) return res.status(400).json({ success: false, error: problem });
+
+  // The same part (same OEM, name and condition) already listed by this seller: update it instead
+  const twin = part.partNumber && normOem(part.partNumber).length >= 4
+    ? (await listRecords<any>('parts')).find((x) => x.ownerId === owner.id && (x.listingStatus ?? 'active') === 'active' && dupKey(x) === dupKey({ ...part, ownerId: owner.id }))
+    : null;
+  if (twin) return res.status(409).json({ success: false, duplicateOf: twin.id, error: `У вас уже есть такое объявление: «${twin.title}». Измените в нём количество и цену в «Мои объявления» — второе такое же не нужно.` });
 
   // Basic flood protection: at most 60 new parts an hour per seller
   if (tooMany(`newpart:${owner.id}`, 60, 60 * 60_000)) {
@@ -1227,19 +1388,19 @@ app.post('/api/parts', requireUser, asyncRoute(async (req: Request, res: Respons
 }));
 
 // Lets the admin panel check the password before showing moderation tools
-app.get('/api/admin/check', requireAdmin, (req: Request, res: Response) => {
+app.get('/api/admin/check', requirePerm('listings', 'reports', 'reviews', 'requests', 'orders', 'users.roles', 'users.crown', 'users.shops', 'users.block', 'users.password', 'ads', 'vip', 'stats', 'settings', 'audit'), (req: Request, res: Response) => {
   const actor = (req as any).actor;
   res.json({ success: true, role: actor === 'admin-token' ? 'admin' : actor.role });
 });
 
-app.get('/api/admin/parts', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.get('/api/admin/parts', requirePerm('listings'), asyncRoute(async (req: Request, res: Response) => {
   const status = String(req.query.status || 'all');
   const parts = await listRecords('parts');
   res.json({ success: true, parts: status === 'all' ? parts : parts.filter((p: any) => p.moderation?.status === status) });
 }));
 
 // Admin-added parts are published immediately
-app.post('/api/admin/parts', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.post('/api/admin/parts', requirePerm('listings'), asyncRoute(async (req: Request, res: Response) => {
   const part = sanitizePart(req.body || {});
   const problem = partProblem({ ...part, sellerPhone: part.sellerPhone || '000000' });
   if (problem) return res.status(400).json({ success: false, error: problem });
@@ -1254,7 +1415,7 @@ app.post('/api/admin/parts', requireAdmin, asyncRoute(async (req: Request, res: 
   res.status(201).json({ success: true, part: publicPart(record) });
 }));
 
-app.patch('/api/admin/parts/:id/moderate', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/admin/parts/:id/moderate', requirePerm('listings'), asyncRoute(async (req: Request, res: Response) => {
   const { action, reason } = req.body || {};
   if (action !== 'approve' && action !== 'reject') {
     return res.status(400).json({ success: false, error: 'action должен быть approve или reject' });
@@ -1266,6 +1427,7 @@ app.patch('/api/admin/parts/:id/moderate', requireAdmin, asyncRoute(async (req: 
     status: (action === 'approve' ? 'approved' : 'rejected') as PartStatus,
     reviewedAt: new Date().toISOString(),
     reason: action === 'reject' ? str(reason, 300) || 'Не соответствует правилам' : undefined,
+    reviewedBy: (req as any).actor === 'admin-token' ? 'owner' : ((req as any).actor?.name || 'staff'),
   };
   const updated = await updateRecord('parts', req.params.id, { moderation });
   if (action === 'approve' && updated) await notifyWatchers([updated]);
@@ -1276,7 +1438,7 @@ app.patch('/api/admin/parts/:id/moderate', requireAdmin, asyncRoute(async (req: 
 }));
 
 // Edit price / stock / text of a published part
-app.patch('/api/admin/parts/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/admin/parts/:id', requirePerm('listings'), asyncRoute(async (req: Request, res: Response) => {
   const current = await getRecord<any>('parts', req.params.id);
   if (!current) return res.status(404).json({ success: false, error: 'Запчасть не найдена' });
   const clean = sanitizePart({ ...current, ...(req.body || {}) });
@@ -1284,7 +1446,7 @@ app.patch('/api/admin/parts/:id', requireAdmin, asyncRoute(async (req: Request, 
   res.json({ success: true, part: updated });
 }));
 
-app.delete('/api/admin/parts/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.delete('/api/admin/parts/:id', requirePerm('listings'), asyncRoute(async (req: Request, res: Response) => {
   const ok = await deleteRecord('parts', req.params.id);
   if (!ok) return res.status(404).json({ success: false, error: 'Запчасть не найдена' });
   res.json({ success: true });
@@ -1417,13 +1579,13 @@ app.post('/api/cars', requireUser, asyncRoute(async (req: Request, res: Response
   res.status(201).json({ success: true, id: record.id, status: 'pending' });
 }));
 
-app.get('/api/admin/cars', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.get('/api/admin/cars', requirePerm('listings'), asyncRoute(async (req: Request, res: Response) => {
   const status = String(req.query.status || 'all');
   const cars = await listRecords('cars');
   res.json({ success: true, cars: status === 'all' ? cars : cars.filter((c: any) => c.moderation?.status === status) });
 }));
 
-app.patch('/api/admin/cars/:id/moderate', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/admin/cars/:id/moderate', requirePerm('listings'), asyncRoute(async (req: Request, res: Response) => {
   const { action, reason } = req.body || {};
   if (action !== 'approve' && action !== 'reject') {
     return res.status(400).json({ success: false, error: 'action должен быть approve или reject' });
@@ -1446,7 +1608,7 @@ app.patch('/api/admin/cars/:id/moderate', requireAdmin, asyncRoute(async (req: R
   res.json({ success: true, car: updated });
 }));
 
-app.patch('/api/admin/cars/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/admin/cars/:id', requirePerm('listings'), asyncRoute(async (req: Request, res: Response) => {
   const current = await getRecord<any>('cars', req.params.id);
   if (!current) return res.status(404).json({ success: false, error: 'Объявление не найдено' });
   const b = req.body || {};
@@ -1459,7 +1621,7 @@ app.patch('/api/admin/cars/:id', requireAdmin, asyncRoute(async (req: Request, r
   res.json({ success: true, car: updated });
 }));
 
-app.delete('/api/admin/cars/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.delete('/api/admin/cars/:id', requirePerm('listings'), asyncRoute(async (req: Request, res: Response) => {
   const ok = await deleteRecord('cars', req.params.id);
   if (!ok) return res.status(404).json({ success: false, error: 'Объявление не найдено' });
   res.json({ success: true });
@@ -1579,6 +1741,8 @@ interface UserRecord {
   shop?: ShopInfo; // public shop page: /magazin/<user id>
   lastSeenAt?: string;
   verifiedSellerAt?: string;
+  /** Staff powers ticked by the owner (see STAFF_PERMS) */
+  perms?: string[];
   /** Who gave the crown: the site by its rules, or an admin */
   verifiedBy?: 'auto' | 'admin';
   /** An admin took the crown off: the site does not give it back by itself */
@@ -1660,8 +1824,9 @@ async function getSessionUser(req: Request): Promise<UserRecord | null> {
 }
 
 const publicUser = (u: UserRecord) => {
-  const { passwordHash, tokenVersion, telegramChatId, telegramLinkCode, telegramLinkExpires, ...rest } = u;
-  return { ...rest, telegramLinked: Boolean(telegramChatId) };
+  const { passwordHash, tokenVersion, telegramChatId, telegramLinkCode, telegramLinkExpires, perms: _p, ...rest } = u;
+  const perms = userPerms(u);
+  return { ...rest, telegramLinked: Boolean(telegramChatId), ...(perms.length ? { perms } : {}) };
 };
 
 const normalizePhone = (v: unknown) => {
@@ -2180,26 +2345,46 @@ app.get('/api/my/orders', requireUser, asyncRoute(async (req: Request, res: Resp
 
 // --- Admin: users, companies, audit log ------------------------------------
 
-app.get('/api/admin/users', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/admin/users', requirePerm('users.roles', 'users.crown', 'users.shops', 'users.block', 'users.password'), asyncRoute(async (_req: Request, res: Response) => {
   const [users, parts, cars] = await Promise.all([listRecords<UserRecord>('users'), listRecords('parts'), listRecords('cars')]);
   const counts = new Map<string, number>();
   [...parts, ...cars].forEach((l: any) => l.ownerId && counts.set(l.ownerId, (counts.get(l.ownerId) || 0) + 1));
   res.json({ success: true, users: users.map((u) => ({ ...publicUser(u), listingsCount: counts.get(u.id) || 0 })) });
 }));
 
-app.patch('/api/admin/users/:id', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/admin/users/:id', requirePerm('users.roles', 'users.crown', 'users.shops', 'users.block'), asyncRoute(async (req: Request, res: Response) => {
   const actor = (req as any).actor as UserRecord | 'admin-token';
   const target = await getRecord<UserRecord>('users', req.params.id);
   if (!target) return res.status(404).json({ success: false, error: 'Пользователь не найден' });
   const b = req.body || {};
   const patch: Partial<UserRecord> = {};
-  if (b.role !== undefined) {
-    if (!['user', 'moderator', 'admin'].includes(b.role)) return res.status(400).json({ success: false, error: 'Неверная роль' });
-    if (actor !== 'admin-token' && actor.id === target.id && b.role !== 'admin') {
-      return res.status(400).json({ success: false, error: 'Нельзя снять права администратора с самого себя' });
+  const mine = actorPerms(actor);
+  const may = (x: StaffPerm) => mine.includes(x);
+  const deny = (text: string) => res.status(403).json({ success: false, error: text });
+  if (target.isOwner && actor !== 'admin-token' && actor.id !== target.id) return deny('Владельца сайта изменить нельзя');
+  if (b.role !== undefined || b.perms !== undefined) {
+    if (!may('users.roles')) return deny('Нет права назначать сотрудников');
+    if (actor !== 'admin-token' && actor.id === target.id) return deny('Свои права изменить нельзя — попросите владельца сайта');
+    const role = b.role ?? target.role;
+    if (!['user', 'moderator', 'admin'].includes(role)) return res.status(400).json({ success: false, error: 'Неверная роль' });
+    // Someone with more powers than you can only be changed by the owner
+    if (userPerms(target).some((x) => !mine.includes(x))) return deny('У этого сотрудника есть права, которых нет у вас. Изменить может только владелец сайта.');
+    if (role === 'user') {
+      patch.role = 'user';
+      patch.perms = undefined;
+    } else {
+      const want = Array.isArray(b.perms) ? [...new Set(b.perms.filter((x: any) => STAFF_PERMS.includes(x)))] as StaffPerm[] : (role === 'admin' ? [...STAFF_PERMS] : [...MODERATOR_PERMS]);
+      if (!want.length) return res.status(400).json({ success: false, error: 'Отметьте хотя бы одно право' });
+      const extra = want.filter((x) => !mine.includes(x));
+      if (extra.length) return deny('Нельзя дать права, которых нет у вас самих');
+      patch.role = role;
+      patch.perms = want;
     }
-    patch.role = b.role;
   }
+  if (b.blocked !== undefined && !may('users.block')) return deny('Нет права блокировать людей');
+  if (b.verifiedSeller !== undefined && !may('users.crown')) return deny('Нет права давать корону');
+  if (b.companyStatus !== undefined && !may('users.shops')) return deny('Нет права подтверждать магазины');
+  if (b.blocked !== undefined && target.isOwner) return deny('Владельца сайта заблокировать нельзя');
   if (b.blocked !== undefined) {
     if (actor !== 'admin-token' && actor.id === target.id) return res.status(400).json({ success: false, error: 'Нельзя заблокировать самого себя' });
     patch.blocked = Boolean(b.blocked);
@@ -2226,17 +2411,19 @@ app.patch('/api/admin/users/:id', requireAdminOnly, asyncRoute(async (req: Reque
 }));
 
 // Generates a temporary password the admin passes to the user (after checking the phone is theirs)
-app.post('/api/admin/users/:id/reset-password', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.post('/api/admin/users/:id/reset-password', requirePerm('users.password'), asyncRoute(async (req: Request, res: Response) => {
   const actor = (req as any).actor as UserRecord | 'admin-token';
   const target = await getRecord<UserRecord>('users', req.params.id);
   if (!target) return res.status(404).json({ success: false, error: 'Пользователь не найден' });
+  if (target.isOwner) return res.status(403).json({ success: false, error: 'Пароль владельца сайта так сбросить нельзя' });
+  if (actor !== 'admin-token' && userPerms(target).some((x) => !actorPerms(actor).includes(x))) return res.status(403).json({ success: false, error: 'У этого сотрудника больше прав, чем у вас' });
   const temp = randomBytes(6).toString('base64url');
   await updateRecord<UserRecord>('users', target.id, { passwordHash: await hashPassword(temp), tokenVersion: target.tokenVersion + 1 });
   await audit(actor, 'reset-password', target.id);
   res.json({ success: true, tempPassword: temp });
 }));
 
-app.get('/api/admin/audit', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/admin/audit', requirePerm('audit'), asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, entries: (await listRecords('audit')).slice(0, 300) });
 }));
 
@@ -2508,10 +2695,10 @@ app.post('/api/sellers/:id/reviews', requireUser, asyncRoute(async (req: Request
 }));
 
 // Admin can hide abusive reviews
-app.get('/api/admin/seller-reviews', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/admin/seller-reviews', requirePerm('reviews'), asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, reviews: await listRecords('sellerReviews') });
 }));
-app.patch('/api/admin/seller-reviews/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/admin/seller-reviews/:id', requirePerm('reviews'), asyncRoute(async (req: Request, res: Response) => {
   const updated = await updateRecord('sellerReviews', req.params.id, { hidden: Boolean(req.body?.hidden) });
   if (!updated) return res.status(404).json({ success: false, error: 'Отзыв не найден' });
   await audit((req as any).actor, req.body?.hidden ? 'hide-review' : 'show-review', req.params.id);
@@ -4066,7 +4253,7 @@ app.get('/api/catalog/crosses', asyncRoute(async (req: Request, res: Response) =
 }));
 
 // ---------------------------------------------------------------------------
-const isStaff = (u: UserRecord) => u.role === 'admin' || u.role === 'moderator';
+const isStaff = (u: UserRecord) => userPerms(u).length > 0;
 // Questions about a listing: the seller's answers are public, so everyone sees them
 // ---------------------------------------------------------------------------
 interface PartQuestion { id: string; partId: string; sellerId: string; authorId: string; authorName: string; text: string; answer?: string; answeredBy?: string; answeredAt?: string; createdAt: string }
@@ -4262,11 +4449,11 @@ app.get('/api/part-requests/for-me', requireUser, asyncRoute(async (req: Request
   res.json({ success: true, requests, brands: [...brands] });
 }));
 
-app.get('/api/admin/part-requests', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/admin/part-requests', requirePerm('requests'), asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, requests: await listRecords('partRequests') });
 }));
 
-app.patch('/api/admin/part-requests/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/admin/part-requests/:id', requirePerm('requests'), asyncRoute(async (req: Request, res: Response) => {
   const status = ['new', 'in_work', 'done', 'closed'].includes(req.body?.status) ? req.body.status : null;
   if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
   const updated = await updateRecord('partRequests', req.params.id, { status, updatedAt: new Date().toISOString() });
@@ -4330,17 +4517,17 @@ async function handleTelegramUpdate(update: any) {
   await tgSend(chatId, `Это бот уведомлений KGzone. Чтобы подключить его, откройте ${SITE_URL}/kabinet и нажмите «Подключить Telegram».`);
 }
 
-app.get('/api/admin/telegram-channel', requireAdminOnly, (_req: Request, res: Response) => {
+app.get('/api/admin/telegram-channel', requirePerm('settings'), (_req: Request, res: Response) => {
   res.json({ success: true, configured: Boolean(process.env.TELEGRAM_CHANNEL_ID && process.env.TELEGRAM_BOT_TOKEN), channel: process.env.TELEGRAM_CHANNEL_ID || null, bot: Boolean(process.env.TELEGRAM_BOT_TOKEN) });
 });
-app.get('/api/admin/telegram', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/admin/telegram', requirePerm('settings'), asyncRoute(async (_req: Request, res: Response) => {
   if (!process.env.TELEGRAM_BOT_TOKEN) return res.json({ success: true, configured: false });
   const info = await tgCall('getWebhookInfo', {});
   const url = info?.result?.url || '';
   res.json({ success: true, configured: true, username: await getBotUsername(), webhookOk: url === `${SITE_URL}/api/telegram/webhook`, lastError: info?.result?.last_error_message || null });
 }));
 
-app.post('/api/admin/telegram/setup', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.post('/api/admin/telegram/setup', requirePerm('settings'), asyncRoute(async (req: Request, res: Response) => {
   if (!process.env.TELEGRAM_BOT_TOKEN) return res.status(400).json({ success: false, error: 'Сначала добавьте TELEGRAM_BOT_TOKEN в настройки Vercel' });
   const r = await tgCall('setWebhook', { url: `${SITE_URL}/api/telegram/webhook`, secret_token: tgWebhookSecret(), allowed_updates: ['message'], drop_pending_updates: true });
   if (!r?.ok) return res.status(502).json({ success: false, error: r?.description || 'Telegram не ответил' });
@@ -4350,7 +4537,7 @@ app.post('/api/admin/telegram/setup', requireAdminOnly, asyncRoute(async (req: R
 
 // Admin loads a seller's price list for them (onboarding shops from the market).
 // Rows are the same as the company import; the parts are published right away.
-app.post('/api/admin/import', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.post('/api/admin/import', requirePerm('settings'), asyncRoute(async (req: Request, res: Response) => {
   const owner = await getRecord<UserRecord>('users', str(req.body?.ownerId, 80));
   if (!owner) return res.status(404).json({ success: false, error: 'Продавец не найден' });
   const rows: any[] = Array.isArray(req.body?.rows) ? req.body.rows : [];
@@ -4393,7 +4580,7 @@ app.post('/api/admin/import', requireAdminOnly, asyncRoute(async (req: Request, 
 }));
 
 // VIP placement (paid offline, set by an admin): shown first with a badge until vipUntil
-app.post('/api/admin/:kind/:id/vip', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.post('/api/admin/:kind/:id/vip', requirePerm('vip'), asyncRoute(async (req: Request, res: Response) => {
   const kind = listingKind(req.params.kind);
   if (!kind) return res.status(400).json({ success: false, error: 'Неверный тип' });
   const days = Math.round(num(req.body?.days, 0, 365));
@@ -4512,7 +4699,13 @@ app.post('/api/pulse', asyncRoute(async (req: Request, res: Response) => {
   if (!limited) await bumpDaily(type === 'visit' ? 'visits' : 'searches');
   res.json({ success: true });
 }));
-app.get('/api/admin/stats', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/admin/weekly-report', requirePerm('stats'), asyncRoute(async (req: Request, res: Response) => {
+  const text = await weeklyReportText();
+  if (req.query.send === '1') await notifyStaff('stats', text);
+  res.json({ success: true, text });
+}));
+
+app.get('/api/admin/stats', requirePerm('stats'), asyncRoute(async (_req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store');
   const DAYS = 14;
   const days = Array.from({ length: DAYS }, (_, i) => dayKey(new Date(Date.now() - (DAYS - 1 - i) * 86400_000)));
@@ -4628,7 +4821,7 @@ const sanitizePrices = (b: any): AdPrices => ({
 app.get('/api/ads/prices', asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, prices: sanitizePrices((await kvGet<AdPrices>(AD_PRICES_KEY)) || {}) });
 }));
-app.put('/api/admin/ads/prices', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.put('/api/admin/ads/prices', requirePerm('ads'), asyncRoute(async (req: Request, res: Response) => {
   const prices = sanitizePrices(req.body);
   await kvSet(AD_PRICES_KEY, prices);
   res.json({ success: true, prices });
@@ -4658,10 +4851,10 @@ app.post('/api/ads/request', asyncRoute(async (req: Request, res: Response) => {
   await notifyAdmin(`📣 Заявка на рекламу: ${request.business || request.name}\n${place === 'sto' ? 'Слайдер «Сервис»' : place === 'side' ? 'Сбоку в каталоге' : 'Слайдер «Автозапчасти»'} · ${AD_PERIODS[period].label} с ${startDate}\n${name}, ${phone}\nПосмотреть: ${SITE_URL}/kabinet → Модерация → Заявки на рекламу`);
   res.status(201).json({ success: true });
 }));
-app.get('/api/admin/ads/requests', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/admin/ads/requests', requirePerm('ads'), asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, requests: (await kvGet<any[]>(AD_REQUESTS_KEY)) || [] });
 }));
-app.patch('/api/admin/ads/requests/:id', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/admin/ads/requests/:id', requirePerm('ads'), asyncRoute(async (req: Request, res: Response) => {
   const status = ['new', 'paid', 'rejected', 'published'].includes(req.body?.status) ? req.body.status : null;
   if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
   const list = (await kvGet<any[]>(AD_REQUESTS_KEY)) || [];
@@ -4672,7 +4865,7 @@ app.patch('/api/admin/ads/requests/:id', requireAdminOnly, asyncRoute(async (req
   res.json({ success: true, request: item });
 }));
 // Turn a request into a slide with dates (start..start+period) in the chosen slider
-app.post('/api/admin/ads/requests/:id/publish', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.post('/api/admin/ads/requests/:id/publish', requirePerm('ads'), asyncRoute(async (req: Request, res: Response) => {
   const list = (await kvGet<any[]>(AD_REQUESTS_KEY)) || [];
   const item = list.find((x) => x.id === req.params.id);
   if (!item) return res.status(404).json({ success: false, error: 'Заявка не найдена' });
@@ -4711,7 +4904,7 @@ app.post('/api/banner/stat', asyncRoute(async (req: Request, res: Response) => {
   await kvSet(adStatsKey(place), stats);
   res.json({ success: true });
 }));
-app.get('/api/admin/banner/stats', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.get('/api/admin/banner/stats', requirePerm('ads'), asyncRoute(async (req: Request, res: Response) => {
   res.json({ success: true, stats: (await kvGet(adStatsKey(String(req.query.place || '')))) || {} });
 }));
 app.get('/api/banner', asyncRoute(async (req: Request, res: Response) => {
@@ -4720,7 +4913,7 @@ app.get('/api/banner', asyncRoute(async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60');
   res.json({ success: true, banner: banner || null });
 }));
-app.put('/api/admin/banner', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.put('/api/admin/banner', requirePerm('ads'), asyncRoute(async (req: Request, res: Response) => {
   const key = bannerKey(req.query.place);
   if (req.body?.reset) {
     if (redis) await redis.del(key); else delete memoryBanners[key];
@@ -4869,11 +5062,11 @@ app.post('/api/reports', asyncRoute(async (req: Request, res: Response) => {
   res.status(201).json({ success: true });
 }));
 
-app.get('/api/admin/reports', requireAdmin, asyncRoute(async (_req: Request, res: Response) => {
+app.get('/api/admin/reports', requirePerm('reports'), asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, reports: await listRecords('reports') });
 }));
 
-app.patch('/api/admin/reports/:id', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
+app.patch('/api/admin/reports/:id', requirePerm('reports'), asyncRoute(async (req: Request, res: Response) => {
   const status = ['new', 'resolved', 'dismissed'].includes(req.body?.status) ? req.body.status : null;
   if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
   const updated = await updateRecord('reports', req.params.id, { status, resolvedAt: new Date().toISOString() });
@@ -4891,7 +5084,7 @@ async function makeBackup() {
 }
 const backupName = () => `kgzone-backup-${new Date().toISOString().slice(0, 10)}.json`;
 
-app.get('/api/admin/backup', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
+app.get('/api/admin/backup', requirePerm('settings'), asyncRoute(async (req: Request, res: Response) => {
   const backup = await makeBackup();
   await audit((req as any).actor, 'backup.download', 'database');
   res.setHeader('Content-Disposition', `attachment; filename="${backupName()}"`);
@@ -4932,7 +5125,11 @@ app.get('/api/cron/backup', asyncRoute(async (req: Request, res: Response) => {
   const sent = await sendBackupToTelegram();
   // Companies' price lists by link are refreshed every night too
   const feeds = await syncAllPriceFeeds().catch((err) => { console.warn('[PriceFeed] failed:', err); return 0; });
-  res.json({ success: true, sent, feeds });
+  // The job runs at 22:00 UTC = 04:00 in Bishkek; on Monday mornings the owner gets the week in numbers
+  const bishkekDay = new Date(Date.now() + 6 * 3_600_000).getUTCDay();
+  let report = false;
+  if (bishkekDay === 1) { await notifyStaff('stats', await weeklyReportText()); report = true; }
+  res.json({ success: true, sent, feeds, report });
 }));
 
 // AI Auto-Consultant Chatbot Route (KGzone Автоэксперт)
