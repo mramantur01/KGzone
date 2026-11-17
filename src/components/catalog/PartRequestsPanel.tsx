@@ -48,6 +48,9 @@ export const PartRequestsPanel: React.FC = () => {
             <a href={`tel:+${r.phone}`} className="font-mono text-slate-800 underline" data-no-i18n>{formatPhone(r.phone)}</a>
             {' · '}{new Date(r.createdAt).toLocaleString('ru-RU')}
           </div>
+          {r.foundPartId && (
+            <div className="text-emerald-700 font-bold">🤖 Сайт нашёл сам: <a href={`/zapchast/${encodeURIComponent(r.foundPartId)}`} target="_blank" rel="noreferrer" className="underline">открыть запчасть</a>{r.foundAt ? ` · ${new Date(r.foundAt).toLocaleString('ru-RU')}` : ''}</div>
+          )}
           <div className="flex flex-wrap gap-1.5 pt-1">
             {TABS.filter((t) => t.id !== r.status).map((t) => (
               <button key={t.id} type="button" onClick={() => setPartRequestStatus(r.id, t.id).then(load).catch((e) => setError(e.message))} className="px-2 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 font-bold cursor-pointer">

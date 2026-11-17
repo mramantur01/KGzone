@@ -674,6 +674,28 @@ app.post('/api/my/stock-confirm', requireUser, asyncRoute(async (req: Request, r
 }));
 
 // The buyer answers "did you buy it?" with the key their browser got with the order (works without an account)
+// After «Да, купил»: the buyer rates the seller with the same private key (no account needed)
+app.post('/api/orders/review', asyncRoute(async (req: Request, res: Response) => {
+  if (tooMany(`oreview:${clientIp(req)}`, 10, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много отзывов. Попробуйте позже.' });
+  const key = str(req.body?.key, 80);
+  const rating = Math.round(Number(req.body?.rating));
+  if (!key || !(rating >= 1 && rating <= 5)) return res.status(400).json({ success: false, error: 'Поставьте оценку от 1 до 5' });
+  const kb = Buffer.from(key);
+  const lines = (await listRecords<any>('orders')).filter((o) => { const b = Buffer.from(String(o.buyerKey || '')); return o.buyerKey && b.length === kb.length && timingSafeEqual(b, kb); });
+  const o = lines[0];
+  if (!o || !(o.buyerAnswer === 'bought' || o.status === 'Выполнен')) return res.status(403).json({ success: false, error: 'Отзыв можно оставить после покупки' });
+  const sellerId = o.sellerId || (await getRecord<any>('parts', o.partId))?.ownerId;
+  if (!sellerId) return res.status(404).json({ success: false, error: 'Продавец не найден' });
+  const authorId = `order:${o.orderNumber}`;
+  if ((await listRecords<any>('sellerReviews')).some((r) => r.authorId === authorId)) return res.status(409).json({ success: false, error: 'Вы уже оценили этот заказ' });
+  await insertRecord('sellerReviews', {
+    id: `srv-${randomUUID()}`, sellerId, authorId, authorName: String(o.customerName || 'Покупатель').split(' ')[0],
+    rating, text: str(req.body?.text, 1000), listingTitle: lines.map((x) => x.partTitle).join(', ').slice(0, 160), createdAt: new Date().toISOString(),
+  });
+  await notifyUser(sellerId, `⭐ Новый отзыв после покупки: ${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}${req.body?.text ? `\n«${str(req.body.text, 200)}»` : ''}`);
+  res.status(201).json({ success: true });
+}));
+
 app.post('/api/orders/feedback', asyncRoute(async (req: Request, res: Response) => {
   if (tooMany(`feedback:${clientIp(req)}`, 30, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много ответов. Попробуйте позже.' });
   const key = str(req.body?.key, 80);
@@ -876,7 +898,141 @@ async function sweepCatalog(parts: any[]) {
     }
   }
 
+  // 4. «Ищу запчасть»: a part that fits a new request appeared -> tell the buyer, mark the request "found"
+  const words = (v: unknown) => normTitle(v).split(' ').filter((w) => w.length >= 3);
+  const requests = await listRecords<any>('partRequests');
+  for (const r of requests) {
+    if (r.status !== 'new' && r.status !== 'in_work') continue;
+    const want = words(r.part);
+    if (!want.length) continue;
+    const brand = normTitle(r.brand);
+    const model = normTitle(r.model);
+    const hit = parts.find((x) => isPublicPart(x) && (Date.parse(x.createdAt) || 0) >= (Date.parse(r.createdAt) || 0) - 60_000
+      && (!brand || normTitle(x.brand) === brand)
+      && (!model || normTitle(x.model).includes(model) || normTitle(x.title).includes(model))
+      && want.every((w) => normTitle(x.title).includes(w.slice(0, Math.max(3, w.length - 2)))));
+    if (!hit) continue;
+    await updateRecord('partRequests', r.id, { status: 'done', foundPartId: hit.id, foundAt: iso, updatedAt: iso });
+    await audit('admin-token', 'auto-found', r.id, { part: hit.id });
+    const link = `${SITE_URL}${partUrl(hit)}`;
+    if (r.userId) await notifyUser(r.userId, `🎉 Нашли запчасть по вашей заявке «${r.part}»: ${hit.title} — ${Number(hit.priceKgs).toLocaleString('ru-RU')} сом\n${link}`);
+    await notifyStaff('requests', `🔎 Заявка «${r.part} ${r.brand || ''} ${r.model || ''}» — нашлась запчасть: ${hit.title}\n${r.userId ? 'Покупателю отправлено сообщение.' : `Позвоните покупателю: ${r.name || ''} ${r.phone}`}\n${link}`);
+  }
+
+  // 5. The same photo as another seller's (by fingerprint): wait for a moderator
+  const hashes = await allPhotoHashes();
+  if (hashes.size) {
+    const first = new Map<string, { owner: string; at: number }>();
+    const sorted = [...parts].filter((x) => x.ownerId && Array.isArray(x.images)).sort((a, b) => (Date.parse(a.createdAt) || 0) - (Date.parse(b.createdAt) || 0));
+    for (const x of sorted) for (const url of x.images) { const h = hashes.get(url); if (h && !first.has(h)) first.set(h, { owner: x.ownerId, at: Date.parse(x.createdAt) || 0 }); }
+    for (const x of sorted) {
+      if (!isLive(x) || x.moderation?.reviewedBy !== 'auto') continue;
+      const copied = x.images.some((url: string) => { const h = hashes.get(url); return h && first.get(h)!.owner !== x.ownerId; });
+      if (!copied) continue;
+      const reason = 'Такое же фото уже есть у другого продавца — нужно своё фото этой детали';
+      await updateRecord('parts', x.id, { moderation: { ...x.moderation, status: 'pending', reason, reviewedBy: 'auto-photo', reviewedAt: iso } });
+      x.moderation = { ...x.moderation, status: 'pending' };
+      await audit('admin-token', 'auto-hide', x.id, { reason: 'photo' });
+      tell(x.ownerId, `• «${x.title}»: это фото уже использует другой продавец. Загрузите своё фото этой детали — объявление проверит модератор.`);
+    }
+  }
+
   for (const [owner, lines] of notices) await notifyUser(owner, `🤖 KGzone навёл порядок в ваших объявлениях:\n${lines.join('\n')}`);
+}
+
+// ---- Photo fingerprints (url -> hash), kept in a Redis hash or in memory on a local copy
+const PHOTO_KEY = 'kgzone:photoHash';
+const memoryPhotos = new Map<string, string>();
+async function savePhotoHash(url: string, hash: string) { if (redis) await redis.hset(PHOTO_KEY, { [url]: hash }); else memoryPhotos.set(url, hash); }
+async function allPhotoHashes(): Promise<Map<string, string>> {
+  if (!redis) return memoryPhotos;
+  const all = (await redis.hgetall<Record<string, string>>(PHOTO_KEY)) || {};
+  return new Map(Object.entries(all));
+}
+
+/** Two different people said "Мошенничество" about one seller within 30 days: all their listings wait for a check */
+async function fraudCheck(coll: 'parts' | 'cars', listingId: string) {
+  const listing: any = await getRecord(coll, listingId);
+  const ownerId = listing?.ownerId;
+  if (!ownerId) return;
+  const owner = await getRecord<UserRecord>('users', ownerId);
+  if (!owner || owner.isOwner) return;
+  if ((owner as any).fraudHoldAt && Date.now() - Date.parse((owner as any).fraudHoldAt) < 30 * 86_400_000) return;
+  const [parts, cars, reports] = await Promise.all([listRecords<any>('parts'), listRecords<any>('cars'), listRecords<any>('reports')]);
+  const mine = new Set([...parts, ...cars].filter((x) => x.ownerId === ownerId).map((x) => x.id));
+  const since = Date.now() - 30 * 86_400_000;
+  const people = new Set(reports.filter((r) => r.reason === 'Мошенничество' && r.status !== 'dismissed' && mine.has(r.listingId) && Date.parse(r.createdAt) > since).map((r) => r.ipHash || r.id));
+  if (people.size < 2) return;
+  const iso = new Date().toISOString();
+  const reason = 'Скрыто: жалобы на мошенничество — продавец на проверке';
+  let hidden = 0;
+  for (const [c, list] of [['parts', parts], ['cars', cars]] as const) {
+    for (const x of list) {
+      if (x.ownerId !== ownerId || !isLive(x)) continue;
+      await updateRecord(c, x.id, { moderation: { ...x.moderation, status: 'pending', reason, reviewedBy: 'auto-fraud', reviewedAt: iso } });
+      hidden++;
+    }
+  }
+  await updateRecord('users', ownerId, { fraudHoldAt: iso } as any);
+  await audit('admin-token', 'auto-hide', ownerId, { reason: 'fraud', listings: hidden });
+  await notifyStaff('reports', `🚨 Жалобы на мошенничество от ${people.size} разных людей.\nПродавец: ${owner.company?.name || owner.name}, +${String(owner.phone).replace(/\D/g, '')}\nВсе его объявления (${hidden}) скрыты до проверки.\nПроверьте: Панель управления → Жалобы и отзывы`);
+  await notifyUser(ownerId, `⚠️ На ваши объявления пожаловались несколько покупателей. Пока модератор проверяет, объявления скрыты с сайта. Если это ошибка — напишите нам через «Помощь».`);
+}
+
+/** Bishkek date, shifted by days */
+const bishkekDate = (shiftDays = 0) => new Date(Date.now() + 6 * 3_600_000 + shiftDays * 86_400_000).toISOString().slice(0, 10);
+
+/** Morning job: a short summary for every seller with something to tell, and reminders about ads that end soon */
+async function morningJob() {
+  const yesterday = bishkekDate(-1);
+  const [users, parts, orders, questions] = await Promise.all([listRecords<UserRecord>('users'), listRecords<any>('parts'), listRecords<any>('orders'), listRecords<any>('questions')]);
+  const byOwner = new Map<string, any[]>();
+  for (const x of parts) if (x.ownerId) byOwner.set(x.ownerId, [...(byOwner.get(x.ownerId) || []), x]);
+  let sent = 0;
+  for (const u of users) {
+    const mine = byOwner.get(u.id);
+    if (!mine || u.blocked || u.isOwner) continue;
+    const ids = new Set(mine.map((x) => x.id));
+    const views = mine.reduce((n, x) => n + Number(x.viewsByDay?.[yesterday] || 0), 0);
+    const contacts = mine.reduce((n, x) => n + Number(x.contactsByDay?.[yesterday] || 0), 0);
+    const open = orders.filter((o) => isOpenOrder(o) && !SEED_ORDER_IDS.has(o.id) && o.source !== 'offline' && (o.sellerId === u.id || (!o.sellerId && ids.has(o.partId)))).length;
+    const asked = questions.filter((q) => q.sellerId === u.id && !q.answer).length;
+    const stale = mine.filter((x) => isLive(x) && Number(x.stockCount) > 0 && stockAge(x) > STALE_STOCK_DAYS * 86_400_000).length;
+    const noPhoto = mine.filter((x) => isLive(x) && Number(x.stockCount) > 0 && !(Array.isArray(x.images) && x.images.length)).length;
+    if (!views && !contacts && !open && !asked && !stale && !noPhoto) continue;
+    const lines = [
+      `☀️ Доброе утро! Ваш KGzone за вчера:`,
+      `👀 Просмотров ваших товаров: ${views}${contacts ? ` · звонков и сообщений: ${contacts}` : ''}`,
+      open ? `🛒 Заказов ждут ответа: ${open} — отметьте «Продано» или «Не купил»` : '',
+      asked ? `❓ Вопросов покупателей без ответа: ${asked}` : '',
+      stale ? `📦 Наличие не подтверждали больше месяца: ${stale} товар(ов)` : '',
+      noPhoto ? `📷 Без фото и не видны на сайте: ${noPhoto} товар(ов)` : '',
+      `${SITE_URL}/kabinet`,
+    ].filter(Boolean);
+    await notifyUser(u.id, lines.join('\n'));
+    sent++;
+  }
+  // Ads that end in 3 days: remind staff with the numbers, once per slide
+  const soon = bishkekDate(3);
+  const done = (await kvGet<Record<string, boolean>>('kgzone:adReminders')) || {};
+  let reminded = 0;
+  for (const place of ['parts', 'sto', 'side'] as const) {
+    const key = bannerKey(place);
+    const banner: any = redis ? await redis.get(key) : memoryBanners[key];
+    const stats = (await kvGet<Record<string, { views: number; clicks: number }>>(adStatsKey(place))) || {};
+    for (const sl of banner?.slides || []) {
+      if (!sl.enabled || sl.endDate !== soon) continue;
+      const k = `${place}:${sl.id}:${sl.endDate}`;
+      if (done[k]) continue;
+      const st = stats[sl.id] || { views: 0, clicks: 0 };
+      const where = place === 'sto' ? 'слайдер «Сервис»' : place === 'side' ? 'сбоку в каталоге' : 'слайдер «Автозапчасти»';
+      await notifyStaff('ads', `📢 Реклама «${sl.title}» (${where}) заканчивается ${sl.endDate.split('-').reverse().join('.')}.\nПоказов: ${st.views} · кликов: ${st.clicks}${st.views ? ` (${Math.round((st.clicks / st.views) * 1000) / 10}%)` : ''}\nПредложите рекламодателю продлить.`);
+      done[k] = true;
+      reminded++;
+    }
+  }
+  await kvSet('kgzone:adReminders', done);
+  return { sent, reminded };
 }
 
 /** Telegram message to staff who have this power (and to TELEGRAM_CHAT_ID) */
@@ -910,7 +1066,8 @@ async function weeklyReportText() {
     `⚠️ Жалоб: ${reports.filter((r) => after(r.createdAt)).length} · ждут решения: ${reports.filter((r) => r.status === 'new').length}`,
     `🏬 Магазинов ждут проверки: ${users.filter((u) => u.company?.status === 'pending').length}`,
     `👑 Корона: получили ${crowns.filter((a) => a.details?.given).length} · потеряли ${crowns.filter((a) => a.details && !a.details.given).length}`,
-    `🤖 Сайт сам убрал: дублей ${n('duplicate')} · подозрительных цен ${n('price')} · уснувших продавцов ${n('sleeping')}`,
+    `🤖 Сайт сам убрал: дублей ${n('duplicate')} · подозрительных цен ${n('price')} · чужих фото ${n('photo')} · уснувших продавцов ${n('sleeping')} · мошенников на проверке ${n('fraud')}`,
+    `🔎 Заявок «ищу запчасть» нашлось само: ${auditLog.filter((a) => a.action === 'auto-found' && after(a.at)).length}`,
   ].join('\n');
 }
 
@@ -1482,6 +1639,8 @@ app.post('/api/upload', asyncRoute(async (req: Request, res: Response) => {
   const ext = isPng ? 'png' : isWebp ? 'webp' : 'jpg';
   const folder = req.body?.kind === 'car' ? 'cars' : 'parts';
   const blob = await put(`${folder}/${randomUUID()}.${ext}`, bytes, { access: 'public', contentType: m[1] });
+  // Fingerprint of the picture: the same photo uploaded again by another seller is noticed later
+  try { await savePhotoHash(blob.url, createHash('sha256').update(bytes).digest('hex').slice(0, 32)); } catch (err) { console.warn('[Photo] hash failed:', err); }
   res.status(201).json({ success: true, url: blob.url });
 }));
 
@@ -2528,7 +2687,7 @@ app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res:
       readAt: { ...existing.readAt, [user.id]: now },
     });
     await notifyChat(updated!, user, text);
-    await companyAutoReply(updated!, user);
+    if (!(await companyAutoReply(updated!, user))) await privateAutoReply(updated!, user);
     return res.json({ success: true, conversation: conversationView(updated!, user.id) });
   }
   const conv: Conversation = {
@@ -2547,7 +2706,7 @@ app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res:
   };
   await insertRecord('conversations', conv);
   await notifyChat(conv, user, text);
-  await companyAutoReply(conv, user);
+  if (!(await companyAutoReply(conv, user))) await privateAutoReply(conv, user);
   res.status(201).json({ success: true, conversation: conversationView(conv, user.id) });
 }));
 
@@ -2586,7 +2745,7 @@ app.post('/api/conversations/:id/messages', requireUser, asyncRoute(async (req: 
     readAt: { ...c.readAt, [user.id]: now },
   });
   await notifyChat(c, user, text);
-  const withAuto = (await companyAutoReply(updated!, user)) || updated!;
+  const withAuto = (await companyAutoReply(updated!, user)) || (await privateAutoReply(updated!, user)) || updated!;
   res.json({ success: true, messages: withAuto.messages.map((m) => ({ ...m, mine: m.from === user.id })) });
 }));
 
@@ -3320,6 +3479,47 @@ app.put('/api/company/settings', requireCompany('company.edit'), asyncRoute(asyn
 }));
 
 // Automatic reply of a company to a buyer outside working hours (at most once in 12 hours per chat)
+/** Typical time (hours) the seller takes to answer a buyer, from past chats; null when not enough data */
+async function sellerReplyHours(sellerId: string): Promise<number | null> {
+  const delays: number[] = [];
+  for (const c of await listRecords<Conversation>('conversations')) {
+    if (c.sellerId !== sellerId) continue;
+    for (let i = 0; i < c.messages.length; i++) {
+      const m = c.messages[i];
+      if (m.from !== c.buyerId) continue;
+      const answer = c.messages.slice(i + 1).find((x) => x.from === sellerId && !x.auto);
+      if (answer) delays.push((Date.parse(answer.at) - Date.parse(m.at)) / 3_600_000);
+    }
+  }
+  if (delays.length < 3) return null;
+  delays.sort((a, b) => a - b);
+  return delays[Math.floor(delays.length / 2)];
+}
+const replyTimeText = (h: number) => (h < 1 ? 'в течение часа' : h < 24 ? `примерно за ${Math.round(h)} ч` : 'в течение дня');
+
+/** A private seller who is not on the site: the buyer gets an automatic note with the usual reply time and the phone */
+async function privateAutoReply(conv: Conversation, sender: UserRecord): Promise<Conversation | null> {
+  try {
+    if (sender.id !== conv.buyerId || conv.complaint) return null;
+    const seller = await getRecord<UserRecord>('users', conv.sellerId);
+    if (!seller || seller.accountType === 'legal' || seller.isOwner) return null;
+    const seen = Date.parse(seller.lastSeenAt || seller.lastLoginAt || '') || 0;
+    if (Date.now() - seen < Number(process.env.AUTOREPLY_AWAY_MIN ?? 60) * 60_000) return null; // was on the site within the hour
+    if (conv.messages.some((m) => m.auto && Date.now() - Date.parse(m.at) < 12 * 3600_000)) return null;
+    const h = await sellerReplyHours(seller.id);
+    const phone = String(seller.phone || '').replace(/\D/g, '');
+    const text = `🤖 Автоответ: продавец сейчас не на сайте.${h !== null ? ` Обычно отвечает ${replyTimeText(h)}.` : ' Ответит, как только зайдёт.'}${phone ? ` Быстрее — позвонить: +${phone}` : ''}`;
+    const at = new Date().toISOString();
+    return await updateRecord<Conversation>('conversations', conv.id, {
+      messages: [...conv.messages, { id: randomUUID(), from: conv.sellerId, text, at, auto: true }].slice(-MAX_MESSAGES),
+      lastAt: at,
+    });
+  } catch (err) {
+    console.warn('[AutoReply] private failed:', err);
+    return null;
+  }
+}
+
 async function companyAutoReply(conv: Conversation, sender: UserRecord): Promise<Conversation | null> {
   try {
     if (sender.id !== conv.buyerId) return null;
@@ -5086,6 +5286,7 @@ app.post('/api/reports', asyncRoute(async (req: Request, res: Response) => {
     }
   }
   await notifyAdmin(`⚠️ Жалоба на объявление\n${record.listingTitle} (${record.listingId})\nПричина: ${record.reason}${record.comment ? '\n' + record.comment : ''}`);
+  if (record.reason === 'Мошенничество') { try { await fraudCheck(kind === 'car' ? 'cars' : 'parts', listingId); } catch (err) { console.warn('[Fraud] check failed:', err); } }
   try { await complaintToOwner(record, await getSessionUser(req)); } catch (err) { console.warn('[Reports] owner message failed:', err); }
   res.status(201).json({ success: true });
 }));
@@ -5180,6 +5381,14 @@ async function sendBackupToTelegram(): Promise<number> {
   }
   return sent;
 }
+
+// Every morning at 9:00 Bishkek (Vercel Cron, see vercel.json): sellers' summaries and ad reminders
+app.get('/api/cron/morning', asyncRoute(async (req: Request, res: Response) => {
+  const secret = process.env.CRON_SECRET;
+  if (secret && req.get('authorization') !== `Bearer ${secret}`) return res.status(401).json({ success: false });
+  if (tooMany('cron:morning', 2, 60 * 60_000)) return res.status(429).json({ success: false });
+  res.json({ success: true, ...(await morningJob()) });
+}));
 
 // Called daily by Vercel Cron (see vercel.json). It returns no data, only sends the file to admins,
 // so a stray call is harmless; CRON_SECRET is checked when it is set.

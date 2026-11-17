@@ -14,6 +14,9 @@ export interface PartRequest {
   phone: string;
   status: 'new' | 'in_work' | 'done' | 'closed';
   createdAt: string;
+  /** Found by the site itself: a part that fits appeared */
+  foundPartId?: string;
+  foundAt?: string;
 }
 
 export const sendPartRequest = (r: { part: string; brand?: string; model?: string; generation?: string; vin?: string; comment?: string; name?: string; phone?: string }) =>
