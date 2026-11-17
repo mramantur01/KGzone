@@ -4,6 +4,7 @@
 // Only advertise services that really exist.
 
 import { siteWhatsApp } from '../config/site';
+import type { BannerConfig, BannerSlide, SideSlot } from './bannerDefaults';
 
 export interface AdBanner {
   id: string;
@@ -60,3 +61,17 @@ export const PARTS_SIDEBAR_BOXES: AdBanner[][] = [
 export const PARTS_SIDEBAR_BOTTOM_ADS: AdBanner[] = [
   sample('ad-bottom-sample', 'Глушители и катализаторы', 'Выхлопные системы, гофры, резонаторы — подбор и установка. Пример рекламы. Формат 300×600.', tallPhoto('1759419282068-eb664e0f0a17')),
 ];
+
+// The same samples as editable slides: the owner manages side ads in the cabinet like the sliders
+const toSlide = (a: AdBanner, slot: SideSlot): BannerSlide => ({
+  id: a.id, enabled: true, badge: a.badge || '', title: a.title, text: a.text, cta: a.cta, href: a.href, image: a.image, color: 'amber', icon: 'megaphone', slot,
+});
+export const DEFAULT_SIDE_BANNER: BannerConfig = {
+  intervalSec: 6,
+  showOffers: false,
+  slides: [
+    ...PARTS_SIDEBAR_ADS.map((a) => toSlide(a, 'top')),
+    ...PARTS_SIDEBAR_BOXES.map((list, i) => toSlide(list[0], (['box1', 'box2', 'box3'] as SideSlot[])[i])),
+    ...PARTS_SIDEBAR_BOTTOM_ADS.map((a) => toSlide(a, 'bottom')),
+  ],
+};

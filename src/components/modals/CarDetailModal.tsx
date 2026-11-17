@@ -1,3 +1,4 @@
+import { copyText } from '../../utils/copyText';
 import { carQuestion } from '../../utils/waMessages';
 import React, { useEffect, useState } from 'react';
 import { Car, Currency, Language } from '../../types/car';
@@ -83,7 +84,7 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
   )}`;
 
   const handleCopyLink = () => {
-    navigator.clipboard?.writeText(window.location.href);
+    void copyText(window.location.href);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   };

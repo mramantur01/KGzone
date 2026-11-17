@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Megaphone, ExternalLink } from 'lucide-react';
 import type { AdBanner } from '../../data/adBanners';
+import { sendBannerStat } from '../../api/ads';
 
 interface AdBannerSlotProps {
   banners: AdBanner[];
@@ -8,10 +9,12 @@ interface AdBannerSlotProps {
   className?: string;
   /** tall = 300×600 half-page, box = 300×250 medium rectangle */
   variant?: 'tall' | 'box';
+  /** Count views and clicks for the owner's statistics */
+  track?: boolean;
 }
 
 // Rotating ad slot (300×600 or 300×250). Pauses while hovered or focused.
-export const AdBannerSlot: React.FC<AdBannerSlotProps> = ({ banners, intervalMs = 6000, className = '', variant = 'tall' }) => {
+export const AdBannerSlot: React.FC<AdBannerSlotProps> = ({ banners, intervalMs = 6000, className = '', variant = 'tall', track = false }) => {
   const isBox = variant === 'box';
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -22,6 +25,8 @@ export const AdBannerSlot: React.FC<AdBannerSlotProps> = ({ banners, intervalMs 
     const id = window.setInterval(() => setIndex((i) => (i + 1) % count), intervalMs);
     return () => window.clearInterval(id);
   }, [paused, count, intervalMs]);
+
+  useEffect(() => { const b = banners[index]; if (track && b) sendBannerStat('side', b.id, 'view'); }, [track, banners, index]);
 
   if (count === 0) return null;
   const go = (delta: number) => setIndex((i) => (i + delta + count) % count);
@@ -42,6 +47,7 @@ export const AdBannerSlot: React.FC<AdBannerSlotProps> = ({ banners, intervalMs 
             target={b.href.startsWith('http') ? '_blank' : undefined}
             rel="noopener noreferrer sponsored"
             aria-hidden={i !== index}
+            onClick={() => { if (track) sendBannerStat('side', b.id, 'click'); }}
             tabIndex={i === index ? 0 : -1}
             className={`absolute inset-0 flex flex-col justify-end ${isBox ? 'p-4' : 'p-5'} transition-opacity duration-500 ${
               i === index ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none'

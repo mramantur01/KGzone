@@ -21,8 +21,6 @@ export const AllBrandsModal: React.FC<AllBrandsModalProps> = ({
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'countries' | 'alphabet'>('countries');
 
-  if (!isOpen) return null;
-
   const BRANDS_BY_COUNTRY: Record<string, { flag: string; brands: string[] }> = {
     'Япония': {
       flag: '🇯🇵',
@@ -76,6 +74,9 @@ export const AllBrandsModal: React.FC<AllBrandsModalProps> = ({
         brands: groups[letter].sort((a, b) => a.localeCompare(b, 'ru')),
       }));
   }, [search]);
+
+  // After all hooks: React needs the same hooks on every render (opening the window crashed before)
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs overflow-y-auto">

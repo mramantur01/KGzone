@@ -29,8 +29,10 @@ export const InstallAppButton: React.FC<{ className?: string; onDone?: () => voi
 
   const install = async () => {
     if (saved) {
-      await saved.prompt();
-      await saved.userChoice.catch(() => undefined);
+      try {
+        await saved.prompt();
+        await saved.userChoice.catch(() => undefined);
+      } catch { /* the browser refused (no user tap) — nothing to do */ }
       saved = null;
       tick((n) => n + 1);
       onDone?.();

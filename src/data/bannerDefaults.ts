@@ -4,6 +4,10 @@
 export type SlideColor = 'amber' | 'sky' | 'emerald' | 'red' | 'violet' | 'slate';
 export type SlideIcon = 'tire' | 'oil' | 'wrench' | 'truck' | 'store' | 'megaphone';
 
+/** Side ads in the parts catalog: big top, three small, big bottom (sticky) */
+export type SideSlot = 'top' | 'box1' | 'box2' | 'box3' | 'bottom';
+export const SIDE_SLOT_LABELS: Record<SideSlot, string> = { top: 'Большое сверху (600×1200)', box1: 'Маленькое №1 (600×500)', box2: 'Маленькое №2 (600×500)', box3: 'Маленькое №3 (600×500)', bottom: 'Большое снизу (600×1200)' };
+
 export interface BannerSlide {
   id: string;
   enabled: boolean;
@@ -19,6 +23,8 @@ export interface BannerSlide {
   /** Shown only from / until this day (YYYY-MM-DD, Bishkek); empty = always */
   startDate?: string;
   endDate?: string;
+  /** Side ads only: which place in the column */
+  slot?: SideSlot;
 }
 
 export interface BannerConfig {

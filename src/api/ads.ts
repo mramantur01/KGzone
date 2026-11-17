@@ -4,10 +4,11 @@ import type { BannerPlace } from './banner';
 
 // Ads without online payment: owner's prices, advertisers' requests, slide dates and counters
 
-export interface AdPrices { partsWeek: number; partsMonth: number; stoWeek: number; stoMonth: number; note: string }
+export interface AdPrices { partsWeek: number; partsMonth: number; stoWeek: number; stoMonth: number; sideWeek: number; sideMonth: number; note: string }
 export type AdPeriod = 'week' | '2weeks' | 'month';
 export const AD_PERIOD_LABELS: Record<AdPeriod, string> = { week: '1 неделя', '2weeks': '2 недели', month: '1 месяц' };
-export const AD_PLACE_LABELS: Record<BannerPlace, string> = { parts: 'Слайдер в каталоге «Автозапчасти»', sto: 'Слайдер на странице «Сервис»' };
+export const AD_PLACE_LABELS: Record<BannerPlace, string> = { parts: 'Слайдер в каталоге «Автозапчасти»', sto: 'Слайдер на странице «Сервис»', side: 'Место сбоку в каталоге (на компьютере)' };
+export const AD_PLACES: BannerPlace[] = ['parts', 'sto', 'side'];
 
 export interface AdRequest {
   id: string; createdAt: string; status: 'new' | 'paid' | 'rejected' | 'published';
@@ -20,7 +21,8 @@ export const saveAdPrices = (p: AdPrices) => call<{ prices: AdPrices }>('/api/ad
 export const sendAdRequest = (r: Partial<AdRequest>) => call('/api/ads/request', { method: 'POST', body: JSON.stringify(r) });
 export const listAdRequests = () => call<{ requests: AdRequest[] }>('/api/admin/ads/requests', {}, true).then((r) => r.requests);
 export const setAdRequestStatus = (id: string, status: AdRequest['status']) => call(`/api/admin/ads/requests/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ status }) }, true);
-export const publishAdRequest = (id: string) => call<{ banner: BannerConfig }>(`/api/admin/ads/requests/${encodeURIComponent(id)}/publish`, { method: 'POST' }, true);
+/** base: the slides shown now, so the sample ads stay when nothing was saved yet */
+export const publishAdRequest = (id: string, base?: BannerConfig) => call<{ banner: BannerConfig }>(`/api/admin/ads/requests/${encodeURIComponent(id)}/publish`, { method: 'POST', body: JSON.stringify({ base }) }, true);
 export const loadBannerStats = (place: BannerPlace) => call<{ stats: Record<string, { views: number; clicks: number }> }>(`/api/admin/banner/stats?place=${place}`, {}, true).then((r) => r.stats);
 
 /** Count a view or a click of an ad slide (views: once per page load per slide) */

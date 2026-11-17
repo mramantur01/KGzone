@@ -58,15 +58,16 @@ interface PartSellerPortalModalProps {
   onUpdatePartStock: (partId: string, delta: number) => void;
 }
 
-export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = ({
-  isOpen,
+// The window is created only while it is open: its many hooks must not be skipped by an early return
+export const PartSellerPortalModal: React.FC<PartSellerPortalModalProps> = (props) => (props.isOpen ? <PartSellerPortalWindow {...props} /> : null);
+
+const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
   onClose,
   language,
   currency,
   existingParts,
   onUpdatePartStock,
 }) => {
-  if (!isOpen) return null;
 
   const isKg = language === 'kg';
   const [activeTab, setActiveTab] = useState<'upload' | 'cabinet' | 'orders'>('upload');

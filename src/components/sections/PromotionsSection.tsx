@@ -1,3 +1,4 @@
+import { copyText } from '../../utils/copyText';
 import React, { useState } from 'react';
 import { Tag, Sparkles, Copy, Check, Clock, ArrowRight, ShieldCheck, Gift } from 'lucide-react';
 import { PROMOTIONS_DATA } from '../../data/workshopData';
@@ -24,7 +25,7 @@ export const PromotionsSection: React.FC<PromotionsSectionProps> = ({
   const isEn = language === 'en';
 
   const handleCopyCode = (code: string) => {
-    navigator.clipboard?.writeText?.(code);
+    void copyText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2500);
     if (onApplyPromo) onApplyPromo(code);

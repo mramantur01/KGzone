@@ -4372,11 +4372,14 @@ function sanitizeBanner(b: any) {
       // Shown only between these days (Bishkek time); empty = always
       startDate: /^\d{4}-\d{2}-\d{2}$/.test(String(x?.startDate || '')) ? String(x.startDate) : undefined,
       endDate: /^\d{4}-\d{2}-\d{2}$/.test(String(x?.endDate || '')) ? String(x.endDate) : undefined,
+      // Side ads: which place in the column (big top, three small, big bottom)
+      slot: ['top', 'box1', 'box2', 'box3', 'bottom'].includes(x?.slot) ? x.slot : undefined,
     })),
   };
 }
 // place=sto: the same kind of slider on the car service page
-const bannerKey = (place: unknown) => (place === 'sto' ? `${BANNER_KEY}:sto` : BANNER_KEY);
+const bannerKey = (place: unknown) => (place === 'sto' || place === 'side' ? `${BANNER_KEY}:${place}` : BANNER_KEY);
+const adPlace = (v: unknown): 'parts' | 'sto' | 'side' => (v === 'sto' || v === 'side' ? v : 'parts');
 const memoryBanners: Record<string, unknown> = {};
 
 // ---- Small key-value store for ads (Redis, or memory on a local copy)
@@ -4385,20 +4388,21 @@ const kvGet = async <T,>(key: string): Promise<T | null> => (redis ? ((await red
 const kvSet = async (key: string, value: unknown) => { if (redis) await redis.set(key, value); else memoryKv[key] = value; };
 const AD_PRICES_KEY = 'kgzone:adPrices';
 const AD_REQUESTS_KEY = 'kgzone:adRequests';
-const adStatsKey = (place: string) => `kgzone:bannerStats:${place === 'sto' ? 'sto' : 'parts'}`;
+const adStatsKey = (place: string) => `kgzone:bannerStats:${adPlace(place)}`;
 const bishkekToday = () => new Date(Date.now() + 6 * 3_600_000).toISOString().slice(0, 10);
 const addDays = (day: string, n: number) => new Date(Date.parse(day + 'T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
 const AD_PERIODS: Record<string, { days: number; label: string }> = { week: { days: 7, label: '1 неделя' }, '2weeks': { days: 14, label: '2 недели' }, month: { days: 30, label: '1 месяц' } };
-interface AdPrices { partsWeek: number; partsMonth: number; stoWeek: number; stoMonth: number; note: string }
+interface AdPrices { partsWeek: number; partsMonth: number; stoWeek: number; stoMonth: number; sideWeek: number; sideMonth: number; note: string }
 const sanitizePrices = (b: any): AdPrices => ({
   partsWeek: Math.max(0, Math.round(Number(b?.partsWeek) || 0)), partsMonth: Math.max(0, Math.round(Number(b?.partsMonth) || 0)),
   stoWeek: Math.max(0, Math.round(Number(b?.stoWeek) || 0)), stoMonth: Math.max(0, Math.round(Number(b?.stoMonth) || 0)),
+  sideWeek: Math.max(0, Math.round(Number(b?.sideWeek) || 0)), sideMonth: Math.max(0, Math.round(Number(b?.sideMonth) || 0)),
   note: str(b?.note, 300),
 });
 
 // Prices the owner set (0 = "по договорённости")
 app.get('/api/ads/prices', asyncRoute(async (_req: Request, res: Response) => {
-  res.json({ success: true, prices: (await kvGet<AdPrices>(AD_PRICES_KEY)) || sanitizePrices({}) });
+  res.json({ success: true, prices: sanitizePrices((await kvGet<AdPrices>(AD_PRICES_KEY)) || {}) });
 }));
 app.put('/api/admin/ads/prices', requireAdminOnly, asyncRoute(async (req: Request, res: Response) => {
   const prices = sanitizePrices(req.body);
@@ -4413,7 +4417,7 @@ app.post('/api/ads/request', asyncRoute(async (req: Request, res: Response) => {
   const name = str(b.name, 80);
   const phone = str(b.phone, 30);
   if (!name || phone.replace(/\D/g, '').length < 9) return res.status(400).json({ success: false, error: 'Укажите имя и телефон' });
-  const place = b.place === 'sto' ? 'sto' : 'parts';
+  const place = adPlace(b.place);
   const period = AD_PERIODS[b.period] ? b.period : 'week';
   const today = bishkekToday();
   const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(b.startDate || '')) && b.startDate >= today ? String(b.startDate) : today;
@@ -4427,7 +4431,7 @@ app.post('/api/ads/request', asyncRoute(async (req: Request, res: Response) => {
   };
   const list = (await kvGet<any[]>(AD_REQUESTS_KEY)) || [];
   await kvSet(AD_REQUESTS_KEY, [request, ...list].slice(0, 300));
-  await notifyAdmin(`📣 Заявка на рекламу: ${request.business || request.name}\n${place === 'sto' ? 'Слайдер «Сервис»' : 'Слайдер «Автозапчасти»'} · ${AD_PERIODS[period].label} с ${startDate}\n${name}, ${phone}\nПосмотреть: ${SITE_URL}/kabinet → Модерация → Заявки на рекламу`);
+  await notifyAdmin(`📣 Заявка на рекламу: ${request.business || request.name}\n${place === 'sto' ? 'Слайдер «Сервис»' : place === 'side' ? 'Сбоку в каталоге' : 'Слайдер «Автозапчасти»'} · ${AD_PERIODS[period].label} с ${startDate}\n${name}, ${phone}\nПосмотреть: ${SITE_URL}/kabinet → Модерация → Заявки на рекламу`);
   res.status(201).json({ success: true });
 }));
 app.get('/api/admin/ads/requests', requireAdminOnly, asyncRoute(async (_req: Request, res: Response) => {
@@ -4449,13 +4453,16 @@ app.post('/api/admin/ads/requests/:id/publish', requireAdminOnly, asyncRoute(asy
   const item = list.find((x) => x.id === req.params.id);
   if (!item) return res.status(404).json({ success: false, error: 'Заявка не найдена' });
   const key = bannerKey(item.place);
-  const current: any = (redis ? await redis.get(key) : memoryBanners[key]) || { intervalSec: 3, showOffers: true, slides: [] };
+  const saved: any = redis ? await redis.get(key) : memoryBanners[key];
+  const current: any = saved || (req.body?.base && Array.isArray(req.body.base.slides) ? sanitizeBanner(req.body.base) : { intervalSec: 3, showOffers: true, slides: [] });
   const endDate = addDays(item.startDate, (AD_PERIODS[item.period]?.days || 7) - 1);
   const slide = {
     id: `ad-${item.id.slice(4, 16)}`, enabled: true, badge: 'Реклама', title: item.title || item.business || 'Реклама', text: item.text,
     // No link in the request: the button opens the advertiser's WhatsApp
+    ...(item.place === 'side' ? { slot: 'top' } : {}),
     cta: 'Подробнее', href: item.href || (item.phone.replace(/\D/g, '').length >= 9 ? `https://wa.me/${item.phone.replace(/\D/g, '').replace(/^0/, '996')}` : '/prodavcam'), image: item.image, color: 'amber', icon: 'megaphone', startDate: item.startDate, endDate,
   };
+  // New ad goes first; the sample ads stay after it
   const banner = sanitizeBanner({ ...current, slides: [slide, ...(current.slides || []).filter((x: any) => x.id !== slide.id)] });
   if (redis) await redis.set(key, banner); else memoryBanners[key] = banner;
   item.status = 'published';
@@ -4466,7 +4473,7 @@ app.post('/api/admin/ads/requests/:id/publish', requireAdminOnly, asyncRoute(asy
 
 // Views and clicks of ad slides (one per visitor per slide per half hour)
 app.post('/api/banner/stat', asyncRoute(async (req: Request, res: Response) => {
-  const place = req.body?.place === 'sto' ? 'sto' : 'parts';
+  const place = adPlace(req.body?.place);
   const slideId = str(req.body?.slideId, 40);
   const type = req.body?.type === 'click' ? 'clicks' : 'views';
   if (!slideId) return res.json({ success: true });

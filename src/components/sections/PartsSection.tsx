@@ -1,3 +1,4 @@
+import { copyText } from '../../utils/copyText';
 import { partQuestion } from '../../utils/waMessages';
 import { oemKey, hhmm, isActiveUntil } from '../../api/market';
 import { recordContact } from '../../utils/viewHistory';
@@ -40,7 +41,10 @@ import { PartSellerPortalModal } from '../modals/PartSellerPortalModal';
 import { AllBrandsModal } from '../common/AllBrandsModal';
 import { PartsSliderBanner } from './PartsSliderBanner';
 import { AdBannerSlot } from '../common/AdBannerSlot';
-import { PARTS_SIDEBAR_ADS, PARTS_SIDEBAR_BOXES, PARTS_SIDEBAR_BOTTOM_ADS } from '../../data/adBanners';
+import type { AdBanner } from '../../data/adBanners';
+import { useBanner } from '../../api/banner';
+import { slideLiveToday } from '../../api/ads';
+import { SLIDE_GRADIENTS, type BannerSlide, type SideSlot } from '../../data/bannerDefaults';
 import {
   Search,
   MapPin,
@@ -131,6 +135,12 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     () => storeParts.map((p) => (stockOverrides[p.id] ? { ...p, ...stockOverrides[p.id] } : p)),
     [storeParts, stockOverrides]
   );
+  // Side ads: from the owner's settings (cabinet → Модерация → «Реклама сбоку»), only on their dates
+  const sideBanner = useBanner('side');
+  const sideAds = (slot: SideSlot): AdBanner[] => sideBanner.slides
+    .filter((s: BannerSlide) => s.enabled && (s.slot || 'top') === slot && slideLiveToday(s))
+    .map((s) => ({ id: s.id, title: s.title, text: s.text, cta: s.cta, href: s.href, image: s.image, badge: s.badge, gradient: SLIDE_GRADIENTS[s.color] || SLIDE_GRADIENTS.amber }));
+
   // The same part (same OEM number) from different sellers: "Ещё N предложений от X сом"
   const offersByOem = useMemo(() => {
     const m = new Map<string, AutoPartItem[]>();
@@ -274,7 +284,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   };
 
   const handleCopyOEM = (oem: string) => {
-    navigator.clipboard.writeText(oem);
+    void copyText(oem);
     setCopiedPartNumber(oem);
     showToast(isKg ? `OEM көчүрүлдү: ${oem}` : `OEM артикул скопирован: ${oem}`);
     setTimeout(() => setCopiedPartNumber(null), 2500);
@@ -1391,12 +1401,12 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
           {/* SIDEBAR: advertising slots (see src/data/adBanners.ts). The column stretches to the
               catalog's height; the last slot sticks to the screen in the remaining space. */}
           <div className="hidden lg:flex lg:col-span-3 flex-col gap-4">
-            <AdBannerSlot banners={PARTS_SIDEBAR_ADS} />
-            {PARTS_SIDEBAR_BOXES.map((slot, i) => (
-              <AdBannerSlot key={i} banners={slot} variant="box" intervalMs={7000 + i * 1500} />
+            <AdBannerSlot track banners={sideAds('top')} />
+            {(['box1', 'box2', 'box3'] as SideSlot[]).map((slot, i) => (
+              <AdBannerSlot track key={slot} banners={sideAds(slot)} variant="box" intervalMs={7000 + i * 1500} />
             ))}
             <div className="flex-1">
-              <AdBannerSlot banners={PARTS_SIDEBAR_BOTTOM_ADS} className="sticky top-24" />
+              <AdBannerSlot track banners={sideAds('bottom')} className="sticky top-24" />
             </div>
           </div>
 

@@ -1,3 +1,4 @@
+import { copyText } from '../../utils/copyText';
 import { partQuestion } from '../../utils/waMessages';
 import React, { useEffect, useState } from 'react';
 import { recordView, recordContact } from '../../utils/viewHistory';
@@ -55,7 +56,10 @@ interface PartDetailModalProps {
   onSelectPart?: (part: AutoPartItem) => void;
 }
 
-export const PartDetailModal: React.FC<PartDetailModalProps> = ({
+// Created only while open with a part: its hooks must not be skipped by an early return
+export const PartDetailModal: React.FC<PartDetailModalProps> = (props) => (props.isOpen && props.part ? <PartDetailWindow key={props.part.id} {...props} /> : null);
+
+const PartDetailWindow: React.FC<PartDetailModalProps> = ({
   part,
   isOpen,
   onClose,
@@ -65,7 +69,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
   allParts = [],
   onSelectPart,
 }) => {
-  if (!isOpen || !part) return null;
+  if (!isOpen || !part) return null; // never true here: the wrapper above checks it
 
   const isKg = language === 'kg';
   const priceSom = part.priceKgs;
@@ -87,7 +91,7 @@ export const PartDetailModal: React.FC<PartDetailModalProps> = ({
   }, [part.id]);
 
   const handleCopyOEM = () => {
-    navigator.clipboard.writeText(part.partNumber);
+    void copyText(part.partNumber);
     setCopiedOEM(true);
     setTimeout(() => setCopiedOEM(false), 2000);
   };

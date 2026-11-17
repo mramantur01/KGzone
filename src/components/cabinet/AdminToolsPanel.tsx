@@ -203,6 +203,7 @@ export const AdminToolsPanel: React.FC = () => (
     <SiteStatsCard />
     <BannerSlidesPanel />
     <BannerSlidesPanel place="sto" />
+    <BannerSlidesPanel place="side" />
     <AdRequestsPanel />
     <TelegramBotCard />
     <ChannelCard />

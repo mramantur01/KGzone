@@ -1,3 +1,4 @@
+import { copyText } from '../../utils/copyText';
 import React, { useEffect, useMemo, useState } from 'react';
 import { MapPin, Clock, Phone, Search, Star, Share2, Loader2, Store, Navigation } from 'lucide-react';
 import { call } from '../../api/admin';
@@ -63,7 +64,7 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
     const url = window.location.href;
     try {
       if (navigator.share) await navigator.share({ title: seller?.name, url });
-      else { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2500); }
+      else if (await copyText(url)) { setCopied(true); setTimeout(() => setCopied(false), 2500); }
     } catch { /* cancelled */ }
   };
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Megaphone, ImagePlus, Loader2, CheckCircle2, Eye, MousePointerClick, CalendarDays } from 'lucide-react';
 import type { Language } from '../../types/car';
-import { loadAdPrices, sendAdRequest, bishkekToday, AD_PERIOD_LABELS, AD_PLACE_LABELS, type AdPeriod, type AdPrices } from '../../api/ads';
+import { loadAdPrices, sendAdRequest, bishkekToday, AD_PERIOD_LABELS, AD_PLACE_LABELS, AD_PLACES, type AdPeriod, type AdPrices } from '../../api/ads';
 import type { BannerPlace } from '../../api/banner';
 import { uploadPhoto } from '../../api/upload';
 
@@ -49,14 +49,14 @@ export const AdvertisePage: React.FC<{ language: Language }> = ({ language }) =>
           </div>
         )}
 
-        <div className="grid sm:grid-cols-2 gap-3">
-          {(['parts', 'sto'] as BannerPlace[]).map((pl) => (
+        <div className="grid sm:grid-cols-3 gap-3">
+          {AD_PLACES.map((pl) => (
             <div key={pl} className="p-4 rounded-2xl bg-white border border-slate-200">
               <div className="font-black text-slate-900">{AD_PLACE_LABELS[pl]}</div>
-              <p className="text-xs text-slate-500 mt-1">{pl === 'parts' ? 'Широкий слайд вверху каталога запчастей — первое, что видит покупатель.' : 'Слайд вверху страницы автосервиса — для СТО, шиномонтажа, мойки, эвакуатора.'}</p>
+              <p className="text-xs text-slate-500 mt-1">{pl === 'parts' ? 'Широкий слайд вверху каталога запчастей — первое, что видит покупатель.' : pl === 'sto' ? 'Слайд вверху страницы автосервиса — для СТО, шиномонтажа, мойки, эвакуатора.' : 'Баннер в колонке рядом с запчастями. Виден на компьютере, пока покупатель листает каталог.'}</p>
               <div className="mt-2 text-sm">
-                <div>1 неделя: <b>{prices ? price(pl === 'parts' ? prices.partsWeek : prices.stoWeek) : '…'}</b></div>
-                <div>1 месяц: <b>{prices ? price(pl === 'parts' ? prices.partsMonth : prices.stoMonth) : '…'}</b></div>
+                <div>1 неделя: <b>{prices ? price(pl === 'parts' ? prices.partsWeek : pl === 'sto' ? prices.stoWeek : prices.sideWeek) : '…'}</b></div>
+                <div>1 месяц: <b>{prices ? price(pl === 'parts' ? prices.partsMonth : pl === 'sto' ? prices.stoMonth : prices.sideMonth) : '…'}</b></div>
               </div>
             </div>
           ))}
@@ -79,7 +79,7 @@ export const AdvertisePage: React.FC<{ language: Language }> = ({ language }) =>
             </div>
             <div className="grid sm:grid-cols-3 gap-3">
               <div><label className={labelCls}>Где показывать</label>
-                <select value={form.place} onChange={set('place')} className={inputCls}>{(['parts', 'sto'] as BannerPlace[]).map((p) => <option key={p} value={p}>{AD_PLACE_LABELS[p]}</option>)}</select></div>
+                <select value={form.place} onChange={set('place')} className={inputCls}>{AD_PLACES.map((p) => <option key={p} value={p}>{AD_PLACE_LABELS[p]}</option>)}</select></div>
               <div><label className={labelCls}>Срок</label>
                 <select value={form.period} onChange={set('period')} className={inputCls}>{(Object.keys(AD_PERIOD_LABELS) as AdPeriod[]).map((p) => <option key={p} value={p}>{AD_PERIOD_LABELS[p]}</option>)}</select></div>
               <div><label className={labelCls}>С какого дня</label><input type="date" value={form.startDate} min={bishkekToday()} onChange={set('startDate')} className={inputCls} /></div>
@@ -94,7 +94,7 @@ export const AdvertisePage: React.FC<{ language: Language }> = ({ language }) =>
                 {busy === 'img' ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}{form.image ? 'Заменить картинку' : 'Загрузить картинку'}
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ''; }} />
               </label>
-              {form.image ? <img src={form.image} alt="" className="h-14 w-40 object-cover rounded-lg border border-slate-200" /> : <span className="text-xs text-slate-500">Широкая картинка 2400×600 пикселей. Можно без неё — сделаем цветной слайд.</span>}
+              {form.image ? <img src={form.image} alt="" className="h-14 w-40 object-cover rounded-lg border border-slate-200" /> : <span className="text-xs text-slate-500">{form.place === 'side' ? 'Картинка 600×1200 (большое место) или 600×500 (маленькое).' : 'Широкая картинка 2400×600 пикселей.'} Можно без неё — сделаем цветной баннер.</span>}
             </div>
             <div><label className={labelCls}>Комментарий</label><input value={form.comment} onChange={set('comment')} maxLength={500} placeholder="Например: удобно созвониться после 18:00" className={inputCls} /></div>
             {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}

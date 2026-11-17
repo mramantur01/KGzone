@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import { call } from './admin';
 import { DEFAULT_BANNER, DEFAULT_STO_BANNER, type BannerConfig } from '../data/bannerDefaults';
+import { DEFAULT_SIDE_BANNER } from '../data/adBanners';
 
 // Banner slides: saved by the owner on the server, otherwise the sample ads.
 // 'parts' = top of the parts catalog, 'sto' = top of the car service page.
-export type BannerPlace = 'parts' | 'sto';
+export type BannerPlace = 'parts' | 'sto' | 'side';
 
-const DEFAULTS: Record<BannerPlace, BannerConfig> = { parts: DEFAULT_BANNER, sto: DEFAULT_STO_BANNER };
+const DEFAULTS: Record<BannerPlace, BannerConfig> = { parts: DEFAULT_BANNER, sto: DEFAULT_STO_BANNER, side: DEFAULT_SIDE_BANNER };
 const cached: Partial<Record<BannerPlace, BannerConfig>> = {};
 const loading: Partial<Record<BannerPlace, Promise<BannerConfig>>> = {};
-const listeners: Record<BannerPlace, Set<(b: BannerConfig) => void>> = { parts: new Set(), sto: new Set() };
-const query = (place: BannerPlace) => (place === 'sto' ? '?place=sto' : '');
+const listeners: Record<BannerPlace, Set<(b: BannerConfig) => void>> = { parts: new Set(), sto: new Set(), side: new Set() };
+const query = (place: BannerPlace) => (place === 'parts' ? '' : `?place=${place}`);
 const publish = (place: BannerPlace, b: BannerConfig) => { cached[place] = b; listeners[place].forEach((l) => l(b)); };
 
 export function loadBanner(force = false, place: BannerPlace = 'parts'): Promise<BannerConfig> {

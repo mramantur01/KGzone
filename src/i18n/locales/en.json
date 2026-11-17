@@ -4337,5 +4337,21 @@
  "Слишком много заявок. Попробуйте через час.": "Too many requests. Try again in an hour.",
  "📣 Заявка на рекламу: {} {} · {} с {} {}, {} Посмотреть: {}/kabinet → Модерация → Заявки на рекламу": "📣 Ad request: {} {} · {} from {} {}, {} View: {}/kabinet → Moderation → Ad requests",
  "Слайдер «Сервис»": "\"Service\" slider",
- "Слайдер «Автозапчасти»": "\"Car parts\" slider"
+ "Слайдер «Автозапчасти»": "\"Car parts\" slider",
+ "Место сбоку в каталоге (на компьютере)": "Side place in the catalog (on computers)",
+ "Сбоку, неделя": "Side, week",
+ "Сбоку, месяц": "Side, month",
+ "Реклама сбоку в каталоге (на компьютере)": "Side ads in the catalog (on computers)",
+ "Колонка рядом с запчастями: большое место сверху, три маленьких и большое снизу. Если на одно место поставить несколько реклам, они сменяют друг друга. Картинки: большое — 600×1200, маленькое — 600×500 пикселей.": "Column next to the parts: a big place on top, three small ones and a big one at the bottom. Several ads in one place take turns. Pictures: big — 600×1200, small — 600×500 px.",
+ "Место в колонке": "Place in the column",
+ "Баннер в колонке рядом с запчастями. Виден на компьютере, пока покупатель листает каталог.": "A banner in the column next to the parts. Seen on computers while the buyer scrolls the catalog.",
+ "Картинка 600×1200 (большое место) или 600×500 (маленькое).": "Picture 600×1200 (big place) or 600×500 (small).",
+ "Широкая картинка 2400×600 пикселей.": "A wide picture 2400×600 px.",
+ "Можно без неё — сделаем цветной баннер.": "Without it we make a coloured banner.",
+ "Большое сверху (600×1200)": "Big top (600×1200)",
+ "Маленькое №1 (600×500)": "Small #1 (600×500)",
+ "Маленькое №2 (600×500)": "Small #2 (600×500)",
+ "Маленькое №3 (600×500)": "Small #3 (600×500)",
+ "Большое снизу (600×1200)": "Big bottom (600×1200)",
+ "Сбоку в каталоге": "Side of the catalog"
 }

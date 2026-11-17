@@ -46,6 +46,10 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
     setText(kind === 'parts' ? 'Здравствуйте! Деталь ещё в наличии?' : 'Здравствуйте! Машина ещё продаётся?');
   }, [listingId, kind]);
 
+  const [reviewPhotos, setReviewPhotos] = useState<string[]>([]);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  // After all hooks (React needs the same hooks on every render)
   if (!sellerId) return null;
   const isOwn = user?.id === sellerId;
 
@@ -83,8 +87,6 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
     }
   };
 
-  const [reviewPhotos, setReviewPhotos] = useState<string[]>([]);
-  const [photoBusy, setPhotoBusy] = useState(false);
   const addReviewPhotos = async (files: FileList | null) => {
     if (!files) return;
     setPhotoBusy(true);

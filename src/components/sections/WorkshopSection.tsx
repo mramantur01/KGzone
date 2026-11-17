@@ -1,3 +1,4 @@
+import { copyText } from '../../utils/copyText';
 import React, { useState } from 'react';
 import { 
   Wrench, Calendar, Clock, User, Phone, MapPin, CheckCircle2, 
@@ -989,7 +990,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
 
                   <button
                     onClick={() => {
-                      navigator.clipboard?.writeText?.(`${selectedLocation.address}`);
+                      void copyText(selectedLocation.address);
                       alert('Адрес скопирован в буфер обмена: ' + selectedLocation.address);
                     }}
                     className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium"
