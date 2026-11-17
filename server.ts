@@ -692,6 +692,75 @@ app.post('/api/orders/feedback', asyncRoute(async (req: Request, res: Response) 
   res.json({ success: true });
 }));
 
+// ---- Crown by rules (private sellers). ИП / ОсОО keep the manual check of documents.
+const CROWN = { days: Number(process.env.CROWN_MIN_DAYS ?? 30), rating: 4.5, reviews: 5, sales: 3, answered: 0.8, noStock: 1, windowDays: 60 };
+interface CrownData { parts: any[]; orders: any[]; ratings: Map<string, { sum: number; count: number }>; reports: any[] }
+async function crownData(): Promise<CrownData> {
+  const [parts, orders, ratings, reports] = await Promise.all([listRecords<any>('parts'), listRecords<any>('orders'), sellerRatings(), listRecords<any>('reports')]);
+  return { parts, orders, ratings, reports };
+}
+/** The checklist for one seller: each rule with done / not done and the seller's own numbers */
+function crownCheck(u: UserRecord, d: CrownData) {
+  const now = Date.now();
+  const since = now - CROWN.windowDays * 86_400_000;
+  const mine = d.parts.filter((x) => x.ownerId === u.id);
+  const mineIds = new Set(mine.map((x) => x.id));
+  const live = mine.filter((x) => isLive(x) && Number(x.stockCount) > 0);
+  const orders = d.orders.filter((o) => !SEED_ORDER_IDS.has(o.id) && o.source !== 'offline' && (o.sellerId === u.id || (!o.sellerId && mineIds.has(o.partId))));
+  const closed = orders.filter((o) => !isOpenOrder(o));
+  const answered = closed.filter((o) => o.result !== 'no-answer').length;
+  const sold = orders.filter((o) => o.status === 'Выполнен').length;
+  const noStock = orders.filter((o) => o.result === 'no-stock' && o.resultBy === 'buyer' && Date.parse(o.resultAt || o.createdAt) > since).length;
+  const complaints = d.reports.filter((r) => mineIds.has(r.listingId) && r.status !== 'dismissed' && Date.parse(r.createdAt) > since).length;
+  const stale = live.filter((x) => stockAge(x) > STALE_STOCK_DAYS * 86_400_000).length;
+  const r = d.ratings.get(u.id);
+  const rating = r ? Math.round((r.sum / r.count) * 10) / 10 : 0;
+  const days = Math.floor((now - (Date.parse(u.createdAt) || now)) / 86_400_000);
+  const share = closed.length ? answered / closed.length : 0;
+  const items = [
+    { key: 'days', label: `На сайте не меньше ${CROWN.days} дней`, ok: days >= CROWN.days, value: `${days} дн.` },
+    { key: 'live', label: 'Есть товары на сайте', ok: live.length > 0, value: `${live.length} шт.` },
+    { key: 'rating', label: `Рейтинг от ${CROWN.rating} и не меньше ${CROWN.reviews} отзывов`, ok: rating >= CROWN.rating && (r?.count || 0) >= CROWN.reviews, value: r ? `${rating} ★ · ${r.count} отз.` : 'нет отзывов' },
+    { key: 'sales', label: `Не меньше ${CROWN.sales} продаж через сайт`, ok: sold >= CROWN.sales, value: `${sold}` },
+    { key: 'answers', label: 'Отвечаете на заказы (80% и больше)', ok: closed.length > 0 && share >= CROWN.answered, value: closed.length ? `${Math.round(share * 100)}%` : 'заказов ещё нет' },
+    { key: 'stock', label: `Наличие всех товаров подтверждено за ${STALE_STOCK_DAYS} дней`, ok: stale === 0, value: stale ? `не подтверждено: ${stale}` : 'всё верно' },
+    { key: 'nostock', label: `За ${CROWN.windowDays} дней не больше ${CROWN.noStock} раза «товара не было»`, ok: noStock <= CROWN.noStock, value: `${noStock}` },
+    { key: 'complaints', label: `За ${CROWN.windowDays} дней нет жалоб на товары`, ok: complaints === 0, value: `${complaints}` },
+  ];
+  return { items, ok: !u.blocked && items.every((i) => i.ok) };
+}
+
+app.get('/api/my/crown', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  if (user.accountType === 'legal') return res.json({ success: true, applicable: false });
+  const c = crownCheck(user, await crownData());
+  res.json({ success: true, applicable: true, has: Boolean(user.verifiedSeller), by: user.verifiedBy || (user.verifiedSeller ? 'admin' : undefined), locked: Boolean(user.verifiedLocked), ...c });
+}));
+
+/** Once an hour: give the crown to sellers who meet every rule, take it from those who stopped (only crowns the site gave) */
+let lastCrownSweep = 0;
+async function sweepCrowns() {
+  if (Date.now() - lastCrownSweep < Number(process.env.CROWN_SWEEP_MS ?? 3_600_000)) return;
+  lastCrownSweep = Date.now();
+  const [users, d] = await Promise.all([listRecords<UserRecord>('users'), crownData()]);
+  const sellers = new Set(d.parts.map((x) => x.ownerId).filter(Boolean));
+  for (const u of users) {
+    if (u.accountType === 'legal' || u.isOwner || !sellers.has(u.id)) continue;
+    const manual = u.verifiedSeller && u.verifiedBy !== 'auto';
+    if (manual) continue;
+    const c = crownCheck(u, d);
+    if (c.ok && !u.verifiedSeller && !u.verifiedLocked) {
+      await updateRecord('users', u.id, { verifiedSeller: true, verifiedBy: 'auto', verifiedSellerAt: new Date().toISOString() });
+      await audit('admin-token', 'auto-crown', u.id, { given: true });
+      await notifyUser(u.id, '👑 Поздравляем! Вы выполнили все условия, и KGzone сам отметил вас как проверенного продавца. Корона видна рядом с вашими объявлениями. Чтобы её сохранить, отвечайте на заказы и подтверждайте наличие.');
+    } else if (!c.ok && u.verifiedSeller && u.verifiedBy === 'auto') {
+      await updateRecord('users', u.id, { verifiedSeller: false, verifiedBy: undefined, verifiedSellerAt: undefined });
+      await audit('admin-token', 'auto-crown', u.id, { given: false, missing: c.items.filter((i) => !i.ok).map((i) => i.key) });
+      await notifyUser(u.id, `👑 Корона проверенного продавца снята: ${c.items.filter((i) => !i.ok).map((i) => i.label.toLowerCase()).join('; ')}.\nКогда всё будет выполнено, корона вернётся сама. Подробно — в Личном кабинете → «Заказы покупателей».\n${SITE_URL}/kabinet`);
+    }
+  }
+}
+
 /** Every 10 minutes (when the catalog is read): remind sellers about unanswered orders and old stock */
 let lastSalesSweep = 0;
 async function sweepSales(parts: any[]) {
@@ -1122,6 +1191,7 @@ app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
   const [parts, verified, ratings, seen, companies] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings(), lastSeenMap(), officialCompanies()]);
   await endExpiredSales(parts);
   try { await sweepSales(parts); } catch (err) { console.warn('[Sales] sweep failed:', err); }
+  try { await sweepCrowns(); } catch (err) { console.warn('[Crown] sweep failed:', err); }
   res.json({ success: true, parts: parts.filter(isPublicPart).map((p: any) => publicPart(p, verified, ratings, seen, companies)) });
 }));
 
@@ -1509,6 +1579,10 @@ interface UserRecord {
   shop?: ShopInfo; // public shop page: /magazin/<user id>
   lastSeenAt?: string;
   verifiedSellerAt?: string;
+  /** Who gave the crown: the site by its rules, or an admin */
+  verifiedBy?: 'auto' | 'admin';
+  /** An admin took the crown off: the site does not give it back by itself */
+  verifiedLocked?: boolean;
   telegramChatId?: string;
   telegramLinkCode?: string;
   telegramLinkExpires?: number;
@@ -2134,6 +2208,8 @@ app.patch('/api/admin/users/:id', requireAdminOnly, asyncRoute(async (req: Reque
   if (b.verifiedSeller !== undefined) {
     patch.verifiedSeller = Boolean(b.verifiedSeller);
     patch.verifiedSellerAt = patch.verifiedSeller ? new Date().toISOString() : undefined;
+    patch.verifiedBy = patch.verifiedSeller ? 'admin' : undefined;
+    patch.verifiedLocked = !patch.verifiedSeller;
   }
   if (b.companyStatus !== undefined && target.company) {
     const statuses: CompanyStatus[] = ['unverified', 'pending', 'verified', 'needs_docs', 'rejected', 'blocked'];

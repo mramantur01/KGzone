@@ -130,14 +130,14 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string }> = ({ currentUs
                       <Ban size={12} /><span>{u.blocked ? 'Разблокировать' : 'Заблокировать'}</span>
                     </button>
                   )}
-                  <button
+                  {u.accountType !== 'legal' && <button
                     type="button"
                     onClick={() => act(() => updateUser(u.id, { verifiedSeller: !u.verifiedSeller }))}
-                    title="Ставьте корону, только если лично проверили продавца: документы, место продажи, товар"
+                    title="Сайт сам даёт корону продавцам, которые выполнили все условия. Вручную — если лично проверили продавца. Снятая вручную корона сама не вернётся."
                     className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 cursor-pointer ${u.verifiedSeller ? 'bg-amber-400 text-neutral-950' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'}`}
                   >
-                    <span>👑</span><span>{u.verifiedSeller ? 'Проверенный · снять' : 'Отметить проверенным'}</span>
-                  </button>
+                    <span>👑</span><span>{u.verifiedSeller ? (u.verifiedBy === 'auto' ? 'Проверенный (сайт) · снять' : 'Проверенный · снять') : u.verifiedLocked ? 'Снята вручную · вернуть' : 'Отметить проверенным'}</span>
+                  </button>}
                   <button
                     type="button"
                     onClick={() => { if (confirm(`Сбросить пароль для ${u.name}? Сделайте это, только если проверили, что номер принадлежит этому человеку.`)) act(async () => setTempPassword({ id: u.id, value: await resetUserPassword(u.id) })); }}

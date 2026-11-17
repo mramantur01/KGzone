@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, XCircle, PackageX, Phone, Truck, Footprints, Loader2, ShoppingBag, BadgeCheck, Clock } from 'lucide-react';
+import { CrownProgressCard } from './CrownProgressCard';
 import { answerMySale, confirmMyStock, listMySales, type SaleOrder } from '../../api/myListings';
 
 const card = 'p-4 sm:p-5 rounded-2xl bg-white border border-slate-200';
@@ -120,6 +121,8 @@ export const MySalesPanel: React.FC<{ onCount?: (n: number) => void }> = ({ onCo
           <p className="mt-2 text-[11px] text-slate-400">«Продано» — уменьшит наличие на сайте. «Товара нет» — снимет товар с сайта. «Не купил» — наличие не меняется.</p>
         </div>
       ))}
+
+      <CrownProgressCard />
 
       {done.length > 0 && (
         <div className={card}>

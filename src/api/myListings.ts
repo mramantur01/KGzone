@@ -75,6 +75,8 @@ export interface AdminUser {
   company?: import('./auth').CompanyProfile;
   listingsCount: number;
   verifiedSeller?: boolean;
+  verifiedBy?: 'auto' | 'admin';
+  verifiedLocked?: boolean;
 }
 
 export const listUsers = () => call<{ users: AdminUser[] }>('/api/admin/users', {}, true).then((d) => d.users);

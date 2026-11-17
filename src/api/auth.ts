@@ -61,6 +61,10 @@ export interface Account {
   telegramLinked?: boolean;
   termsAcceptedAt?: string;
   verifiedSeller?: boolean;
+  /** Crown given by the site rules or by an admin */
+  verifiedBy?: 'auto' | 'admin';
+  /** An admin took the crown off: the rules do not give it back */
+  verifiedLocked?: boolean;
   shop?: ShopInfo;
   lastSeenAt?: string;
   /** Profile photo or shop logo */
