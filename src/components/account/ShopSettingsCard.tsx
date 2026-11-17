@@ -1,3 +1,4 @@
+import { copyText } from '../../utils/copyText';
 import React, { useState } from 'react';
 import { Store, Copy, ExternalLink, ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react';
 import { updateProfile, type Account, type ShopBranch } from '../../api/auth';
@@ -38,7 +39,8 @@ export const ShopSettingsCard: React.FC<{ user: Account }> = ({ user }) => {
     } catch (err: any) { setMsg({ ok: false, text: err.message }); }
   };
   const copy = async () => {
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch { /* clipboard blocked */ }
+    if (await copyText(url)) { setCopied(true); setTimeout(() => setCopied(false), 2500); }
+    else setMsg({ ok: false, text: 'Не получилось скопировать — выделите ссылку в поле и скопируйте вручную.' });
   };
 
   return (

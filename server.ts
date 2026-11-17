@@ -4064,7 +4064,7 @@ async function getBotUsername() {
 app.post('/api/telegram/link', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
   const username = process.env.TELEGRAM_BOT_TOKEN ? await getBotUsername() : '';
-  if (!username) return res.status(503).json({ success: false, error: 'Telegram-бот ещё не подключён администратором сайта' });
+  if (!username) return res.status(409).json({ success: false, error: 'Telegram-бот ещё не подключён администратором сайта' });
   const code = randomBytes(12).toString('base64url');
   await updateRecord<UserRecord>('users', user.id, { telegramLinkCode: code, telegramLinkExpires: Date.now() + 30 * 60_000 });
   res.json({ success: true, url: `https://t.me/${username}?start=${code}` });
