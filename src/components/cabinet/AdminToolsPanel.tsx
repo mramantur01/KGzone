@@ -15,7 +15,7 @@ const btn = 'px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cu
 interface BotStatus { configured: boolean; username?: string; webhookOk?: boolean; lastError?: string | null }
 
 // Telegram bot: shows whether it is configured and connects the webhook in one click
-const TelegramBotCard: React.FC = () => {
+export const TelegramBotCard: React.FC = () => {
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,7 +62,7 @@ const TelegramBotCard: React.FC = () => {
   );
 };
 
-const BackupCard: React.FC = () => {
+export const BackupCard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const download = async () => {
@@ -94,7 +94,7 @@ const BackupCard: React.FC = () => {
 };
 
 // Upload a shop's price list on its behalf (onboarding sellers from the market)
-const ImportForSellerCard: React.FC = () => {
+export const ImportForSellerCard: React.FC = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [query, setQuery] = useState('');
   const [ownerId, setOwnerId] = useState('');
@@ -178,7 +178,7 @@ const ImportForSellerCard: React.FC = () => {
 };
 
 // Telegram channel: new listings are posted automatically once it is connected
-const ChannelCard: React.FC = () => {
+export const ChannelCard: React.FC = () => {
   const [st, setSt] = useState<{ configured: boolean; channel: string | null; bot: boolean } | null>(null);
   useEffect(() => { call<{ configured: boolean; channel: string | null; bot: boolean }>('/api/admin/telegram-channel', {}, true).then(setSt).catch(() => setSt(null)); }, []);
   return (
@@ -199,7 +199,7 @@ const ChannelCard: React.FC = () => {
 };
 
 // The week in numbers: the same text the owner gets in Telegram on Monday mornings
-const WeeklyReportCard: React.FC = () => {
+export const WeeklyReportCard: React.FC = () => {
   const [text, setText] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);

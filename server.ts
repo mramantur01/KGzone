@@ -4706,6 +4706,26 @@ app.post('/api/pulse', asyncRoute(async (req: Request, res: Response) => {
   if (!limited) await bumpDaily(type === 'visit' ? 'visits' : 'searches');
   res.json({ success: true });
 }));
+// Control panel: what needs attention right now (only the queues this person may handle)
+app.get('/api/admin/overview', requirePerm(...STAFF_PERMS), asyncRoute(async (req: Request, res: Response) => {
+  const mine = actorPerms((req as any).actor);
+  const has = (x: StaffPerm) => mine.includes(x);
+  const out: Record<string, number> = {};
+  if (has('listings')) {
+    const [parts, cars] = await Promise.all([listRecords<any>('parts'), listRecords<any>('cars')]);
+    const pending = (l: any) => l.moderation?.status === 'pending';
+    out.listings = parts.filter(pending).length + cars.filter(pending).length;
+    out.prices = parts.filter((p) => pending(p) && p.moderation?.reviewedBy === 'auto-price').length;
+  }
+  if (has('reports')) out.reports = (await listRecords<any>('reports')).filter((r) => r.status === 'new').length;
+  if (has('reviews')) out.reviews = (await listRecords<any>('reviews')).filter((r) => isRealReview(r) && (!r.status || r.status === 'pending')).length;
+  if (has('requests')) out.requests = (await listRecords<any>('partRequests')).filter((r) => r.status === 'new').length;
+  if (has('users.shops')) out.shops = (await listRecords<UserRecord>('users')).filter((u) => u.company?.status === 'pending').length;
+  if (has('ads')) out.ads = (await kvGet<any[]>(AD_REQUESTS_KEY) || []).filter((r) => r.status === 'new').length;
+  if (has('orders')) out.orders = (await listRecords<any>('orders')).filter((o) => isOpenOrder(o) && !SEED_ORDER_IDS.has(o.id) && o.source !== 'offline' && Date.now() - (Date.parse(o.createdAt) || Date.now()) > 3 * 3_600_000).length;
+  res.json({ success: true, counts: out, perms: mine });
+}));
+
 app.get('/api/admin/weekly-report', requirePerm('stats'), asyncRoute(async (req: Request, res: Response) => {
   const text = await weeklyReportText();
   if (req.query.send === '1') await notifyStaff('stats', text);
