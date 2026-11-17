@@ -4354,5 +4354,17 @@
  "Маленькое №3 (600×500)": "Small #3 (600×500)",
  "Большое снизу (600×1200)": "Big bottom (600×1200)",
  "Сбоку в каталоге": "Side of the catalog",
- "Не получилось скопировать — выделите ссылку в поле и скопируйте вручную.": "Could not copy — select the link in the field and copy it by hand."
+ "Не получилось скопировать — выделите ссылку в поле и скопируйте вручную.": "Could not copy — select the link in the field and copy it by hand.",
+ "цену скажет продавец": "the seller will tell the price",
+ "Где купить и как получить": "Where to buy and how to get it",
+ "Сейчас нет": "Not in stock now",
+ "Все товары": "All items",
+ "Где находится": "Location",
+ "Адрес не указан": "No address given",
+ "2ГИС": "2GIS",
+ "показать": "show",
+ "Бесплатно · заберёте в магазине": "Free · collect at the shop",
+ "Нет у этого продавца": "Not offered by this seller",
+ "Продавец не доставляет": "The seller does not deliver",
+ "Оставите имя и телефон — продавец позвонит и подтвердит наличие и время. Оплата — при получении.": "Leave your name and phone — the seller will call to confirm stock and time. Pay when you receive it."
 }

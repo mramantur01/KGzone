@@ -23,7 +23,9 @@ export function addToCart(id: string, qty = 1) {
 }
 export const setCartQty = (id: string, qty: number) => save(qty <= 0 ? lines.filter((l) => l.partId !== id) : lines.map((l) => (l.partId === id ? { ...l, qty: Math.min(999, qty) } : l)));
 export const removeFromCart = (ids: string[]) => save(lines.filter((l) => !ids.includes(l.partId)));
-export const openCart = () => window.dispatchEvent(new CustomEvent('kgz:open-cart'));
+/** Opens the cart; with `checkout` it also opens the order form for that part's seller (pickup or delivery chosen) */
+export type CartCheckout = { partId: string; delivery: boolean };
+export const openCart = (checkout?: CartCheckout) => window.dispatchEvent(new CustomEvent('kgz:open-cart', { detail: checkout }));
 
 /** Price per piece for a quantity (wholesale price from N pieces) */
 export const unitPrice = (p: AutoPartItem, qty: number) =>

@@ -1665,7 +1665,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
                           {cartLines.some((l) => l.partId === part.id) ? (
                             <button
-                              onClick={openCart}
+                              onClick={() => openCart()}
                               className="py-2.5 px-2 bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer"
                             >
                               <ShoppingBag size={13} />

@@ -1,3 +1,4 @@
+import type { CartCheckout } from '../../utils/cart';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ShoppingCart, X, Minus, Plus, Trash2, Loader2, CheckCircle2, Store } from 'lucide-react';
@@ -25,10 +26,11 @@ interface Group { key: string; seller: string; location: string; lines: { part: 
 export const CartButton: React.FC = () => {
   const lines = useCart();
   const [open, setOpen] = useState(false);
+  const [auto, setAuto] = useState<CartCheckout | undefined>();
   const [bump, setBump] = useState(false);
   const count = lines.reduce((n, l) => n + l.qty, 0);
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = (e: Event) => { setAuto((e as CustomEvent<CartCheckout | undefined>).detail); setOpen(true); };
     const onAdded = () => { setBump(true); setTimeout(() => setBump(false), 600); };
     window.addEventListener('kgz:open-cart', onOpen);
     window.addEventListener('kgz:cart-added', onAdded);
@@ -40,16 +42,17 @@ export const CartButton: React.FC = () => {
         <ShoppingCart size={20} />
         {count > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-amber-400 text-neutral-950 text-[10px] font-black leading-4 text-center">{count > 99 ? '99+' : count}</span>}
       </button>
-      {open && <CartDrawer onClose={() => setOpen(false)} />}
+      {open && <CartDrawer autoCheckout={auto} onClose={() => { setOpen(false); setAuto(undefined); }} />}
     </>
   );
 };
 
-const CartDrawer: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const CartDrawer: React.FC<{ onClose: () => void; autoCheckout?: CartCheckout }> = ({ onClose, autoCheckout }) => {
   const lines = useCart();
   const parts = useParts();
   const { user } = useAuth();
   const [checkout, setCheckout] = useState<Group | null>(null);
+  const [wantDelivery, setWantDelivery] = useState(false);
   const [done, setDone] = useState<{ number: string; seller: string } | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -78,6 +81,18 @@ const CartDrawer: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     }
     return [...map.values()];
   }, [lines, byId]);
+
+  // Came from «Самовывоз» / «Доставка» on the part page: open that seller's order form right away
+  const autoDone = React.useRef(false);
+  useEffect(() => {
+    if (!autoCheckout || autoDone.current) return;
+    const g = groups.find((x) => x.lines.some((l) => l.part.id === autoCheckout.partId));
+    if (!g) return;
+    autoDone.current = true;
+    if (g.lines.some((x) => !x.part.sellerId) || isDemoCabinet()) return;
+    setWantDelivery(autoCheckout.delivery);
+    setCheckout(g);
+  }, [autoCheckout, groups]);
 
   return createPortal(
     <div className="fixed inset-0 z-[90] bg-black/50 flex justify-end" onClick={onClose}>
@@ -145,7 +160,7 @@ const CartDrawer: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   <div className="font-black">{som(g.total)}</div>
                   <div className="text-[11px] text-slate-500">{g.delivery}</div>
                 </div>
-                <button type="button" disabled={isDemoCabinet() || g.lines.some((x) => !x.part.sellerId)} onClick={() => { setDone(null); setCheckout(g); }} className="px-4 py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] disabled:opacity-50 text-white text-sm font-bold cursor-pointer" title={g.lines.some((x) => !x.part.sellerId) ? 'Это пример объявления — заказ недоступен' : undefined}>
+                <button type="button" disabled={isDemoCabinet() || g.lines.some((x) => !x.part.sellerId)} onClick={() => { setDone(null); setWantDelivery(false); setCheckout(g); }} className="px-4 py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] disabled:opacity-50 text-white text-sm font-bold cursor-pointer" title={g.lines.some((x) => !x.part.sellerId) ? 'Это пример объявления — заказ недоступен' : undefined}>
                   Заказать у продавца
                 </button>
               </div>
@@ -153,7 +168,7 @@ const CartDrawer: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           ))}
         </div>
         {checkout && (
-          <CheckoutForm group={checkout} defaultName={user?.name || ''} defaultPhone={user?.phone ? `+${user.phone}` : ''} onClose={() => setCheckout(null)}
+          <CheckoutForm key={checkout.key + String(wantDelivery)} initialDelivery={wantDelivery} group={checkout} defaultName={user?.name || ''} defaultPhone={user?.phone ? `+${user.phone}` : ''} onClose={() => setCheckout(null)}
             onDone={(number) => { setDone({ number, seller: checkout.seller }); removeFromCart(checkout.lines.map((x) => x.part.id)); setCheckout(null); }} />
         )}
       </div>
@@ -162,10 +177,11 @@ const CartDrawer: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   );
 };
 
-const CheckoutForm: React.FC<{ group: Group; defaultName: string; defaultPhone: string; onClose: () => void; onDone: (n: string) => void }> = ({ group, defaultName, defaultPhone, onClose, onDone }) => {
+const CheckoutForm: React.FC<{ group: Group; defaultName: string; defaultPhone: string; initialDelivery?: boolean; onClose: () => void; onDone: (n: string) => void }> = ({ group, defaultName, defaultPhone, initialDelivery = false, onClose, onDone }) => {
   const [name, setName] = useState(defaultName);
   const [phone, setPhone] = useState(defaultPhone);
-  const [delivery, setDelivery] = useState(false);
+  const canDeliverAny = group.lines.some((x) => x.part.deliveryAvailable);
+  const [delivery, setDelivery] = useState(initialDelivery && canDeliverAny);
   const [address, setAddress] = useState('');
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);

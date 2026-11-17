@@ -3,6 +3,7 @@ import { partQuestion } from '../../utils/waMessages';
 import React, { useEffect, useState } from 'react';
 import { recordView, recordContact } from '../../utils/viewHistory';
 import { ReservePart } from './ReservePart';
+import { WhereToGet } from './WhereToGet';
 import { ReportListingButton } from '../common/ReportListingButton';
 import { isDemoListing, DEMO_NOTICE } from '../../utils/demo';
 import { SellerContactBlock } from '../chat/SellerContactBlock';
@@ -492,6 +493,7 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
                     <span>WhatsApp</span>
                   </a>
                 </div>
+                <WhereToGet part={part} isKg={isKg} isDemo={isDemo} phoneRevealed={isPhoneRevealed} onRevealPhone={handleRevealPhone} whatsappUrl={whatsappUrl} onWhatsApp={() => recordContact('part', part.id, 'whatsapp')} onDemo={() => undefined} />
                 {part.sellerId && !isDemo && <ReservePart part={part} isKg={isKg} />}
               </div>
 
