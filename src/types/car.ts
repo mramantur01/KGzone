@@ -140,6 +140,8 @@ export interface AutoPartItem {
   saleUntil?: string;
   /** Reserved by a buyer until this time */
   reservedUntil?: string;
+  /** When the seller last confirmed or changed the stock */
+  stockCheckedAt?: string;
   /** Left / right and front / rear (also read from the title) */
   side?: 'left' | 'right';
   axle?: 'front' | 'rear';

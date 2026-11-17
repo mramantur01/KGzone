@@ -2,8 +2,10 @@ import { OfficialCompanyBadge } from '../common/VerifiedSellerBadge';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListChecks, Heart, History, Building2, Contact, UserCog, ShieldCheck, Users,
-  LogOut, Loader2, Trash2, Search, MessageSquare, Upload, Settings, Crown, Menu, X,
+  LogOut, Loader2, Trash2, Search, MessageSquare, Upload, Settings, Crown, Menu, X, ShoppingBag,
 } from 'lucide-react';
+import { MySalesPanel } from './MySalesPanel';
+import { listMySales } from '../../api/myListings';
 import { call } from '../../api/admin';
 import { MyImportPanel } from './MyImportPanel';
 import { MessagesPanel } from '../chat/MessagesPanel';
@@ -57,7 +59,7 @@ interface Props {
   onFindParts: (preset: PartsSearchPreset) => void;
 }
 
-type Section = 'business' | 'crm' | 'messages' | 'listings' | 'requests' | 'import' | 'favorites' | 'history' | 'company' | 'profile' | 'moderation' | 'users';
+type Section = 'business' | 'crm' | 'messages' | 'listings' | 'sales' | 'requests' | 'import' | 'favorites' | 'history' | 'company' | 'profile' | 'moderation' | 'users';
 
 const card = 'p-4 sm:p-5 rounded-2xl bg-white border border-slate-200';
 const inputCls = 'w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#C8102E] focus:outline-hidden';
@@ -93,6 +95,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
   const [myCount, setMyCount] = useState<number | null>(null);
   const [requestsCount, setRequestsCount] = useState(0);
+  const [salesCount, setSalesCount] = useState(0);
   const [startChosen, setStartChosen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   // Phones get a bottom tab bar; the floating assistant button moves above it
@@ -107,6 +110,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
     if (!user) return;
     listMyListings().then((r) => setMyCount(r.parts.length + r.cars.length)).catch(() => setMyCount(0));
     call<{ requests: unknown[] }>('/api/part-requests/for-me').then((r) => setRequestsCount(r.requests.length)).catch(() => setRequestsCount(0));
+    listMySales().then((r) => setSalesCount(r.orders.filter((o) => !['Выполнен', 'Отменен'].includes(o.status)).length)).catch(() => setSalesCount(0));
     setName(user.name);
     setCity(user.city);
     setEmail(user.email);
@@ -159,6 +163,7 @@ export const AccountCabinet: React.FC<Props> = (props) => {
   ];
   const nav: NavItem[] = [
     { id: 'listings', label: 'Мои объявления', icon: ListChecks, badge: myCount || undefined, muted: true },
+    { id: 'sales', label: 'Заказы покупателей', icon: ShoppingBag, badge: salesCount || undefined },
     { id: 'messages', label: 'Сообщения', icon: MessageSquare, badge: unreadMessages || undefined },
     // Companies: CRM with clients from chats and orders
     ...(biz.info && (biz.info.permissions.includes('messages') || biz.info.permissions.includes('orders.view')) ? [{ id: 'crm' as Section, label: 'Клиенты (CRM)', icon: Contact }] : []),
@@ -262,6 +267,8 @@ export const AccountCabinet: React.FC<Props> = (props) => {
               onOpenImport={() => setSection(biz.info ? 'business' : 'import')}
             />
           )}
+
+          {section === 'sales' && <MySalesPanel onCount={setSalesCount} />}
 
           {section === 'requests' && (
             <div className="space-y-4">
@@ -481,9 +488,9 @@ export const AccountCabinet: React.FC<Props> = (props) => {
 
       {/* Phone: bottom tab bar (like an app) + "Ещё" sheet with the rest of the menu */}
       {(() => {
-        const primaryIds: Section[] = ['listings', 'messages', biz.info ? 'crm' : 'requests', biz.info ? 'business' : 'import'];
+        const primaryIds: Section[] = ['listings', 'sales', 'messages', biz.info ? 'business' : 'requests'];
         const short: Partial<Record<Section, string>> = {
-          listings: 'Товары', messages: 'Сообщения', crm: 'Клиенты', requests: 'Заявки', import: 'Прайс', business: 'Бизнес',
+          listings: 'Товары', sales: 'Заказы', messages: 'Сообщения', crm: 'Клиенты', requests: 'Заявки', import: 'Прайс', business: 'Бизнес',
           favorites: 'Избранное',
         };
         const all = [...nav, ...buyerExtras];

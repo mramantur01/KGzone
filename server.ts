@@ -87,6 +87,7 @@ async function insertRecord<T extends { id: string }>(c: Collection, item: T): P
 }
 
 async function updateRecord<T = any>(c: Collection, id: string, patch: Partial<T>): Promise<T | null> {
+  if (c === 'parts' && 'stockCount' in (patch as any) && !('stockCheckedAt' in (patch as any))) patch = { ...patch, stockCheckedAt: new Date().toISOString() } as Partial<T>;
   if (!redis) {
     const item = memory[c].find((r) => r.id === id);
     if (!item) return null;
@@ -320,6 +321,16 @@ interface OrderRecord {
   source?: 'offline';
   qty?: number;
   soldBy?: string;
+  /** Owner of the part (orders from the cart and reservations) */
+  sellerId?: string;
+  /** Secret the buyer's browser keeps to answer "did you buy it?" */
+  buyerKey?: string;
+  /** How the order ended: answered by the seller, the buyer, or closed with no answer */
+  result?: 'sold' | 'not-sold' | 'no-stock' | 'no-answer';
+  resultBy?: 'seller' | 'buyer' | 'auto';
+  resultAt?: string;
+  buyerAnswer?: 'bought' | 'not-bought' | 'no-stock';
+  remindedAt?: string;
 }
 
 const seedOrders: OrderRecord[] = [
@@ -453,14 +464,16 @@ app.post('/api/parts/:id/reserve', asyncRoute(async (req: Request, res: Response
   await updateRecord('parts', part.id, { reservedUntil: until });
   const now = new Date().toISOString();
   const number = `KGZ-B${Math.floor(1000 + Math.random() * 9000)}`;
+  const buyerKey = randomBytes(18).toString('hex');
   await insertRecord('orders', {
     id: `ord-${randomUUID()}`, orderNumber: number, createdAt: now, customerName: name, customerPhone: phone,
     partId: part.id, partTitle: part.title, partNumber: part.partNumber, storeName: part.storeName, storeLocation: part.storeLocation || '',
     priceKgs: part.priceKgs, qty: 1, deliveryType: 'pickup', deliveryAddress: 'Самовывоз', status: 'Новый',
+    sellerId: part.ownerId, buyerKey,
     comment: `Бронь на 2 часа (до ${new Date(until).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bishkek' })})`, ...(buyer ? { userId: buyer.id } : {}),
   } as OrderRecord);
   await notifyUser(part.ownerId, `⏳ Бронь ${number}: ${part.title} (OEM ${part.partNumber})\nПокупатель: ${name}, ${phone}\nОтложите товар на 2 часа — покупатель едет к вам.`);
-  res.status(201).json({ success: true, reservedUntil: until, orderNumber: number });
+  res.status(201).json({ success: true, reservedUntil: until, orderNumber: number, feedbackKey: buyerKey });
 }));
 
 // Seller takes the reservation off (the buyer did not come)
@@ -556,6 +569,7 @@ app.post('/api/cart/checkout', asyncRoute(async (req: Request, res: Response) =>
   const comment = str(b.comment, 500);
   const group = `KGZ-${Math.floor(10000 + Math.random() * 90000)}`;
   const now = new Date().toISOString();
+  const buyerKey = randomBytes(18).toString('hex');
   const unit = (p: any, qty: number) => (p.wholesalePriceKgs && qty >= (p.wholesaleMinQty || 2) ? p.wholesalePriceKgs : p.priceKgs);
   const lines = parts.map((p, i) => ({ p, qty: items[i].qty, sum: unit(p, items[i].qty) * items[i].qty }));
   const total = lines.reduce((n, l) => n + l.sum, 0);
@@ -565,14 +579,149 @@ app.post('/api/cart/checkout', asyncRoute(async (req: Request, res: Response) =>
       partId: l.p.id, partTitle: l.p.title, partNumber: l.p.partNumber, storeName: l.p.storeName, storeLocation: l.p.storeLocation || '',
       priceKgs: l.sum, qty: l.qty, deliveryType: delivery ? 'delivery' : 'pickup', deliveryAddress: delivery ? address : 'Самовывоз',
       status: 'Новый', comment: [`${l.qty} шт`, comment].filter(Boolean).join(' · '), ...(buyer ? { userId: buyer.id } : {}),
+      sellerId: l.p.ownerId, buyerKey,
     } as OrderRecord);
   }
   const text = `🛒 Новый заказ ${group} на KGzone\n` + lines.map((l) => `• ${l.p.title} (${l.p.partNumber}) × ${l.qty} = ${l.sum.toLocaleString('ru-RU')} сом`).join('\n') +
     `\nИтого: ${total.toLocaleString('ru-RU')} сом\nПокупатель: ${customerName}, ${customerPhone}\n${delivery ? `Доставка: ${address}` : 'Самовывоз'}${comment ? `\nКомментарий: ${comment}` : ''}\nПозвоните покупателю, чтобы подтвердить заказ.`;
   await notifyUser(parts[0].ownerId, text);
   await notifyAdmin(text);
-  res.status(201).json({ success: true, orderNumber: group, total });
+  res.status(201).json({ success: true, orderNumber: group, total, feedbackKey: buyerKey });
 }));
+
+// ---- After an order: did the sale happen? The seller (or the buyer) answers and the stock on the site updates itself
+const isOpenOrder = (o: any) => !['Выполнен', 'Отменен'].includes(o.status);
+const stockFields = (count: number) => ({ stockCount: count, inStock: count > 0, stockStatus: count > 1 ? 'В наличии' : count === 1 ? 'Осталось мало' : 'Нет в наличии', stockCheckedAt: new Date().toISOString() });
+const STALE_STOCK_DAYS = 30;
+const stockAge = (p: any) => Date.now() - Date.parse(p.stockCheckedAt || p.updatedAt || p.createdAt || 0);
+
+/** Orders for the seller's parts (newest first), with the stock that is on the site now */
+async function sellerSales(userId: string) {
+  const [orders, parts] = await Promise.all([listRecords<any>('orders'), listRecords<any>('parts')]);
+  const mine = new Map(parts.filter((x) => x.ownerId === userId).map((x) => [x.id, x]));
+  return orders
+    .filter((o) => !SEED_ORDER_IDS.has(o.id) && o.source !== 'offline' && (o.sellerId === userId || (!o.sellerId && mine.has(o.partId))))
+    .map(({ buyerKey: _k, ...o }) => { const part = mine.get(o.partId); return { ...o, stockCount: part ? Number(part.stockCount) || 0 : undefined, partImage: part?.images?.[0] }; })
+    .sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0));
+}
+
+/** Closes an order and fixes the stock: sold -> minus the quantity, no stock -> 0, not sold -> stock stays */
+async function settleOrder(o: any, result: 'sold' | 'not-sold' | 'no-stock', by: 'seller' | 'buyer') {
+  const part: any = await getRecord('parts', o.partId);
+  let stock: number | undefined;
+  if (part) {
+    stock = Number(part.stockCount) || 0;
+    if (result === 'sold') stock = Math.max(0, stock - (o.qty || 1));
+    if (result === 'no-stock') stock = 0;
+    const patch: any = result === 'not-sold' && by === 'seller' ? { stockCheckedAt: new Date().toISOString() } : result === 'not-sold' ? {} : stockFields(stock);
+    if (String(o.orderNumber).startsWith('KGZ-B') && part.reservedUntil) patch.reservedUntil = undefined;
+    if (Object.keys(patch).length) await updateRecord('parts', part.id, patch);
+  }
+  await updateRecord('orders', o.id, { status: result === 'sold' ? 'Выполнен' : 'Отменен', result, resultBy: by, resultAt: new Date().toISOString() });
+  return stock;
+}
+
+app.get('/api/my/sales', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const [orders, parts] = await Promise.all([sellerSales(user.id), listRecords<any>('parts')]);
+  const stale = parts.filter((x) => x.ownerId === user.id && Number(x.stockCount) > 0 && stockAge(x) > STALE_STOCK_DAYS * 86_400_000).length;
+  res.json({ success: true, orders, staleStock: stale });
+}));
+
+app.post('/api/my/sales/:id', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const answer = req.body?.answer;
+  if (!['sold', 'not-sold', 'no-stock'].includes(answer)) return res.status(400).json({ success: false, error: 'Неверный ответ' });
+  const o = (await sellerSales(user.id)).find((x) => x.id === req.params.id);
+  if (!o) return res.status(404).json({ success: false, error: 'Заказ не найден' });
+  if (!isOpenOrder(o)) return res.status(409).json({ success: false, error: 'По этому заказу уже есть ответ' });
+  const stockCount = await settleOrder(o, answer, 'seller');
+  res.json({ success: true, stockCount });
+}));
+
+// Seller confirms that the stock of all items on the site is right
+app.post('/api/my/stock-confirm', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const now = new Date().toISOString();
+  const mine = (await listRecords<any>('parts')).filter((x) => x.ownerId === user.id && Number(x.stockCount) > 0);
+  for (const x of mine) await updateRecord('parts', x.id, { stockCheckedAt: now });
+  res.json({ success: true, confirmed: mine.length });
+}));
+
+// The buyer answers "did you buy it?" with the key their browser got with the order (works without an account)
+app.post('/api/orders/feedback', asyncRoute(async (req: Request, res: Response) => {
+  if (tooMany(`feedback:${clientIp(req)}`, 30, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много ответов. Попробуйте позже.' });
+  const key = str(req.body?.key, 80);
+  const answer = req.body?.answer;
+  if (!key || !['bought', 'not-bought', 'no-stock'].includes(answer)) return res.status(400).json({ success: false, error: 'Неверный ответ' });
+  const kb = Buffer.from(key);
+  const lines = (await listRecords<any>('orders')).filter((o) => {
+    if (!o.buyerKey || o.buyerAnswer) return false;
+    const b = Buffer.from(String(o.buyerKey));
+    return b.length === kb.length && timingSafeEqual(b, kb);
+  });
+  if (!lines.length) return res.json({ success: true, already: true });
+  const now = new Date().toISOString();
+  for (const o of lines) {
+    await updateRecord('orders', o.id, { buyerAnswer: answer, buyerAnswerAt: now });
+    const part: any = await getRecord('parts', o.partId);
+    const seller = o.sellerId || part?.ownerId;
+    if (answer === 'bought') {
+      if (!isOpenOrder(o)) continue;
+      const left = await settleOrder(o, 'sold', 'buyer');
+      await notifyUser(seller, `✅ Покупатель подтвердил покупку по заказу ${o.orderNumber}: ${o.partTitle} × ${o.qty || 1}.\nОстаток на сайте: ${left ?? 0} шт.${left === 0 ? ' Товар снят с сайта — если есть ещё, укажите количество в Личном кабинете.' : ''}`);
+    } else if (answer === 'not-bought') {
+      if (isOpenOrder(o)) await settleOrder(o, 'not-sold', 'buyer');
+    } else {
+      if (isOpenOrder(o)) await updateRecord('orders', o.id, { status: 'Отменен', result: 'no-stock', resultBy: 'buyer', resultAt: now });
+      if (!part) continue;
+      // Two different buyers within 14 days said it was not there -> off the site until the seller sets the stock again
+      const phone = String(o.customerPhone || '').replace(/\D/g, '').slice(-9);
+      const since = Date.now() - 14 * 86_400_000;
+      const checkedAt = Date.parse(part.stockCheckedAt || '') || 0;
+      const reports = [...(part.noStockReports || []).filter((r: any) => Date.parse(r.at) > Math.max(since, checkedAt) && r.phone !== phone), { at: now, phone, order: o.orderNumber }];
+      if (reports.length >= 2 && Number(part.stockCount) > 0) {
+        await updateRecord('parts', part.id, { ...stockFields(0), noStockReports: [] });
+        await notifyUser(seller, `⚠️ «${part.title}» снят с сайта: 2 покупателя сообщили, что товара не было в наличии.\nЕсли товар есть — укажите количество в Личном кабинете, и он снова появится.\n${SITE_URL}/kabinet`);
+      } else {
+        await updateRecord('parts', part.id, { noStockReports: reports, stockCheckedAt: part.stockCheckedAt });
+        await notifyUser(seller, `⚠️ Покупатель по заказу ${o.orderNumber} сообщил, что «${part.title}» не было в наличии.\nПроверьте и исправьте количество в Личном кабинете, чтобы на сайте было верно.\n${SITE_URL}/kabinet`);
+      }
+    }
+  }
+  res.json({ success: true });
+}));
+
+/** Every 10 minutes (when the catalog is read): remind sellers about unanswered orders and old stock */
+let lastSalesSweep = 0;
+async function sweepSales(parts: any[]) {
+  if (Date.now() - lastSalesSweep < 10 * 60_000) return;
+  lastSalesSweep = Date.now();
+  const now = Date.now();
+  const orders = await listRecords<any>('orders');
+  const owners = new Map(parts.map((x) => [x.id, x.ownerId]));
+  for (const o of orders) {
+    if (!isOpenOrder(o) || o.source === 'offline' || SEED_ORDER_IDS.has(o.id)) continue;
+    const age = now - (Date.parse(o.createdAt) || now);
+    const seller = o.sellerId || owners.get(o.partId);
+    if (!seller) continue;
+    if (age > 7 * 86_400_000) {
+      await updateRecord('orders', o.id, { status: 'Отменен', result: 'no-answer', resultBy: 'auto', resultAt: new Date().toISOString() });
+    } else if (age > 3 * 3_600_000 && !o.remindedAt) {
+      await updateRecord('orders', o.id, { remindedAt: new Date().toISOString() });
+      await notifyUser(seller, `❓ Заказ ${o.orderNumber}: ${o.partTitle} × ${o.qty || 1}\nПокупатель ${o.customerName} купил у вас?\nОтметьте в Личном кабинете → «Заказы покупателей»: «Продано» или «Не купил». Тогда наличие на сайте будет верным.\n${SITE_URL}/kabinet`);
+    }
+  }
+  // Stock nobody confirmed for a month: one reminder a month to each seller
+  const stale = new Map<string, number>();
+  for (const x of parts) if (x.ownerId && isLive(x) && Number(x.stockCount) > 0 && stockAge(x) > STALE_STOCK_DAYS * 86_400_000) stale.set(x.ownerId, (stale.get(x.ownerId) || 0) + 1);
+  for (const [ownerId, n] of stale) {
+    const u: any = await getRecord('users', ownerId);
+    if (!u || (u.stockReminderAt && now - Date.parse(u.stockReminderAt) < STALE_STOCK_DAYS * 86_400_000)) continue;
+    await updateRecord('users', ownerId, { stockReminderAt: new Date().toISOString() });
+    await notifyUser(ownerId, `📦 Наличие ${n} товар(ов) не подтверждали больше месяца.\nОткройте Личный кабинет → «Заказы покупателей» и нажмите «Наличие верное» или исправьте количество.\n${SITE_URL}/kabinet`);
+  }
+}
 
 // Update order status
 app.patch('/api/orders/:id/status', requireAdmin, asyncRoute(async (req: Request, res: Response) => {
@@ -936,11 +1085,12 @@ const partProblem = (p: ReturnType<typeof sanitizePart>) => {
 };
 
 // Public: approved parts only, without moderation details
-const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, contactChannels, reservedUntil, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>, seen?: Map<string, string>, companies?: Set<string>) => {
+const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, contactChannels, reservedUntil, noStockReports, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>, seen?: Map<string, string>, companies?: Set<string>) => {
   const r = ownerId ? ratings?.get(ownerId) : undefined;
   return {
     ...part,
     reservedUntil: reservedUntil && Date.parse(reservedUntil) > Date.now() ? reservedUntil : undefined,
+    stockCheckedAt: part.stockCheckedAt || part.updatedAt || part.createdAt,
     sellerId: ownerId || undefined,
     sellerLastSeen: ownerId ? seen?.get(ownerId) : undefined,
     sellerVerified: Boolean(ownerId && verified?.has(ownerId)),
@@ -971,6 +1121,7 @@ const verifiedOwners = async () =>
 app.get('/api/parts', asyncRoute(async (_req: Request, res: Response) => {
   const [parts, verified, ratings, seen, companies] = await Promise.all([listRecords('parts'), verifiedOwners(), sellerRatings(), lastSeenMap(), officialCompanies()]);
   await endExpiredSales(parts);
+  try { await sweepSales(parts); } catch (err) { console.warn('[Sales] sweep failed:', err); }
   res.json({ success: true, parts: parts.filter(isPublicPart).map((p: any) => publicPart(p, verified, ratings, seen, companies)) });
 }));
 
@@ -2674,10 +2825,7 @@ app.patch('/api/company/orders/:id', requireCompany('orders'), asyncRoute(async 
   // A completed order takes the item off the stock
   if (status === 'Выполнен' && order.status !== 'Выполнен') {
     const p: any = await getRecord('parts', order.partId);
-    if (p && p.stockCount > 0) {
-      const count = p.stockCount - 1;
-      await updateRecord('parts', p.id, { stockCount: count, inStock: count > 0, stockStatus: count > 1 ? 'В наличии' : count === 1 ? 'Осталось мало' : 'Нет в наличии' });
-    }
+    if (p && p.stockCount > 0) await updateRecord('parts', p.id, stockFields(Math.max(0, p.stockCount - (order.qty || 1))));
   }
   await companyAudit(ctx, (req as any).user, 'order-status', order.id, { status, orderNumber: order.orderNumber });
   res.json({ success: true });

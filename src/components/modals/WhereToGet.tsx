@@ -25,6 +25,10 @@ export const WhereToGet: React.FC<Props> = ({ part, isKg, isDemo, phoneRevealed,
   const spot = (part.containerInfo || part.storeLocation || '').trim();
   const market = (part.market || '').trim();
   const inStock = (part.stockCount || 0) > 0;
+  // Days since the seller last confirmed or changed the stock (calendar days, Bishkek time)
+  const checkedAt = Date.parse(part.stockCheckedAt || '');
+  const day = (t: number) => Math.floor((t + 6 * 3_600_000) / 86_400_000);
+  const checkedDays = checkedAt ? Math.max(0, day(Date.now()) - day(checkedAt)) : null;
   const pickup = part.pickupAvailable !== false;
   const delivery = Boolean(part.deliveryAvailable);
   const deliveryPrice = !delivery ? '' : part.deliveryPriceKgs === 0 ? (isKg ? 'акысыз' : 'бесплатно') : part.deliveryPriceKgs ? `${part.deliveryPriceKgs.toLocaleString('ru-RU')} сом` : (isKg ? 'баасын сатуучу айтат' : 'цену скажет продавец');
@@ -51,6 +55,15 @@ export const WhereToGet: React.FC<Props> = ({ part, isKg, isDemo, phoneRevealed,
             <div className={`font-black text-sm ${inStock ? 'text-emerald-400' : 'text-red-400'}`}>
               {inStock ? (isKg ? `${part.stockCount} даана` : `${part.stockCount} шт.`) : (isKg ? 'Азыр жок' : 'Сейчас нет')}
             </div>
+            {inStock && checkedDays !== null && (
+              <div className={`text-[11px] ${checkedDays > 30 ? 'text-amber-600 font-semibold' : 'text-neutral-400'}`}>
+                {checkedDays > 30
+                  ? (isKg ? 'Бар экенин көптөн бери тастыкташкан эмес — сатуучудан сураңыз' : 'Наличие давно не подтверждали — уточните у продавца')
+                  : checkedDays === 0 ? (isKg ? 'Бар экени бүгүн текшерилген' : 'Наличие проверено сегодня')
+                  : checkedDays === 1 ? (isKg ? 'Бар экени кечээ текшерилген' : 'Наличие проверено вчера')
+                  : (isKg ? `Бар экени ${checkedDays} күн мурун текшерилген` : `Наличие проверено ${checkedDays} дн. назад`)}
+              </div>
+            )}
           </div>
         </div>
         {/* Shop */}

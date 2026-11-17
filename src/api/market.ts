@@ -1,10 +1,12 @@
+import { rememberOrder } from '../utils/orderFeedback';
 import { call } from './admin';
 import { refreshParts } from './parts';
 
 // Reservation of a part for 2 hours and the best shops block
 
-export const reservePart = async (id: string, name: string, phone: string) => {
-  const r = await call<{ reservedUntil: string; orderNumber: string }>(`/api/parts/${encodeURIComponent(id)}/reserve`, { method: 'POST', body: JSON.stringify({ name, phone }) });
+export const reservePart = async (id: string, name: string, phone: string, title?: string, seller?: string) => {
+  const r = await call<{ reservedUntil: string; orderNumber: string; feedbackKey?: string }>(`/api/parts/${encodeURIComponent(id)}/reserve`, { method: 'POST', body: JSON.stringify({ name, phone }) });
+  if (r.feedbackKey) rememberOrder({ key: r.feedbackKey, orderNumber: r.orderNumber, seller: seller || '', title: title || '', at: new Date().toISOString() });
   refreshParts();
   return r;
 };

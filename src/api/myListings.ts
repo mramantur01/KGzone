@@ -48,6 +48,18 @@ export const deleteMyListing = (kind: ListingKind, id: string) =>
 
 export const listMyOrders = () => call<{ orders: any[] }>('/api/my/orders').then((d) => d.orders);
 
+// Orders for my parts: I say "sold" / "not sold" / "no stock" and the stock on the site follows
+export interface SaleOrder {
+  id: string; orderNumber: string; createdAt: string; customerName: string; customerPhone: string;
+  partId: string; partTitle: string; priceKgs: number; qty?: number; deliveryType: 'delivery' | 'pickup'; deliveryAddress: string;
+  status: string; comment?: string; result?: 'sold' | 'not-sold' | 'no-stock' | 'no-answer'; resultBy?: 'seller' | 'buyer' | 'auto';
+  stockCount?: number; partImage?: string;
+}
+export const listMySales = () => call<{ orders: SaleOrder[]; staleStock: number }>('/api/my/sales');
+export const answerMySale = (id: string, answer: 'sold' | 'not-sold' | 'no-stock') =>
+  after(call<{ stockCount?: number }>(`/api/my/sales/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify({ answer }) }));
+export const confirmMyStock = () => after(call<{ confirmed: number }>('/api/my/stock-confirm', { method: 'POST' }));
+
 // Admin
 export interface AdminUser {
   id: string;

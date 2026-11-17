@@ -39,7 +39,7 @@ export const ReservePart: React.FC<{ part: AutoPartItem; isKg: boolean; disabled
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true); setError(null);
-    try { setUntil((await reservePart(part.id, name.trim(), phone.trim())).reservedUntil); }
+    try { setUntil((await reservePart(part.id, name.trim(), phone.trim(), part.title, part.storeName || part.companyName)).reservedUntil); }
     catch (err: any) { setError(err.message); }
     finally { setBusy(false); }
   };

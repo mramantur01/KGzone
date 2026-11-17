@@ -1,3 +1,4 @@
+import { rememberOrder } from '../../utils/orderFeedback';
 import type { CartCheckout } from '../../utils/cart';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -191,10 +192,11 @@ const CheckoutForm: React.FC<{ group: Group; defaultName: string; defaultPhone: 
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      const r = await call<{ orderNumber: string }>('/api/cart/checkout', {
+      const r = await call<{ orderNumber: string; feedbackKey?: string }>('/api/cart/checkout', {
         method: 'POST',
         body: JSON.stringify({ items: group.lines.map((x) => ({ partId: x.part.id, qty: x.qty })), customerName: name, customerPhone: phone, deliveryType: delivery ? 'delivery' : 'pickup', deliveryAddress: address, comment }),
       });
+      if (r.feedbackKey) rememberOrder({ key: r.feedbackKey, orderNumber: r.orderNumber, seller: group.seller, title: group.lines.map((x) => x.part.title).join(', '), at: new Date().toISOString() });
       onDone(r.orderNumber);
     } catch (err: any) { setError(err.message); } finally { setBusy(false); }
   };
