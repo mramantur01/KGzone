@@ -10,6 +10,10 @@ export interface ConversationSummary {
   listingTitle: string;
   listingImage: string;
   role: 'buyer' | 'seller';
+  /** A complaint to the site owner (no seller shortcuts) */
+  complaint?: boolean;
+  /** False for complaints from guests: nobody to answer */
+  canReply?: boolean;
   otherName: string;
   otherId?: string;
   lastMessage: { text: string; at: string; from: string } | null;

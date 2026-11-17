@@ -543,6 +543,7 @@ export default function App() {
         favoritesCount={favorites.length}
         userName={account?.name || ''}
         userAvatar={account?.avatarUrl || account?.shop?.logoUrl || ''}
+        userIsOwner={Boolean(account?.isOwner)}
         unreadCount={unreadMessages}
         usdRate={rates.usd}
         rateDate={rates.official ? rates.date : ''}

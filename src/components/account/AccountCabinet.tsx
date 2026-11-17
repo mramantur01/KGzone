@@ -5,6 +5,7 @@ import {
   LogOut, Loader2, Trash2, Search, MessageSquare, Upload, Settings, Crown, Menu, X, ShoppingBag,
 } from 'lucide-react';
 import { MySalesPanel } from './MySalesPanel';
+import { OwnerBadge } from '../common/OwnerBadge';
 import { can, type StaffPerm } from '../../api/staffPerms';
 import { listMySales } from '../../api/myListings';
 import { call } from '../../api/admin';
@@ -221,12 +222,13 @@ export const AccountCabinet: React.FC<Props> = (props) => {
             <div className="mb-3"><AvatarPicker user={user} /></div>
             <div className="font-black text-slate-900 flex items-center gap-1.5" data-no-i18n>
               <span>{user.company?.name || user.name}</span>
-              {user.accountType === 'legal' ? (user.company?.status === 'verified' && <OfficialCompanyBadge compact />) : (user.verifiedSeller && <Crown size={15} className="text-amber-500 fill-amber-400/30 shrink-0" />)}
+              {!user.isOwner && (user.accountType === 'legal' ? (user.company?.status === 'verified' && <OfficialCompanyBadge compact />) : (user.verifiedSeller && <Crown size={15} className="text-amber-500 fill-amber-400/30 shrink-0" />))}
             </div>
-            <div className="text-xs text-slate-500" data-no-i18n>{formatPhone(user.phone)} · {user.city}</div>
+            {user.isOwner && <div className="mt-2"><OwnerBadge /></div>}
+            <div className="text-xs text-slate-500" data-no-i18n>{user.phone ? `${formatPhone(user.phone)} · ` : ''}{user.city}</div>
             <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold">
               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{isLegal ? 'Юридическое лицо' : 'Физическое лицо'}</span>
-              {user.role !== 'user' && <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">{user.role === 'admin' ? 'Администратор' : 'Модератор'}</span>}
+              {user.role !== 'user' && !user.isOwner && <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">{user.role === 'admin' ? 'Администратор' : 'Модератор'}</span>}
               {user.company?.status === 'verified' && <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Проверенный магазин</span>}
               {!isLegal && biz.info && <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800" data-no-i18n>{biz.info.company.name}</span>}
             </div>

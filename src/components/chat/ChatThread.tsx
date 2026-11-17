@@ -26,6 +26,8 @@ export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; clas
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<'buyer' | 'seller' | null>(null);
+  const [complaint, setComplaint] = useState(false);
+  const [canReply, setCanReply] = useState(true);
   const [templates, setTemplates] = useState<string[]>([]);
   useEffect(() => { if (role === 'seller') loadCompanyTemplates().then(setTemplates); }, [role]);
   const listRef = useRef<HTMLDivElement>(null);
@@ -35,6 +37,8 @@ export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; clas
       const r = await getConversation(conversationId);
       setMessages(r.messages);
       setRole(r.conversation?.role === 'seller' ? 'seller' : 'buyer');
+      setComplaint(Boolean(r.conversation?.complaint));
+      setCanReply(r.conversation?.canReply !== false);
       setError(null);
     } catch (e: any) {
       setError(e.message);
@@ -91,20 +95,23 @@ export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; clas
           ))
         )}
       </div>
-      {scamWarning && (
+      {scamWarning && !complaint && (
         <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2">
           <AlertTriangle size={15} className="shrink-0 mt-0.5" />
           <span><b>Осторожно с предоплатой.</b> Не переводите деньги незнакомым продавцам до осмотра товара — так чаще всего обманывают. Подозрительного продавца отметьте кнопкой «Пожаловаться» в объявлении.</span>
         </div>
       )}
-      {role && (
+      {role && !complaint && (
         <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
           {[...(role === 'seller' ? templates : []), ...QUICK[role]].map((q) => (
             <button key={q} type="button" onClick={() => setText(q)} title={q} className={`shrink-0 max-w-[240px] truncate px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer whitespace-nowrap ${dark ? 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>{q}</button>
           ))}
         </div>
       )}
-      <form onSubmit={send} className="mt-2 flex gap-2">
+      {!canReply && (
+        <p className="mt-2 p-2.5 rounded-xl bg-slate-100 text-slate-600 text-xs">Эти жалобы оставили люди, которые не вошли на сайт, — ответить им здесь нельзя. Если в жалобе есть контакт, свяжитесь по нему.</p>
+      )}
+      {canReply && <form onSubmit={send} className="mt-2 flex gap-2">
         <textarea
           rows={2}
           value={text}
@@ -117,7 +124,7 @@ export const ChatThread: React.FC<{ conversationId: string; dark?: boolean; clas
         <button type="submit" disabled={sending || !text.trim()} className="px-4 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] disabled:opacity-50 text-white cursor-pointer" aria-label="Отправить">
           {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
-      </form>
+      </form>}
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
   );

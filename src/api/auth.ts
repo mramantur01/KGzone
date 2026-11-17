@@ -63,6 +63,8 @@ export interface Account {
   verifiedSeller?: boolean;
   /** Staff powers (only for site staff) */
   perms?: string[];
+  /** The site owner (signed in with the admin password): full control, own badge */
+  isOwner?: boolean;
   /** Crown given by the site rules or by an admin */
   verifiedBy?: 'auto' | 'admin';
   /** An admin took the crown off: the rules do not give it back */

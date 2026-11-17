@@ -72,12 +72,12 @@ export const MessagesPanel: React.FC = () => {
                 <div className="min-w-0">
                   <div className="font-bold text-sm text-slate-900" data-no-i18n>{current.otherName}</div>
                   <div className="text-[11px] text-slate-500 truncate">
-                    {current.role === 'buyer' ? 'Вы покупатель' : 'Вы продавец'} · <span data-no-i18n>{current.listingTitle}</span>
+                    {current.complaint ? 'Обращение владельцу сайта' : current.role === 'buyer' ? 'Вы покупатель' : 'Вы продавец'} · <span data-no-i18n>{current.listingTitle}</span>
                   </div>
                 </div>
               </div>
               <ChatThread key={current.id} conversationId={current.id} />
-              <p className="text-[11px] text-slate-400">Не переводите предоплату, пока не увидите деталь. Подозрительное сообщение? Пожалуйтесь на объявление.</p>
+              {!current.complaint && <p className="text-[11px] text-slate-400">Не переводите предоплату, пока не увидите деталь. Подозрительное сообщение? Пожалуйтесь на объявление.</p>}
             </div>
           ) : (
             <p className="p-10 text-center text-sm text-slate-400 bg-white rounded-2xl border border-slate-200">Выберите диалог слева</p>

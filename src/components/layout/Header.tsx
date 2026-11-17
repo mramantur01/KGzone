@@ -1,3 +1,4 @@
+import { OwnerCrown } from '../common/OwnerBadge';
 import { InstallAppButton } from '../common/InstallAppButton';
 import React, { useState } from 'react';
 import { ShyrdakRibbon, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
@@ -26,6 +27,8 @@ interface HeaderProps {
   userName?: string;
   /** Profile photo or shop logo */
   userAvatar?: string;
+  /** The site owner: own crown on the account button */
+  userIsOwner?: boolean;
   unreadCount?: number;
   usdRate?: number;
   /** Date of the official NBKR rate; empty while it is loading / unavailable */
@@ -54,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
   favoritesCount,
   userName = '',
   userAvatar = '',
+  userIsOwner = false,
   unreadCount = 0,
   usdRate = 0,
   rateDate = '',
@@ -324,6 +328,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 )}
                 <span className="hidden sm:inline text-white font-bold text-sm max-w-[110px] truncate" data-no-i18n>{userName.split(' ')[0]}</span>
+                {userIsOwner && <OwnerCrown size={22} />}
               </>
             ) : (
               <>

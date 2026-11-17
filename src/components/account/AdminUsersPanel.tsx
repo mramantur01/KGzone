@@ -5,6 +5,7 @@ import { listAudit, listUsers, resetUserPassword, updateUser, type AdminUser } f
 import { COMPANY_STATUS_LABELS, formatPhone, type CompanyStatus } from '../../api/auth';
 import { ALL_PERMS, presetFor, type StaffPerm } from '../../api/staffPerms';
 import { PermsEditor } from './PermsEditor';
+import { OwnerBadge } from '../common/OwnerBadge';
 
 const ROLE_LABELS = { user: 'Пользователь', moderator: 'Модератор', admin: 'Администратор' } as const;
 const ACTION_LABELS: Record<string, string> = {
@@ -115,7 +116,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string; myPerms: StaffPe
                   <div className="flex items-center gap-1.5 font-bold text-slate-900" data-no-i18n>
                     {u.accountType === 'legal' ? <Building2 size={15} className="text-slate-500 shrink-0" /> : <User size={15} className="text-slate-500 shrink-0" />}
                     <span>{u.company?.name || u.name}</span>
-                    {u.accountType === 'legal' ? (u.company?.status === 'verified' && <OfficialCompanyBadge compact />) : (u.verifiedSeller && <VerifiedSellerBadge size={14} />)}
+                    {u.isOwner ? <OwnerBadge compact /> : u.accountType === 'legal' ? (u.company?.status === 'verified' && <OfficialCompanyBadge compact />) : (u.verifiedSeller && <VerifiedSellerBadge size={14} />)}
                     {u.id === currentUserId && <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">это вы</span>}
                   </div>
                   <div className="text-xs text-slate-500" data-no-i18n>
@@ -145,8 +146,9 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string; myPerms: StaffPe
                       {Object.entries(ROLE_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
                     </select>
                   )}
-                  {(u.isOwner || u.id === currentUserId || !has('users.roles')) && u.role !== 'user' && (
-                    <span className="px-2 py-1.5 rounded-lg bg-amber-100 text-amber-800 font-bold">{u.isOwner ? 'Владелец сайта' : ROLE_LABELS[u.role as keyof typeof ROLE_LABELS]}</span>
+                  {u.isOwner && <span className="px-2 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-bold">Все права · управление сайтом</span>}
+                  {!u.isOwner && (u.id === currentUserId || !has('users.roles')) && u.role !== 'user' && (
+                    <span className="px-2 py-1.5 rounded-lg bg-amber-100 text-amber-800 font-bold">{ROLE_LABELS[u.role as keyof typeof ROLE_LABELS]}</span>
                   )}
                   {has('users.block') && u.id !== currentUserId && !u.isOwner && (
                     <button
@@ -157,7 +159,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string; myPerms: StaffPe
                       <Ban size={12} /><span>{u.blocked ? 'Разблокировать' : 'Заблокировать'}</span>
                     </button>
                   )}
-                  {has('users.crown') && u.accountType !== 'legal' && <button
+                  {has('users.crown') && u.accountType !== 'legal' && !u.isOwner && <button
                     type="button"
                     onClick={() => act(() => updateUser(u.id, { verifiedSeller: !u.verifiedSeller }))}
                     title="Сайт сам даёт корону продавцам, которые выполнили все условия. Вручную — если лично проверили продавца. Снятая вручную корона сама не вернётся."

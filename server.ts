@@ -2192,6 +2192,7 @@ app.post('/api/auth/owner-login', asyncRoute(async (req: Request, res: Response)
     owner = (await updateRecord<UserRecord>('users', owner.id, { lastLoginAt: now, role: 'admin', blocked: false })) || owner;
   }
   setSessionCookie(res, owner);
+  if (owner.verifiedSeller) { await updateRecord<UserRecord>('users', owner.id, { verifiedSeller: false, verifiedBy: undefined, verifiedSellerAt: undefined }); owner.verifiedSeller = false; }
   await audit(owner, 'owner-login', owner.id);
   await notifyAdmin(`🔐 Вход владельца KGzone (${clientIp(req)})`);
   res.json({ success: true, user: publicUser(owner) });
@@ -2383,6 +2384,7 @@ app.patch('/api/admin/users/:id', requirePerm('users.roles', 'users.crown', 'use
   }
   if (b.blocked !== undefined && !may('users.block')) return deny('Нет права блокировать людей');
   if (b.verifiedSeller !== undefined && !may('users.crown')) return deny('Нет права давать корону');
+  if (b.verifiedSeller !== undefined && target.isOwner) return deny('У владельца сайта свой знак — корона продавца ему не нужна');
   if (b.companyStatus !== undefined && !may('users.shops')) return deny('Нет права подтверждать магазины');
   if (b.blocked !== undefined && target.isOwner) return deny('Владельца сайта заблокировать нельзя');
   if (b.blocked !== undefined) {
@@ -2454,6 +2456,8 @@ interface Conversation {
   messages: ChatMessage[];
   lastAt: string;
   readAt: Record<string, string>; // user id -> last read time
+  /** A complaint sent to the site owner */
+  complaint?: boolean;
 }
 
 const MAX_MESSAGES = 300;
@@ -2467,6 +2471,8 @@ const conversationView = (c: Conversation, me: string) => {
     listingId: c.listingId,
     listingTitle: c.listingTitle,
     listingImage: c.listingImage,
+    complaint: Boolean(c.complaint),
+    canReply: c.buyerId !== 'kgz-complaints',
     role: isBuyer ? 'buyer' : 'seller',
     otherName: isBuyer ? c.sellerName : c.buyerName,
     otherId: isBuyer ? c.sellerId : c.buyerId,
@@ -2572,6 +2578,7 @@ app.post('/api/conversations/:id/messages', requireUser, asyncRoute(async (req: 
   if (!text) return res.status(400).json({ success: false, error: 'Напишите сообщение' });
   const c = await getRecord<Conversation>('conversations', req.params.id);
   if (!c || !(await canAccessConversation(user, c))) return res.status(404).json({ success: false, error: 'Диалог не найден' });
+  if (c.buyerId === 'kgz-complaints') return res.status(400).json({ success: false, error: 'Автор жалобы не вошёл на сайт — ответить ему здесь нельзя. Если он оставил контакт, свяжитесь по нему.' });
   const now = new Date().toISOString();
   const updated = await updateRecord<Conversation>('conversations', c.id, {
     messages: [...c.messages, { id: randomUUID(), from: user.id, text, at: now }].slice(-MAX_MESSAGES),
@@ -5059,8 +5066,46 @@ app.post('/api/reports', asyncRoute(async (req: Request, res: Response) => {
     }
   }
   await notifyAdmin(`⚠️ Жалоба на объявление\n${record.listingTitle} (${record.listingId})\nПричина: ${record.reason}${record.comment ? '\n' + record.comment : ''}`);
+  try { await complaintToOwner(record, await getSessionUser(req)); } catch (err) { console.warn('[Reports] owner message failed:', err); }
   res.status(201).json({ success: true });
 }));
+
+/** A complaint becomes a message to the site owner in «Сообщения». A signed-in author gets the owner's reply in the same chat. */
+const COMPLAINTS_ID = 'kgz-complaints';
+async function complaintToOwner(record: any, author: UserRecord | null) {
+  const owner = (await listRecords<UserRecord>('users')).find((u) => u.isOwner && !u.blocked);
+  if (!owner) return;
+  const kind: ListingKind = record.kind === 'car' ? 'cars' : 'parts';
+  const listing: any = await getRecord(kind, record.listingId);
+  const title = record.listingTitle || listing?.title || record.listingId;
+  const seller = listing?.ownerId ? await getRecord<UserRecord>('users', listing.ownerId) : null;
+  const fromId = author && author.id !== owner.id ? author.id : COMPLAINTS_ID;
+  const text = [
+    `⚠️ Жалоба на объявление «${title}»`,
+    `Причина: ${record.reason}`,
+    record.comment ? `Комментарий: ${record.comment}` : '',
+    record.contact ? `Контакт для ответа: ${record.contact}` : '',
+    seller ? `Продавец: ${seller.company?.name || seller.name}, +${String(seller.phone).replace(/\D/g, '')}` : '',
+    fromId === COMPLAINTS_ID ? 'Автор не вошёл на сайт — ответить ему здесь нельзя.' : 'Можно ответить автору прямо в этом чате.',
+    'Разобрать: Личный кабинет → Модерация → Жалобы',
+  ].filter(Boolean).join('\n');
+  const now = new Date().toISOString();
+  const message: ChatMessage = { id: randomUUID(), from: fromId, text, at: now };
+  const listingId = fromId === COMPLAINTS_ID ? 'complaints' : record.listingId;
+  const existing = (await listRecords<Conversation>('conversations')).find((c) => c.sellerId === owner.id && c.buyerId === fromId && c.listingId === listingId);
+  if (existing) {
+    await updateRecord<Conversation>('conversations', existing.id, { messages: [...existing.messages, message].slice(-MAX_MESSAGES), lastAt: now });
+    return;
+  }
+  await insertRecord('conversations', {
+    id: `conv-${randomUUID()}`, kind, listingId,
+    listingTitle: fromId === COMPLAINTS_ID ? 'Жалобы покупателей' : `Жалоба: ${title}`,
+    listingImage: listing?.image || listing?.images?.[0] || '',
+    buyerId: fromId, buyerName: fromId === COMPLAINTS_ID ? '⚠️ Жалобы покупателей' : `⚠️ ${author!.company?.name || author!.name}`,
+    sellerId: owner.id, sellerName: 'KGzone — владелец сайта',
+    messages: [message], lastAt: now, readAt: fromId === COMPLAINTS_ID ? {} : { [fromId]: now }, complaint: true,
+  } as Conversation);
+}
 
 app.get('/api/admin/reports', requirePerm('reports'), asyncRoute(async (_req: Request, res: Response) => {
   res.json({ success: true, reports: await listRecords('reports') });
