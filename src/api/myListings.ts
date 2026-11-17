@@ -77,6 +77,8 @@ export interface AdminUser {
   verifiedSeller?: boolean;
   perms?: string[];
   isOwner?: boolean;
+  /** No listings and no visits for a year: hidden from the list (a visit wakes it up) */
+  dormantAt?: string;
   verifiedBy?: 'auto' | 'admin';
   verifiedLocked?: boolean;
 }

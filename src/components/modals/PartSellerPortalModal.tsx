@@ -4,6 +4,7 @@ import { submitPart, useParts } from '../../api/parts';
 import { priceRange } from '../../utils/oemOffers';
 import { uploadPhoto } from '../../api/upload';
 import { call } from '../../api/admin';
+import { checkPhoto } from '../../utils/photoQuality';
 import { useAuth } from '../../api/auth';
 import { OemHint } from '../catalog/OemHint';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
@@ -108,9 +109,13 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
   const [photoUploading, setPhotoUploading] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
+  // Advice per photo (dark, blurry, small) — the photo is still uploaded
+  const [photoTips, setPhotoTips] = useState<string[]>([]);
   const handlePhotoFiles = async (files: FileList | null) => {
     if (!files?.length) return;
     setPhotoError(null);
+    Promise.all(Array.from(files).slice(0, 8).map(async (f, i) => { const c = await checkPhoto(f); return c.ok ? '' : `Фото ${ownPhotos.length + i + 1}: ${c.tips.join('; ')}`; }))
+      .then((t) => setPhotoTips((prev) => [...prev, ...t.filter(Boolean)].slice(-8)));
     const list = Array.from(files).slice(0, Math.max(0, 8 - ownPhotos.length - photoUploading));
     setPhotoUploading((n) => n + list.length);
     await Promise.all(
@@ -125,6 +130,18 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
         }
       })
     );
+  };
+
+  // ✨ The site writes a short description from what the seller filled in
+  const [descBusy, setDescBusy] = useState(false);
+  const [descNote, setDescNote] = useState<string | null>(null);
+  const writeDescription = async () => {
+    setDescBusy(true); setDescNote(null);
+    try {
+      const r = await call<{ description: string }>('/api/ai/describe-part', { method: 'POST', body: JSON.stringify({ title: partTitle, partNumber: partOEM, brand: partBrand, model: partModel, condition: partCondition, category: partCategory, country: countryOfImport, cross: partCross }) });
+      setDescription(r.description);
+      setDescNote('Готово — проверьте и поправьте, если нужно.');
+    } catch (e: any) { setDescNote(e.message); } finally { setDescBusy(false); }
   };
 
   // ✨ The site looks at the first photo and fills the name, category, make and OEM (only empty fields)
@@ -625,6 +642,18 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                   )}
                 </div>
 
+                {/* Description (the site can write it) */}
+                <div className="md:col-span-2">
+                  <div className="flex items-center justify-between mb-1 gap-2">
+                    <label className="text-neutral-300 font-semibold">{isKg ? 'Сүрөттөмө' : 'Описание'} <span className="font-normal text-neutral-500">{isKg ? '(милдеттүү эмес)' : '(необязательно)'}</span></label>
+                    <button type="button" disabled={descBusy || !partTitle.trim()} onClick={writeDescription} className="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-black cursor-pointer disabled:opacity-50">
+                      {descBusy ? 'Пишу…' : '✨ Написать описание'}
+                    </button>
+                  </div>
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={1200} placeholder="Состояние, что в комплекте, на какие машины подходит" className="w-full px-3.5 py-2.5 bg-neutral-900 border border-neutral-700 rounded-xl text-white" />
+                  {descNote && <p className="text-[11px] text-violet-300 mt-1">{descNote}</p>}
+                </div>
+
                 {/* Stock Control (+ / -) */}
                 <div className="p-3.5 rounded-xl bg-neutral-900 border border-neutral-800">
                   <div className="flex items-center justify-between mb-1">
@@ -860,6 +889,13 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                   )}
                 </div>
                 {photoError && <p className="text-[11px] text-red-400">{photoError}</p>}
+                {photoTips.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[11px] space-y-0.5">
+                    <div className="font-bold">📷 Фото можно сделать лучше — покупатели чаще звонят по хорошим фото:</div>
+                    {photoTips.map((t, i) => <div key={i}>• {t}</div>)}
+                    <button type="button" onClick={() => setPhotoTips([])} className="underline cursor-pointer">Понятно</button>
+                  </div>
+                )}
                 {ownPhotos.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
                     <button type="button" disabled={aiBusy} onClick={fillFromPhoto} className="px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black cursor-pointer disabled:opacity-60">

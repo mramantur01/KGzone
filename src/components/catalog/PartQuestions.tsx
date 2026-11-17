@@ -6,7 +6,7 @@ import { requestSignIn } from '../../api/chat';
 import { isDemoListing } from '../../utils/demo';
 import { partPath } from '../../seo/routes';
 
-interface Question { id: string; partId: string; authorId: string; authorName: string; text: string; answer?: string; answeredBy?: string; answeredAt?: string; createdAt: string; partTitle?: string; partImage?: string }
+interface Question { id: string; partId: string; authorId: string; authorName: string; text: string; answer?: string; answeredBy?: string; answeredAt?: string; createdAt: string; partTitle?: string; partImage?: string; aiAnswer?: boolean }
 
 const AnswerBox: React.FC<{ q: Question; onDone: (q: Question) => void; dark?: boolean }> = ({ q, onDone, dark }) => {
   const [text, setText] = useState('');
@@ -62,7 +62,13 @@ export const PartQuestions: React.FC<{ partId: string }> = ({ partId }) => {
                 <span className="flex-1 text-neutral-200" data-no-i18n><b className="text-white">{q.authorName}:</b> {q.text}</span>
                 {(isSeller || q.authorId === user?.id) && <button type="button" onClick={() => remove(q.id)} className="text-neutral-500 hover:text-red-400 cursor-pointer" aria-label="Удалить вопрос"><Trash2 size={12} /></button>}
               </div>
-              {q.answer ? (
+              {q.answer && q.aiAnswer ? (
+                <div className="mt-1 pl-2 border-l-2 border-violet-500">
+                  <div className="text-violet-200" data-no-i18n><b>🤖 Ответ ИИ по данным объявления:</b> {q.answer}</div>
+                  <div className="text-[10px] text-neutral-500">Продавец пока не ответил — уточните у него перед покупкой.</div>
+                  {isSeller && <AnswerBox q={q} dark onDone={() => load()} />}
+                </div>
+              ) : q.answer ? (
                 <div className="mt-1 pl-2 border-l-2 border-emerald-600 text-emerald-200" data-no-i18n><b>Продавец:</b> {q.answer}</div>
               ) : isSeller ? (
                 <AnswerBox q={q} dark onDone={() => load()} />

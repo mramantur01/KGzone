@@ -6,6 +6,7 @@ import {
 } from '../../api/myListings';
 import { uploadPhoto } from '../../api/upload';
 import { call } from '../../api/admin';
+import { checkPhoto } from '../../utils/photoQuality';
 import { hhmm, isActiveUntil } from '../../api/market';
 import { SellerStatsCard } from './SellerStatsCard';
 import { partPath, carPath, openShop } from '../../seo/routes';
@@ -213,9 +214,15 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
     try {
       const existing = r.item.images || [];
       const urls: string[] = [];
-      for (const f of Array.from(files).slice(0, 8 - existing.length)) urls.push(await uploadPhoto(f, 'part'));
+      const tips: string[] = [];
+      for (const f of Array.from(files).slice(0, 8 - existing.length)) {
+        const c = await checkPhoto(f);
+        if (!c.ok) tips.push(...c.tips);
+        urls.push(await uploadPhoto(f, 'part'));
+      }
       await editMyListing('parts', r.item.id, { images: [...existing, ...urls] });
-      flash(r.item.stockCount > 0 ? 'Фото добавлено — товар уже на сайте.' : 'Фото добавлено. Укажите количество больше 0, чтобы товар появился на сайте.');
+      const base = r.item.stockCount > 0 ? 'Фото добавлено — товар уже на сайте.' : 'Фото добавлено. Укажите количество больше 0, чтобы товар появился на сайте.';
+      flash(tips.length ? `${base} Совет: фото ${[...new Set(tips)].join('; ')}.` : base);
       await load();
     } catch (e: any) { flash(null, e.message); }
     finally { markBusy(r.item.id, false); if (photoInput.current) photoInput.current.value = ''; }

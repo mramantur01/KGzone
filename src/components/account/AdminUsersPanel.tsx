@@ -15,7 +15,7 @@ const ACTION_LABELS: Record<string, string> = {
   'auto-crown': 'Корона по правилам сайта',
 };
 
-type Filter = 'all' | 'companies' | 'pending' | 'blocked' | 'staff';
+type Filter = 'all' | 'companies' | 'pending' | 'blocked' | 'staff' | 'dormant';
 
 export const AdminUsersPanel: React.FC<{ currentUserId: string; myPerms: StaffPerm[] }> = ({ currentUserId, myPerms }) => {
   const has = (x: StaffPerm) => myPerms.includes(x);
@@ -66,6 +66,8 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string; myPerms: StaffPe
       if (filter === 'pending' && u.company?.status !== 'pending') return false;
       if (filter === 'blocked' && !u.blocked) return false;
       if (filter === 'staff' && u.role === 'user') return false;
+      if (filter === 'dormant' && !u.dormantAt) return false;
+      if (filter !== 'dormant' && u.dormantAt && !q) return false;
       if (!q) return true;
       return [u.name, u.phone, u.email, u.city, u.company?.name, u.company?.inn].some((v) => v?.toLowerCase().includes(q));
     });
@@ -90,11 +92,12 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string; myPerms: StaffPe
         </div>
         <div className="flex flex-wrap gap-1.5">
           {([
-            ['all', `Все (${users.length})`],
+            ['all', `Все (${users.filter((u) => !u.dormantAt).length})`],
             ['companies', 'Магазины (ИП / ОсОО)'],
             ['pending', `Ждут проверки (${pendingCompanies})`],
             ['blocked', 'Заблокированы'],
             ['staff', 'Сотрудники сайта'],
+            ['dormant', `Спящие (${users.filter((u) => u.dormantAt).length})`],
           ] as [Filter, string][]).map(([id, label]) => (
             <button key={id} type="button" onClick={() => setFilter(id)} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${filter === id ? 'bg-[#C8102E] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               {label}

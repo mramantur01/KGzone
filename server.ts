@@ -937,6 +937,11 @@ async function sweepCatalog(parts: any[]) {
   }
   try { await translateSome(parts); } catch (err) { console.warn('[Translate] failed:', err); }
 
+  // 7. Questions without an answer for 2 hours: the site answers from the listing (marked), the seller can correct it
+  try { await aiAnswerQuestions(parts); } catch (err) { console.warn('[AI answers] failed:', err); }
+  // 8. Sleeping accounts: no listings and no visits for a year -> hidden from the lists (any visit wakes them up)
+  try { await markDormant(); } catch (err) { console.warn('[Dormant] failed:', err); }
+
   // 4. «Ищу запчасть»: a part that fits a new request appeared -> tell the buyer, mark the request "found"
   const words = (v: unknown) => normTitle(v).split(' ').filter((w) => w.length >= 3);
   const requests = await listRecords<any>('partRequests');
@@ -1085,6 +1090,10 @@ async function morningJob() {
     carts++;
   }
 
+  // 1st of the month: a report for every seller about the month before
+  let monthly = 0;
+  if (bishkekDate().endsWith('-01') || process.env.CRON_FORCE_MONTHLY === '1') monthly = await monthlyReports(users, byOwner, orders);
+
   // Mondays: what buyers searched for and did not find — to sellers of those makes
   let tips = 0;
   if (new Date(Date.now() + 6 * 3_600_000).getUTCDay() === 1 || process.env.CRON_FORCE_MONDAY === '1') tips = await searchTips(users, byOwner);
@@ -1109,7 +1118,7 @@ async function morningJob() {
     }
   }
   await kvSet('kgzone:adReminders', done);
-  return { sent, reminded, carts, tips };
+  return { sent, reminded, carts, tips, monthly };
 }
 
 /** Listings in Kyrgyz and English: a few parts per run, only when the text changed */
@@ -1129,6 +1138,92 @@ async function translateSome(parts: any[]) {
     done++;
   }
   return done;
+}
+
+async function aiAnswerQuestions(parts: any[]) {
+  if (!process.env.GEMINI_API_KEY) return 0;
+  const wait = Number(process.env.QUESTION_AI_MIN ?? 120) * 60_000;
+  const byId = new Map(parts.map((x) => [x.id, x]));
+  const todo = (await listRecords<PartQuestion>('questions')).filter((q) => !q.answer && !(q as any).aiTried && Date.now() - (Date.parse(q.createdAt) || Date.now()) >= wait).slice(0, 5);
+  let n = 0;
+  for (const q of todo) {
+    const x = byId.get(q.partId);
+    await updateRecord('questions', q.id, { aiTried: true } as any);
+    if (!x || !isPublicPart(x)) continue;
+    const facts = {
+      title: x.title, partNumber: x.partNumber, crossNumbers: x.crossNumbers, brand: x.brand, model: x.model, generation: x.generation,
+      fits: x.compatibility, condition: x.condition, priceKgs: x.priceKgs, stockCount: x.stockCount, description: x.description,
+      market: x.market, spot: x.containerInfo || x.storeLocation, delivery: x.deliveryAvailable ? (x.deliveryPriceKgs ? `${x.deliveryPriceKgs} сом` : 'есть') : 'нет',
+      warrantyDays: x.warrantyDays, returnDays: x.returnDays,
+    };
+    const prompt = 'Ты помощник сайта автозапчастей KGzone. Покупатель задал вопрос по объявлению, продавец пока не ответил. ' +
+      'Ответь коротко по-русски (1–3 предложения) ТОЛЬКО по данным объявления. Если ответа в данных нет — честно скажи, что это нужно уточнить у продавца, и предложи позвонить или написать в WhatsApp. ' +
+      'Не обещай ничего от имени продавца. Ответь строго JSON: {"answer": "текст", "sure": true|false}.\n' +
+      `Данные объявления: ${JSON.stringify(facts)}\nВопрос: ${q.text}`;
+    const r = parseJson(await geminiJson([{ text: prompt }]));
+    if (!r?.answer) continue;
+    const answer = str(r.answer, 600);
+    await updateRecord('questions', q.id, { answer, answeredBy: 'ИИ KGzone', answeredAt: new Date().toISOString(), aiAnswer: true } as any);
+    await notifyUser(q.authorId, `🤖 Пока продавец не ответил, сайт ответил по данным объявления «${x.title}»: ${answer.slice(0, 200)}\n${SITE_URL}/zapchast/${encodeURIComponent(q.partId)}`);
+    await notifyUser(q.sellerId, `🤖 На вопрос покупателя по «${x.title}» сайт ответил за вас по данным объявления:\n«${q.text}» → ${answer.slice(0, 200)}\nЕсли нужно — исправьте ответ на странице товара.`);
+    n++;
+  }
+  return n;
+}
+
+async function markDormant() {
+  const days = Number(process.env.DORMANT_DAYS ?? 365);
+  const [users, parts, cars, orders] = await Promise.all([listRecords<UserRecord>('users'), listRecords<any>('parts'), listRecords<any>('cars'), listRecords<any>('orders')]);
+  const sellers = new Set([...parts, ...cars].map((x) => x.ownerId).filter(Boolean));
+  const buyers = new Set(orders.map((o) => o.userId).filter(Boolean));
+  const now = Date.now();
+  for (const u of users as any[]) {
+    const seen = Math.max(Date.parse(u.lastSeenAt || '') || 0, Date.parse(u.lastLoginAt || '') || 0, Date.parse(u.createdAt || '') || 0);
+    const sleepy = !u.isOwner && !userPerms(u).length && u.accountType !== 'legal' && !sellers.has(u.id) && !buyers.has(u.id) && now - seen >= days * 86_400_000;
+    if (sleepy && !u.dormantAt) {
+      await updateRecord('users', u.id, { dormantAt: new Date().toISOString() } as any);
+      await audit('admin-token', 'auto-dormant', u.id, {});
+    } else if (!sleepy && u.dormantAt) {
+      await updateRecord('users', u.id, { dormantAt: undefined } as any);
+    }
+  }
+}
+
+/** Monthly report for a seller: sales, views, calls, best items, compared with the month before */
+const monthKey = (shift: number) => { const d = new Date(Date.now() + 6 * 3_600_000); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + shift); return d.toISOString().slice(0, 7); };
+const REPORT_SHIFT = Number(process.env.MONTHLY_SHIFT ?? -1);
+const MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+async function monthlyReports(users: UserRecord[], byOwner: Map<string, any[]>, orders: any[]) {
+  const last = monthKey(REPORT_SHIFT), prev = monthKey(REPORT_SHIFT - 1);
+  const inMonth = (iso: string, m: string) => String(new Date((Date.parse(iso) || 0) + 6 * 3_600_000).toISOString()).startsWith(m);
+  const sum = (mine: any[], field: string, m: string) => mine.reduce((n, x) => n + Object.entries(x[field] || {}).filter(([d]) => d.startsWith(m)).reduce((k, [, v]) => k + Number(v || 0), 0), 0);
+  const pct = (a: number, b: number) => (b ? ` (${a >= b ? '+' : ''}${Math.round(((a - b) / b) * 100)}% к прошлому месяцу)` : '');
+  let n = 0;
+  for (const u of users) {
+    const mine = byOwner.get(u.id);
+    if (!mine?.length || u.blocked || u.isOwner) continue;
+    const ids = new Set(mine.map((x) => x.id));
+    const mineOrders = orders.filter((o) => !SEED_ORDER_IDS.has(o.id) && o.source !== 'offline' && (o.sellerId === u.id || (!o.sellerId && ids.has(o.partId))));
+    const sold = (m: string) => mineOrders.filter((o) => o.status === 'Выполнен' && inMonth(o.resultAt || o.createdAt, m));
+    const soldNow = sold(last), soldPrev = sold(prev);
+    const money = soldNow.reduce((k, o) => k + Number(o.priceKgs || 0), 0);
+    const views = sum(mine, 'viewsByDay', last), viewsPrev = sum(mine, 'viewsByDay', prev);
+    const calls = sum(mine, 'contactsByDay', last), callsPrev = sum(mine, 'contactsByDay', prev);
+    if (!views && !calls && !soldNow.length) continue;
+    const top = mine.map((x) => ({ t: x.title, v: Object.entries(x.viewsByDay || {}).filter(([d]) => d.startsWith(last)).reduce((k, [, v]) => k + Number(v || 0), 0) }))
+      .filter((x) => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 3);
+    const name = MONTHS[Number(last.slice(5, 7)) - 1];
+    await notifyUser(u.id, [
+      `📈 Ваш KGzone за ${name}:`,
+      `🛒 Продано через сайт: ${soldNow.length}${money ? ` на ${money.toLocaleString('ru-RU')} сом` : ''}${pct(soldNow.length, soldPrev.length)}`,
+      `👀 Просмотров: ${views}${pct(views, viewsPrev)}`,
+      `📞 Звонков и сообщений: ${calls}${pct(calls, callsPrev)}`,
+      top.length ? `🏆 Больше всего смотрели:\n${top.map((x, i) => `${i + 1}. ${x.t} — ${x.v}`).join('\n')}` : '',
+      `${SITE_URL}/kabinet`,
+    ].filter(Boolean).join('\n'));
+    n++;
+  }
+  return n;
 }
 
 /** Telegram message to staff who have this power (and to TELEGRAM_CHAT_ID) */
@@ -1164,6 +1259,7 @@ async function weeklyReportText() {
     `👑 Корона: получили ${crowns.filter((a) => a.details?.given).length} · потеряли ${crowns.filter((a) => a.details && !a.details.given).length}`,
     `🤖 Сайт сам убрал: дублей ${n('duplicate')} · подозрительных цен ${n('price')} · чужих фото ${n('photo')} · уснувших продавцов ${n('sleeping')} · мошенников на проверке ${n('fraud')}`,
     `🔎 Заявок «ищу запчасть» нашлось само: ${auditLog.filter((a) => a.action === 'auto-found' && after(a.at)).length}`,
+    `🤖 ИИ ответил на вопросов покупателей: ${(await listRecords<any>('questions')).filter((q) => q.aiAnswer && after(q.answeredAt)).length} · спящих аккаунтов: ${users.filter((u: any) => u.dormantAt).length}`,
     `🚫 Остановлено в чатах: номеров карт ${auditLog.filter((a) => a.action === 'chat-block' && a.details?.reason === 'card' && after(a.at)).length} · рассылок ${auditLog.filter((a) => a.action === 'chat-block' && a.details?.reason === 'mass' && after(a.at)).length}`,
   ].join('\n');
 }
@@ -4623,7 +4719,7 @@ app.post('/api/questions/:id/answer', requireUser, asyncRoute(async (req: Reques
   if (!q || !(await canAnswerFor(user, q.sellerId))) return res.status(404).json({ success: false, error: 'Вопрос не найден' });
   const answer = cleanText(req.body?.text).slice(0, 1000);
   if (!answer) return res.status(400).json({ success: false, error: 'Напишите ответ' });
-  const updated = await updateRecord<PartQuestion>('questions', q.id, { answer, answeredBy: user.name.split(' ')[0], answeredAt: new Date().toISOString() });
+  const updated = await updateRecord<PartQuestion>('questions', q.id, { answer, answeredBy: user.name.split(' ')[0], answeredAt: new Date().toISOString(), aiAnswer: undefined } as any);
   const part: any = await getRecord('parts', q.partId);
   await notifyUser(q.authorId, `✅ Продавец ответил на ваш вопрос${part ? ` по «${part.title}»` : ''}: ${answer.slice(0, 200)}\n${SITE_URL}/zapchast/${encodeURIComponent(q.partId)}`);
   res.json({ success: true, question: updated });
@@ -4970,6 +5066,26 @@ app.post('/api/ai/listing-from-photo', requireUser, asyncRoute(async (req: Reque
     title: str(result.title, 120), category: cats.includes(result.category) ? result.category : '',
     brand: str(result.brand, 40), model: str(result.model, 60), partNumber: str(result.partNumber, 40).toUpperCase(), note: str(result.note, 200),
   });
+}));
+
+// The seller's own data -> a short honest description (the seller checks and edits it)
+app.post('/api/ai/describe-part', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  if (!process.env.GEMINI_API_KEY) return res.status(503).json({ success: false, error: 'Помощник ИИ пока не подключён. Напишите описание сами.' });
+  const user: UserRecord = (req as any).user;
+  if (tooMany(`aidesc:${user.id}`, 30, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много запросов. Попробуйте через час.' });
+  const b = req.body || {};
+  const facts = {
+    title: str(b.title, 160), partNumber: str(b.partNumber, 60), brand: str(b.brand, 40), model: str(b.model, 80),
+    condition: str(b.condition, 60), category: str(b.category, 80), country: str(b.country, 60), cross: str(b.cross, 200),
+  };
+  if (!facts.title) return res.status(400).json({ success: false, error: 'Сначала напишите название запчасти' });
+  const prompt = 'Напиши короткое описание объявления о продаже автозапчасти для сайта в Кыргызстане, по-русски, 2–4 предложения, без эмодзи и восклицаний. ' +
+    'Используй ТОЛЬКО эти данные, ничего не выдумывай (не пиши про гарантию, доставку, пробег, состояние, если их нет в данных). ' +
+    'В конце одно предложение: что покупателю стоит сверить перед покупкой (номер OEM или VIN). Ответь строго JSON: {"description": "текст"}.\n' +
+    JSON.stringify(facts);
+  const r = parseJson(await geminiJson([{ text: prompt }]));
+  if (!r?.description) return res.status(502).json({ success: false, error: 'Не получилось написать описание. Попробуйте ещё раз.' });
+  res.json({ success: true, description: str(r.description, 1200) });
 }));
 
 app.post('/api/ai/identify-part', asyncRoute(async (req: Request, res: Response) => {
