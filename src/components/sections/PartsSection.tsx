@@ -1,3 +1,4 @@
+import { partTitle } from '../../utils/partText';
 import { copyText } from '../../utils/copyText';
 import { partQuestion } from '../../utils/waMessages';
 import { oemKey, hhmm, isActiveUntil } from '../../api/market';
@@ -1571,7 +1572,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                           onClick={() => setSelectedPartForDetail(part)}
                           className="font-bold text-sm text-white line-clamp-2 mb-1 group-hover:text-amber-400 transition-colors cursor-pointer leading-snug"
                         >
-                          {part.title}
+                          {partTitle(part, language)}
                         </h3>
 
                         {/* Compatibility */}
@@ -1754,7 +1755,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                             onClick={() => setSelectedPartForDetail(part)}
                             className="font-bold text-sm text-white line-clamp-1 group-hover:text-amber-400 transition-colors cursor-pointer"
                           >
-                            {part.title}
+                            {partTitle(part, language)}
                           </h3>
 
                           {/* Market and views snippet */}

@@ -142,6 +142,10 @@ export interface AutoPartItem {
   reservedUntil?: string;
   /** When the seller last confirmed or changed the stock */
   stockCheckedAt?: string;
+  /** Kyrgyz and English text made by the site */
+  tr?: { kg?: { t: string; d?: string }; en?: { t: string; d?: string } };
+  /** Sold or taken off for 3 months: kept in the seller's archive */
+  archivedAt?: string;
   /** Left / right and front / rear (also read from the title) */
   side?: 'left' | 'right';
   axle?: 'front' | 'rear';

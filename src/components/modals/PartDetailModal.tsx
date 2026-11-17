@@ -1,3 +1,4 @@
+import { partTitle, partDescription } from '../../utils/partText';
 import { copyText } from '../../utils/copyText';
 import { partQuestion } from '../../utils/waMessages';
 import React, { useEffect, useState } from 'react';
@@ -395,7 +396,7 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
                 </div>
 
                 <h2 className="text-lg sm:text-xl font-black text-white leading-snug">
-                  {part.title}
+                  {partTitle(part, language)}
                 </h2>
                 {isDemo && (
                   <p className="mt-2 px-3 py-2 rounded-xl bg-slate-200 text-slate-800 text-xs font-semibold">{DEMO_NOTICE}</p>
@@ -503,7 +504,7 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
                   <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
                     {isKg ? 'Сыпаттамасы' : 'Описание детали от продавца'}
                   </div>
-                  <p>{part.description}</p>
+                  <p>{partDescription(part, language)}</p>
                 </div>
               )}
 

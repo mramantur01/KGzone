@@ -611,6 +611,10 @@ app.post('/api/cart/checkout', asyncRoute(async (req: Request, res: Response) =>
     `\nИтого: ${total.toLocaleString('ru-RU')} сом\nПокупатель: ${customerName}, ${customerPhone}\n${delivery ? `Доставка: ${address}` : 'Самовывоз'}${comment ? `\nКомментарий: ${comment}` : ''}\nПозвоните покупателю, чтобы подтвердить заказ.`;
   await notifyUser(parts[0].ownerId, text);
   await notifyAdmin(text);
+  if (buyer && (buyer as any).cart?.items?.length) {
+    const left = (buyer as any).cart.items.filter((x: any) => !items.some((i) => i.partId === x.partId));
+    await updateRecord('users', buyer.id, { cart: left.length ? { ...(buyer as any).cart, items: left } : undefined } as any);
+  }
   res.status(201).json({ success: true, orderNumber: group, total, feedbackKey: buyerKey });
 }));
 
@@ -645,6 +649,30 @@ async function settleOrder(o: any, result: 'sold' | 'not-sold' | 'no-stock', by:
   await updateRecord('orders', o.id, { status: result === 'sold' ? 'Выполнен' : 'Отменен', result, resultBy: by, resultAt: new Date().toISOString() });
   return stock;
 }
+
+/** Live items with stock that nobody viewed or contacted about for 30 days (and no discount now) */
+const staleOffers = (mine: any[]) => {
+  const now = Date.now();
+  const span = Number(process.env.STALE_OFFER_DAYS ?? 30);
+  const days = Array.from({ length: span }, (_, i) => new Date(now + 6 * 3_600_000 - i * 86_400_000).toISOString().slice(0, 10));
+  return mine.filter((x) => isPublicPart(x) && !x.saleUntil && now - (Date.parse(x.raisedAt || x.createdAt) || now) >= span * 86_400_000
+    && days.every((d) => !Number(x.viewsByDay?.[d]) && !Number(x.contactsByDay?.[d])));
+};
+app.post('/api/my/cart', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const items = (Array.isArray(req.body?.items) ? req.body.items : []).slice(0, 50)
+    .map((x: any) => ({ partId: str(x?.partId, 80), qty: Math.max(1, Math.min(999, Math.round(Number(x?.qty) || 1))) })).filter((x: any) => x.partId);
+  const prev: any = (user as any).cart;
+  const same = prev && JSON.stringify(prev.items) === JSON.stringify(items);
+  if (!same) await updateRecord('users', user.id, { cart: items.length ? { items, at: new Date().toISOString() } : undefined } as any);
+  res.json({ success: true });
+}));
+
+app.get('/api/my/stale-items', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const list = staleOffers((await listRecords<any>('parts')).filter((x) => x.ownerId === user.id));
+  res.json({ success: true, items: list.map((x) => ({ id: x.id, title: x.title, priceKgs: x.priceKgs })) });
+}));
 
 app.get('/api/my/sales', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
@@ -898,6 +926,17 @@ async function sweepCatalog(parts: any[]) {
     }
   }
 
+  // 6. Archive: sold or taken-off listings untouched for 90 days go to «Архив» (can be brought back)
+  for (const x of parts) {
+    if (!x.ownerId || x.archivedAt) continue;
+    const st = x.listingStatus ?? 'active';
+    if (st !== 'sold' && st !== 'inactive') continue;
+    if (now - (Date.parse(x.statusChangedAt || x.updatedAt || x.createdAt) || now) < Number(process.env.ARCHIVE_DAYS ?? 90) * 86_400_000) continue;
+    await updateRecord('parts', x.id, { archivedAt: iso });
+    x.archivedAt = iso;
+  }
+  try { await translateSome(parts); } catch (err) { console.warn('[Translate] failed:', err); }
+
   // 4. «Ищу запчасть»: a part that fits a new request appeared -> tell the buyer, mark the request "found"
   const words = (v: unknown) => normTitle(v).split(' ').filter((w) => w.length >= 3);
   const requests = await listRecords<any>('partRequests');
@@ -979,6 +1018,24 @@ async function fraudCheck(coll: 'parts' | 'cars', listingId: string) {
   await notifyUser(ownerId, `⚠️ На ваши объявления пожаловались несколько покупателей. Пока модератор проверяет, объявления скрыты с сайта. Если это ошибка — напишите нам через «Помощь».`);
 }
 
+/** «Что ищут, но нет на сайте» for sellers: top misses of the week; a make-specific miss goes to sellers of that make */
+async function searchTips(users: UserRecord[], byOwner: Map<string, any[]>) {
+  const since = Date.now() - 7 * 86_400_000;
+  const misses = (await listRecords<any>('searchMisses')).filter((m) => (Date.parse(m.lastAt) || 0) > since && m.count >= 2).sort((a, b) => b.count - a.count).slice(0, 40);
+  if (!misses.length) return 0;
+  let n = 0;
+  for (const u of users) {
+    const mine = (byOwner.get(u.id) || []).filter(isPublicPart);
+    if (!mine.length || u.blocked || u.isOwner) continue;
+    const brands = new Set(mine.map((x) => normTitle(x.brand)));
+    const fit = misses.filter((m) => !m.brand || brands.has(normTitle(m.brand))).slice(0, 6);
+    if (!fit.length) continue;
+    await notifyUser(u.id, `🔍 Что покупатели искали на KGzone и не нашли за неделю:\n${fit.map((m) => `• ${[m.q, m.brand, m.model].filter(Boolean).join(' ')} — ${m.count} раз`).join('\n')}\nЕсли у вас есть — выставьте, покупатели уже ищут.`);
+    n++;
+  }
+  return n;
+}
+
 /** Bishkek date, shifted by days */
 const bishkekDate = (shiftDays = 0) => new Date(Date.now() + 6 * 3_600_000 + shiftDays * 86_400_000).toISOString().slice(0, 10);
 
@@ -999,7 +1056,8 @@ async function morningJob() {
     const asked = questions.filter((q) => q.sellerId === u.id && !q.answer).length;
     const stale = mine.filter((x) => isLive(x) && Number(x.stockCount) > 0 && stockAge(x) > STALE_STOCK_DAYS * 86_400_000).length;
     const noPhoto = mine.filter((x) => isLive(x) && Number(x.stockCount) > 0 && !(Array.isArray(x.images) && x.images.length)).length;
-    if (!views && !contacts && !open && !asked && !stale && !noPhoto) continue;
+    const sleepy = staleOffers(mine).length;
+    if (!views && !contacts && !open && !asked && !stale && !noPhoto && !sleepy) continue;
     const lines = [
       `☀️ Доброе утро! Ваш KGzone за вчера:`,
       `👀 Просмотров ваших товаров: ${views}${contacts ? ` · звонков и сообщений: ${contacts}` : ''}`,
@@ -1007,11 +1065,30 @@ async function morningJob() {
       asked ? `❓ Вопросов покупателей без ответа: ${asked}` : '',
       stale ? `📦 Наличие не подтверждали больше месяца: ${stale} товар(ов)` : '',
       noPhoto ? `📷 Без фото и не видны на сайте: ${noPhoto} товар(ов)` : '',
+      sleepy ? `🏷️ Месяц никто не смотрел: ${sleepy} товар(ов). Сделайте скидку 10% на неделю — одной кнопкой в «Мои объявления»` : '',
       `${SITE_URL}/kabinet`,
     ].filter(Boolean);
     await notifyUser(u.id, lines.join('\n'));
     sent++;
   }
+  // Carts left for a day: one reminder (only items still on sale)
+  const byId = new Map(parts.map((x) => [x.id, x]));
+  let carts = 0;
+  for (const u of users as any[]) {
+    const c = u.cart;
+    if (!c?.items?.length || u.blocked || c.remindedAt) continue;
+    if (Date.now() - (Date.parse(c.at) || Date.now()) < Number(process.env.CART_REMIND_HOURS ?? 20) * 3_600_000) continue;
+    const live = c.items.map((i: any) => byId.get(i.partId)).filter((x: any) => x && isPublicPart(x));
+    await updateRecord('users', u.id, { cart: { ...c, remindedAt: new Date().toISOString() } } as any);
+    if (!live.length) continue;
+    await notifyUser(u.id, `🛒 В вашей корзине ждут запчасти:\n${live.slice(0, 5).map((x: any) => `• ${x.title} — ${Number(x.priceKgs).toLocaleString('ru-RU')} сом (в наличии ${x.stockCount} шт.)`).join('\n')}\nОформите заказ, пока они есть: ${SITE_URL}/zapchasti`);
+    carts++;
+  }
+
+  // Mondays: what buyers searched for and did not find — to sellers of those makes
+  let tips = 0;
+  if (new Date(Date.now() + 6 * 3_600_000).getUTCDay() === 1 || process.env.CRON_FORCE_MONDAY === '1') tips = await searchTips(users, byOwner);
+
   // Ads that end in 3 days: remind staff with the numbers, once per slide
   const soon = bishkekDate(3);
   const done = (await kvGet<Record<string, boolean>>('kgzone:adReminders')) || {};
@@ -1032,7 +1109,26 @@ async function morningJob() {
     }
   }
   await kvSet('kgzone:adReminders', done);
-  return { sent, reminded };
+  return { sent, reminded, carts, tips };
+}
+
+/** Listings in Kyrgyz and English: a few parts per run, only when the text changed */
+const trSource = (x: any) => createHash('sha256').update(`${x.title}|${x.description || ''}`).digest('hex').slice(0, 16);
+async function translateSome(parts: any[]) {
+  if (!process.env.GEMINI_API_KEY) return 0;
+  const todo = parts.filter((x) => isPublicPart(x) && x.tr?.src !== trSource(x)).slice(0, 8);
+  let done = 0;
+  for (const x of todo) {
+    const prompt = 'Переведи объявление об автозапчасти с русского на кыргызский (kg) и английский (en). Номера, марки и модели не переводи. ' +
+      'Ответь строго JSON: {"kg": {"t": "название", "d": "описание"}, "en": {"t": "title", "d": "description"}}.\n' +
+      `Название: ${x.title}\nОписание: ${String(x.description || '').slice(0, 800)}`;
+    const r = parseJson(await geminiJson([{ text: prompt }]));
+    if (!r?.kg?.t || !r?.en?.t) continue;
+    const clean = (o: any) => ({ t: str(o.t, 160), d: str(o.d, 1200) });
+    await updateRecord('parts', x.id, { tr: { src: trSource(x), kg: clean(r.kg), en: clean(r.en) } });
+    done++;
+  }
+  return done;
 }
 
 /** Telegram message to staff who have this power (and to TELEGRAM_CHAT_ID) */
@@ -1068,6 +1164,7 @@ async function weeklyReportText() {
     `👑 Корона: получили ${crowns.filter((a) => a.details?.given).length} · потеряли ${crowns.filter((a) => a.details && !a.details.given).length}`,
     `🤖 Сайт сам убрал: дублей ${n('duplicate')} · подозрительных цен ${n('price')} · чужих фото ${n('photo')} · уснувших продавцов ${n('sleeping')} · мошенников на проверке ${n('fraud')}`,
     `🔎 Заявок «ищу запчасть» нашлось само: ${auditLog.filter((a) => a.action === 'auto-found' && after(a.at)).length}`,
+    `🚫 Остановлено в чатах: номеров карт ${auditLog.filter((a) => a.action === 'chat-block' && a.details?.reason === 'card' && after(a.at)).length} · рассылок ${auditLog.filter((a) => a.action === 'chat-block' && a.details?.reason === 'mass' && after(a.at)).length}`,
   ].join('\n');
 }
 
@@ -2451,7 +2548,7 @@ app.post('/api/my/:kind/:id/status', requireUser, asyncRoute(async (req: Request
   if (!own) return;
   const status = ['active', 'inactive', 'sold'].includes(req.body?.status) ? req.body.status : null;
   if (!status) return res.status(400).json({ success: false, error: 'Неверный статус' });
-  const updated = await updateRecord(own.kind, own.item.id, { listingStatus: status, statusChangedAt: new Date().toISOString() });
+  const updated = await updateRecord(own.kind, own.item.id, { listingStatus: status, statusChangedAt: new Date().toISOString(), archivedAt: undefined });
   res.json({ success: true, item: updated });
 }));
 
@@ -2657,6 +2754,32 @@ async function canAccessConversation(user: UserRecord, c: Conversation) {
 
 const cleanText = (v: unknown) => str(v, 2000).replace(/\s+\n/g, '\n');
 
+/** Card numbers (checked with the Luhn sum) and the same text sent to many sellers are not allowed in chats */
+const luhn = (d: string) => { let sum = 0; for (let i = 0; i < d.length; i++) { let n = Number(d[d.length - 1 - i]); if (i % 2) { n *= 2; if (n > 9) n -= 9; } sum += n; } return sum % 10 === 0; };
+const hasCardNumber = (text: string) => (text.match(/(?:\d[ -]?){15,18}\d/g) || []).some((m) => { const d = m.replace(/\D/g, ''); return d.length >= 16 && d.length <= 19 && luhn(d); });
+const chatHistory = new Map<string, { h: string; conv: string; at: number }[]>();
+async function chatGuard(user: UserRecord, text: string, convKey: string): Promise<string | null> {
+  if (userPerms(user).length) return null;
+  const who = `${user.company?.name || user.name}, +${String(user.phone).replace(/\D/g, '')}`;
+  if (hasCardNumber(text)) {
+    if (!tooMany(`spamalert:card:${user.id}`, 1, 60 * 60_000)) await notifyStaff('reports', `🚫 В чате пытались отправить номер карты — сообщение не отправлено.\nКто: ${who}`);
+    await audit('admin-token', 'chat-block', user.id, { reason: 'card' });
+    return 'Номера банковских карт в чате запрещены. Не переводите предоплату незнакомым — оплачивайте при получении.';
+  }
+  const h = createHash('sha256').update(text.toLowerCase().replace(/\s+/g, ' ').trim()).digest('hex').slice(0, 16);
+  const now = Date.now();
+  const list = (chatHistory.get(user.id) || []).filter((x) => now - x.at < 60 * 60_000);
+  const convs = new Set(list.filter((x) => x.h === h).map((x) => x.conv));
+  if (text.length >= 15 && !convs.has(convKey) && convs.size >= 3) {
+    if (!tooMany(`spamalert:mass:${user.id}`, 1, 60 * 60_000)) await notifyStaff('reports', `🚫 Рассылка в чатах: одно и то же сообщение отправлено многим продавцам — остановлено.\nКто: ${who}\nТекст: ${text.slice(0, 200)}`);
+    await audit('admin-token', 'chat-block', user.id, { reason: 'mass' });
+    return 'Похоже на рассылку: одно и то же сообщение многим продавцам. Напишите каждому своими словами.';
+  }
+  list.push({ h, conv: convKey, at: now });
+  chatHistory.set(user.id, list.slice(-50));
+  return null;
+}
+
 async function notifyChat(c: Conversation, from: UserRecord, text: string) {
   const to = from.id === c.buyerId ? c.sellerId : c.buyerId;
   if (tooMany(`tgchat:${c.id}:${to}`, 3, 10 * 60_000)) return;
@@ -2674,6 +2797,8 @@ app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res:
   const listing: any = await getRecord(kind, str(req.body?.listingId, 80));
   if (!listing || !listing.ownerId || !isLive(listing)) return res.status(404).json({ success: false, error: 'Объявление не найдено или снято с публикации' });
   if (listing.ownerId === user.id) return res.status(400).json({ success: false, error: 'Это ваше объявление' });
+  const blocked = await chatGuard(user, text, `${kind}:${listing.id}`);
+  if (blocked) return res.status(400).json({ success: false, error: blocked });
   const seller = await getRecord<UserRecord>('users', listing.ownerId);
   if (!seller || seller.blocked) return res.status(404).json({ success: false, error: 'Продавец недоступен' });
 
@@ -2738,6 +2863,8 @@ app.post('/api/conversations/:id/messages', requireUser, asyncRoute(async (req: 
   const c = await getRecord<Conversation>('conversations', req.params.id);
   if (!c || !(await canAccessConversation(user, c))) return res.status(404).json({ success: false, error: 'Диалог не найден' });
   if (c.buyerId === 'kgz-complaints') return res.status(400).json({ success: false, error: 'Автор жалобы не вошёл на сайт — ответить ему здесь нельзя. Если он оставил контакт, свяжитесь по нему.' });
+  const blocked = await chatGuard(user, text, c.id);
+  if (blocked) return res.status(400).json({ success: false, error: blocked });
   const now = new Date().toISOString();
   const updated = await updateRecord<Conversation>('conversations', c.id, {
     messages: [...c.messages, { id: randomUUID(), from: user.id, text, at: now }].slice(-MAX_MESSAGES),
@@ -4801,6 +4928,50 @@ app.post('/api/admin/:kind/:id/vip', requirePerm('vip'), asyncRoute(async (req: 
 }));
 
 // "What is this part?" — a photo goes to Gemini, which names the part and suggests a search
+/** Asks Gemini with fallbacks; returns the text answer or '' */
+async function geminiJson(parts: any[]): Promise<string> {
+  for (const model of ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-flash-lite-latest']) {
+    try {
+      const r = await ai.models.generateContent({ model, contents: [{ role: 'user', parts }], config: { responseMimeType: 'application/json', temperature: 0.2, abortSignal: AbortSignal.timeout(25000) } });
+      return r.text || '';
+    } catch (err: any) {
+      const timedOut = err?.name === 'AbortError' || err?.name === 'TimeoutError';
+      if (!timedOut && ![429, 500, 503, 404].includes(err?.status)) { console.error('[Gemini]', err); return ''; }
+    }
+  }
+  return '';
+}
+const parseJson = (text: string) => { try { return JSON.parse(text.replace(/^```(json)?|```$/g, '').trim()); } catch { return null; } };
+
+// Seller's own uploaded photo -> name, category, make, model, OEM for the form (the seller checks and fixes)
+app.post('/api/ai/listing-from-photo', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  if (!process.env.GEMINI_API_KEY) return res.status(503).json({ success: false, error: 'Заполнение по фото пока не подключено. Заполните поля вручную.' });
+  const user: UserRecord = (req as any).user;
+  if (tooMany(`aifill:${user.id}`, 20, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много фото. Попробуйте через час.' });
+  const url = str(req.body?.url, 400);
+  // Only photos uploaded to our own storage (no requests to other sites)
+  if (!/^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\/parts\/[A-Za-z0-9._-]+$/.test(url)) return res.status(400).json({ success: false, error: 'Сначала загрузите фото детали' });
+  const img = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  const type = img.headers.get('content-type') || '';
+  if (!img.ok || !/^image\/(jpeg|png|webp)$/.test(type)) return res.status(400).json({ success: false, error: 'Не удалось открыть фото' });
+  const bytes = Buffer.from(await img.arrayBuffer());
+  if (bytes.length > 3_000_000) return res.status(413).json({ success: false, error: 'Фото слишком большое' });
+  const cats = (Array.isArray(req.body?.categories) ? req.body.categories : []).map((x: unknown) => str(x, 60)).filter(Boolean).slice(0, 40);
+  const prompt = 'Это фото автозапчасти, которую продавец выставляет на продажу в Кыргызстане. Ответь строго JSON без пояснений: ' +
+    '{"title": "название для объявления по-русски, коротко, например Фара правая или Помпа водяная", ' +
+    `"category": "одна из: ${cats.join(', ')}", ` +
+    '"brand": "марка авто, если видно по детали или наклейке, иначе пусто", "model": "модель авто, если видно, иначе пусто", ' +
+    '"partNumber": "номер OEM, только если он виден на фото, иначе пусто", "note": "что продавцу проверить, коротко"}. ' +
+    'Не выдумывай номер и марку, если их не видно. Если на фото не автозапчасть, верни {"title": "", "note": "на фото не видно автозапчасти"}.';
+  const result = parseJson(await geminiJson([{ inlineData: { mimeType: type, data: bytes.toString('base64') } }, { text: prompt }]));
+  if (!result) return res.status(502).json({ success: false, error: 'Не удалось распознать фото. Заполните поля вручную.' });
+  res.json({
+    success: true,
+    title: str(result.title, 120), category: cats.includes(result.category) ? result.category : '',
+    brand: str(result.brand, 40), model: str(result.model, 60), partNumber: str(result.partNumber, 40).toUpperCase(), note: str(result.note, 200),
+  });
+}));
+
 app.post('/api/ai/identify-part', asyncRoute(async (req: Request, res: Response) => {
   if (!process.env.GEMINI_API_KEY) return res.status(503).json({ success: false, error: 'Распознавание по фото сейчас недоступно' });
   if (tooMany(`identify:${clientIp(req)}`, 10, 60 * 60_000)) return res.status(429).json({ success: false, error: 'Слишком много фото. Попробуйте через час.' });

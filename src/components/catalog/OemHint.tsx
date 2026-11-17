@@ -19,7 +19,7 @@ export const OemHint: React.FC<{ oem: string; onApply: (k: OemKnowledge) => void
 
   if (!k) return null;
   return (
-    <div className={`mt-2 p-2.5 rounded-xl text-[11px] space-y-1 ${dark ? 'bg-amber-950/40 border border-amber-700/50 text-amber-100' : 'bg-amber-50 border border-amber-200 text-amber-900'}`}>
+    <div className="mt-2 p-2.5 rounded-xl text-[11px] space-y-1 bg-amber-50 border border-amber-200 text-amber-900 dark:bg-amber-950/40 dark:border-amber-700/50 dark:text-amber-100" data-dark={dark || undefined}>
       <div className="flex items-center gap-1.5 font-bold">
         <Lightbulb size={13} />
         <span>Этот номер уже есть на KGzone ({k.listings} объявл.)</span>

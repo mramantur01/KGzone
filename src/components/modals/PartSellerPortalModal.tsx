@@ -3,6 +3,7 @@ import { AutoPartItem, Currency, Language } from '../../types/car';
 import { submitPart, useParts } from '../../api/parts';
 import { priceRange } from '../../utils/oemOffers';
 import { uploadPhoto } from '../../api/upload';
+import { call } from '../../api/admin';
 import { useAuth } from '../../api/auth';
 import { OemHint } from '../catalog/OemHint';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
@@ -124,6 +125,23 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
         }
       })
     );
+  };
+
+  // ✨ The site looks at the first photo and fills the name, category, make and OEM (only empty fields)
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiNote, setAiNote] = useState<string | null>(null);
+  const fillFromPhoto = async () => {
+    if (!ownPhotos[0]) return;
+    setAiBusy(true); setAiNote(null);
+    try {
+      const r = await call<{ title: string; category: string; brand: string; model: string; partNumber: string; note: string }>('/api/ai/listing-from-photo', { method: 'POST', body: JSON.stringify({ url: ownPhotos[0], categories: categoriesList }) });
+      if (r.title && !partTitle.trim()) setPartTitle(r.title);
+      if (r.brand && !partBrand.trim()) setPartBrand(r.brand);
+      if (r.model && !partModel.trim()) setPartModel(r.model);
+      if (r.partNumber && !partOEM.trim()) setPartOEM(r.partNumber);
+      if (r.category && categoriesList.includes(r.category)) setPartCategory(r.category);
+      setAiNote(r.title ? 'Заполнено по фото — проверьте и поправьте, если нужно.' + (r.note ? ' ' + r.note : '') : (r.note || 'Не удалось понять, что на фото.'));
+    } catch (e: any) { setAiNote(e.message); } finally { setAiBusy(false); }
   };
 
   // Compatibility row state
@@ -599,6 +617,12 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                       Этот номер у других продавцов: {range.min === range.max ? <b>{range.min.toLocaleString('ru-RU')} сом</b> : <>от <b>{range.min.toLocaleString('ru-RU')}</b> до <b>{range.max.toLocaleString('ru-RU')}</b> сом</>} ({range.count})
                     </p>
                   )}
+                  {range && partPriceKgs > 0 && partPriceKgs * 5 < range.median && (
+                    <p className="text-[11px] text-amber-300 mt-1 font-semibold">⚠️ Ваша цена намного ниже, чем у других. Проверьте — такое объявление сначала посмотрит модератор.</p>
+                  )}
+                  {range && partPriceKgs > 0 && partPriceKgs > range.max * 1.5 && (
+                    <p className="text-[11px] text-amber-300 mt-1 font-semibold">💡 Ваша цена выше, чем у всех других продавцов. Покупатели могут выбрать дешевле.</p>
+                  )}
                 </div>
 
                 {/* Stock Control (+ / -) */}
@@ -836,6 +860,14 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                   )}
                 </div>
                 {photoError && <p className="text-[11px] text-red-400">{photoError}</p>}
+                {ownPhotos.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" disabled={aiBusy} onClick={fillFromPhoto} className="px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black cursor-pointer disabled:opacity-60">
+                      {aiBusy ? 'Смотрю фото…' : '✨ Заполнить по фото'}
+                    </button>
+                    {aiNote && <span className="text-[11px] text-violet-200">{aiNote}</span>}
+                  </div>
+                )}
                 <p className="text-[11px] text-neutral-500">
                   {ownPhotos.length ? 'Будут показаны ваши фото.' : 'Обязательно: сфотографируйте именно эту деталь (до 8 фото). Чужие фото и картинки из интернета не принимаются.'}
                 </p>

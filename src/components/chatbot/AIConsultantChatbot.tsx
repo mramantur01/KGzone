@@ -62,6 +62,16 @@ export const AIConsultantChatbot: React.FC<AIConsultantChatbotProps> = ({
 
   const allParts = useParts();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // A touch or click anywhere outside the window (or Esc) folds it back to the button; the chat is kept
+  useEffect(() => {
+    if (!isOpen) return;
+    const outside = (e: PointerEvent) => { if (panelRef.current && !panelRef.current.contains(e.target as Node)) setIsOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsOpen(false); };
+    const t = window.setTimeout(() => document.addEventListener('pointerdown', outside), 0);
+    document.addEventListener('keydown', esc);
+    return () => { window.clearTimeout(t); document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', esc); };
+  }, [isOpen]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -163,7 +173,7 @@ export const AIConsultantChatbot: React.FC<AIConsultantChatbotProps> = ({
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-5 right-5 z-50 w-full sm:w-96 max-w-[calc(100vw-2.5rem)] h-[540px] max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div ref={panelRef} className="fixed bottom-5 right-5 z-50 w-full sm:w-96 max-w-[calc(100vw-2.5rem)] h-[540px] max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
           {/* Header */}
           <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
             <div className="flex items-center gap-2.5">

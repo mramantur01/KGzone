@@ -5,6 +5,7 @@ import {
   type ListingKind, type MyCar, type MyPart,
 } from '../../api/myListings';
 import { uploadPhoto } from '../../api/upload';
+import { call } from '../../api/admin';
 import { hhmm, isActiveUntil } from '../../api/market';
 import { SellerStatsCard } from './SellerStatsCard';
 import { partPath, carPath, openShop } from '../../seo/routes';
@@ -14,7 +15,7 @@ import { useAuth } from '../../api/auth';
 // hundreds or thousands of parts: search, filters, compact rows, bulk actions, pages.
 
 type Row = { kind: ListingKind; item: MyPart | MyCar };
-type Bucket = 'active' | 'hidden' | 'pending' | 'rejected' | 'inactive' | 'sold';
+type Bucket = 'active' | 'hidden' | 'pending' | 'rejected' | 'inactive' | 'sold' | 'archive';
 type Sort = 'new' | 'cheap' | 'expensive' | 'views' | 'stock';
 
 const PAGE = 50;
@@ -25,6 +26,7 @@ const BUCKETS: { id: Bucket; label: string }[] = [
   { id: 'rejected', label: 'Отклонённые' },
   { id: 'inactive', label: 'Снятые' },
   { id: 'sold', label: 'Проданные' },
+  { id: 'archive', label: 'Архив' },
 ];
 
 const isPart = (r: Row): r is { kind: 'parts'; item: MyPart } => r.kind === 'parts';
@@ -35,6 +37,7 @@ const hiddenReason = (r: Row): 'photo' | 'stock' | null => {
   return null;
 };
 const bucketOf = (r: Row): Bucket => {
+  if ((r.item as any).archivedAt) return 'archive';
   const status = r.item.listingStatus ?? 'active';
   if (status === 'sold') return 'sold';
   if (status === 'inactive') return 'inactive';
@@ -88,6 +91,21 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
   const [statsFor, setStatsFor] = useState<string | null>(null);
   const { user } = useAuth();
   const photoFor = useRef<Row | null>(null);
+
+  // Items nobody looked at for a month: the site offers a 10% discount for a week, one button for all
+  const [stale, setStale] = useState<{ id: string; title: string; priceKgs: number }[]>([]);
+  const loadStale = useCallback(() => { call<{ items: { id: string; title: string; priceKgs: number }[] }>('/api/my/stale-items').then((r) => setStale(r.items)).catch(() => setStale([])); }, []);
+  useEffect(() => { loadStale(); }, [loadStale]);
+  const [staleBusy, setStaleBusy] = useState(false);
+  const discountStale = async () => {
+    setStaleBusy(true);
+    let ok = 0;
+    for (const x of stale) { try { await setMySale(x.id, 10, 7); ok++; } catch { /* skip one */ } }
+    setStaleBusy(false);
+    flash(`Скидка −10% на 7 дней: ${ok} товар(ов). Они попали в «Скидки дня», через неделю цена вернётся сама.`);
+    loadStale();
+    await load();
+  };
 
   const load = useCallback(async () => {
     try {
@@ -304,6 +322,19 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
             <span className="hidden sm:inline">Покупатели ищут запчасти для ваших марок: <b>{requestsCount}</b></span>
             <span className="sm:hidden">Заявки покупателей: <b>{requestsCount}</b></span>
             <span className="ml-auto font-bold whitespace-nowrap">Посмотреть →</span>
+          </button>
+        </div>
+      )}
+
+      {stale.length > 0 && (
+        <div className="mx-3 sm:mx-5 mt-3 p-3 rounded-xl bg-violet-50 border-2 border-violet-300 text-violet-950 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <span className="text-xl shrink-0">🏷️</span>
+          <div className="flex-1 text-sm">
+            <b>Месяц никто не смотрел: {stale.length} товар(ов).</b> Сделайте скидку 10% на неделю — они попадут в «Скидки дня» на главной, а через 7 дней цена вернётся сама.
+            <div className="text-xs text-violet-700 mt-0.5 line-clamp-1" data-no-i18n>{stale.slice(0, 3).map((x) => x.title).join(' · ')}{stale.length > 3 ? ' …' : ''}</div>
+          </div>
+          <button type="button" disabled={staleBusy} onClick={discountStale} className="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-black cursor-pointer whitespace-nowrap disabled:opacity-60">
+            {staleBusy ? 'Ставлю скидку…' : 'Скидка 10% на неделю'}
           </button>
         </div>
       )}

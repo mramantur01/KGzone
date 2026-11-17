@@ -65,6 +65,7 @@ const TAB_TITLES: Record<string, string> = {
 };
 import { useCars, isDbCar } from './api/cars';
 import { OrderFeedbackPrompt } from './components/common/OrderFeedbackPrompt';
+import { CartAutomation } from './components/cart/CartAutomation';
 
 // Sections and dialogs that are not needed for the first screen load on demand (smaller first download)
 const CarCheckModal = lazy(() => import('./components/modals/CarCheckModal').then((m) => ({ default: m.CarCheckModal })));
@@ -842,6 +843,7 @@ export default function App() {
       </main>
 
       <OrderFeedbackPrompt />
+      <CartAutomation />
 
       {/* Футер */}
       <Footer
