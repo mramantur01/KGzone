@@ -65,6 +65,7 @@ const TAB_TITLES: Record<string, string> = {
 };
 import { useCars, isDbCar } from './api/cars';
 import { OrderFeedbackPrompt } from './components/common/OrderFeedbackPrompt';
+import { PartsSliderBanner } from './components/sections/PartsSliderBanner';
 import { CartAutomation } from './components/cart/CartAutomation';
 
 // Sections and dialogs that are not needed for the first screen load on demand (smaller first download)
@@ -665,6 +666,11 @@ export default function App() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* Платная реклама для покупателей и владельцев авто (примеры, пока нет рекламодателей) */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+              <PartsSliderBanner language={language} place="cars" />
             </div>
 
             {/* Список объявлений с сортировкой */}

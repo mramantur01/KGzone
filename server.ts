@@ -1093,7 +1093,7 @@ async function morningJob() {
   const soon = bishkekDate(3);
   const done = (await kvGet<Record<string, boolean>>('kgzone:adReminders')) || {};
   let reminded = 0;
-  for (const place of ['parts', 'sto', 'side'] as const) {
+  for (const place of AD_PLACE_IDS) {
     const key = bannerKey(place);
     const banner: any = redis ? await redis.get(key) : memoryBanners[key];
     const stats = (await kvGet<Record<string, { views: number; clicks: number }>>(adStatsKey(place))) || {};
@@ -1102,7 +1102,7 @@ async function morningJob() {
       const k = `${place}:${sl.id}:${sl.endDate}`;
       if (done[k]) continue;
       const st = stats[sl.id] || { views: 0, clicks: 0 };
-      const where = place === 'sto' ? 'слайдер «Сервис»' : place === 'side' ? 'сбоку в каталоге' : 'слайдер «Автозапчасти»';
+      const where = AD_PLACE_NAMES[place];
       await notifyStaff('ads', `📢 Реклама «${sl.title}» (${where}) заканчивается ${sl.endDate.split('-').reverse().join('.')}.\nПоказов: ${st.views} · кликов: ${st.clicks}${st.views ? ` (${Math.round((st.clicks / st.views) * 1000) / 10}%)` : ''}\nПредложите рекламодателю продлить.`);
       done[k] = true;
       reminded++;
@@ -5193,8 +5193,15 @@ function sanitizeBanner(b: any) {
   };
 }
 // place=sto: the same kind of slider on the car service page
-const bannerKey = (place: unknown) => (place === 'sto' || place === 'side' ? `${BANNER_KEY}:${place}` : BANNER_KEY);
-const adPlace = (v: unknown): 'parts' | 'sto' | 'side' => (v === 'sto' || v === 'side' ? v : 'parts');
+// All ad places: sliders on the parts / service / cars / markets pages, the side column, cards in the parts list, the part window
+const AD_PLACE_IDS = ['parts', 'sto', 'side', 'cars', 'feed', 'detail', 'markets'] as const;
+type AdPlaceId = typeof AD_PLACE_IDS[number];
+const AD_PLACE_NAMES: Record<AdPlaceId, string> = {
+  parts: 'слайдер «Автозапчасти»', sto: 'слайдер «Сервис»', side: 'сбоку в каталоге', cars: 'слайдер «Автомобили»',
+  feed: 'карточки в ленте запчастей', detail: 'в окне запчасти', markets: 'страница «Рынки»',
+};
+const adPlace = (v: unknown): AdPlaceId => (AD_PLACE_IDS.includes(v as AdPlaceId) ? (v as AdPlaceId) : 'parts');
+const bannerKey = (place: unknown) => (adPlace(place) === 'parts' ? BANNER_KEY : `${BANNER_KEY}:${adPlace(place)}`);
 const memoryBanners: Record<string, unknown> = {};
 
 // ---- Small key-value store for ads (Redis, or memory on a local copy)
@@ -5207,13 +5214,13 @@ const adStatsKey = (place: string) => `kgzone:bannerStats:${adPlace(place)}`;
 const bishkekToday = () => new Date(Date.now() + 6 * 3_600_000).toISOString().slice(0, 10);
 const addDays = (day: string, n: number) => new Date(Date.parse(day + 'T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
 const AD_PERIODS: Record<string, { days: number; label: string }> = { week: { days: 7, label: '1 неделя' }, '2weeks': { days: 14, label: '2 недели' }, month: { days: 30, label: '1 месяц' } };
-interface AdPrices { partsWeek: number; partsMonth: number; stoWeek: number; stoMonth: number; sideWeek: number; sideMonth: number; note: string }
-const sanitizePrices = (b: any): AdPrices => ({
-  partsWeek: Math.max(0, Math.round(Number(b?.partsWeek) || 0)), partsMonth: Math.max(0, Math.round(Number(b?.partsMonth) || 0)),
-  stoWeek: Math.max(0, Math.round(Number(b?.stoWeek) || 0)), stoMonth: Math.max(0, Math.round(Number(b?.stoMonth) || 0)),
-  sideWeek: Math.max(0, Math.round(Number(b?.sideWeek) || 0)), sideMonth: Math.max(0, Math.round(Number(b?.sideMonth) || 0)),
-  note: str(b?.note, 300),
-});
+/** Price per week and per month for every place (0 = «по договорённости») + a note */
+type AdPrices = Record<string, number | string> & { note: string };
+const sanitizePrices = (b: any): AdPrices => {
+  const out: any = { note: str(b?.note, 300) };
+  for (const pl of AD_PLACE_IDS) for (const per of ['Week', 'Month']) out[pl + per] = Math.max(0, Math.round(Number(b?.[pl + per]) || 0));
+  return out;
+};
 
 // Prices the owner set (0 = "по договорённости")
 app.get('/api/ads/prices', asyncRoute(async (_req: Request, res: Response) => {
@@ -5246,7 +5253,7 @@ app.post('/api/ads/request', asyncRoute(async (req: Request, res: Response) => {
   };
   const list = (await kvGet<any[]>(AD_REQUESTS_KEY)) || [];
   await kvSet(AD_REQUESTS_KEY, [request, ...list].slice(0, 300));
-  await notifyAdmin(`📣 Заявка на рекламу: ${request.business || request.name}\n${place === 'sto' ? 'Слайдер «Сервис»' : place === 'side' ? 'Сбоку в каталоге' : 'Слайдер «Автозапчасти»'} · ${AD_PERIODS[period].label} с ${startDate}\n${name}, ${phone}\nПосмотреть: ${SITE_URL}/kabinet → Модерация → Заявки на рекламу`);
+  await notifyAdmin(`📣 Заявка на рекламу: ${request.business || request.name}\n${AD_PLACE_NAMES[adPlace(place)]} · ${AD_PERIODS[period].label} с ${startDate}\n${name}, ${phone}\nПосмотреть: ${SITE_URL}/kabinet → Модерация → Заявки на рекламу`);
   res.status(201).json({ success: true });
 }));
 app.get('/api/admin/ads/requests', requirePerm('ads'), asyncRoute(async (_req: Request, res: Response) => {

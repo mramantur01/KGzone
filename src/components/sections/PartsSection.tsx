@@ -1,3 +1,4 @@
+import { FeedAdCard, withFeedAds, isFeedAd } from '../ads/AdSpots';
 import { partTitle } from '../../utils/partText';
 import { copyText } from '../../utils/copyText';
 import { partQuestion } from '../../utils/waMessages';
@@ -1479,7 +1480,8 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
               
               /* 1. GRID VIEW */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {shownParts.map((part) => {
+                {withFeedAds(shownParts, 9).map((part) => {
+                  if (isFeedAd(part)) return <FeedAdCard key={`ad-${part.feedAd}`} n={part.feedAd} />;
                   const priceUsd = Math.round(part.priceKgs / USD_TO_KGS_RATE);
                   const isCopied = copiedPartNumber === part.partNumber;
 
@@ -1710,7 +1712,8 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
               /* 2. DROM-STYLE ROWS VIEW (Compact, scan-friendly rows) */
               <div className="space-y-3">
-                {shownParts.map((part) => {
+                {withFeedAds(shownParts, 8).map((part) => {
+                  if (isFeedAd(part)) return <FeedAdCard key={`ad-${part.feedAd}`} n={part.feedAd} rows />;
                   const priceUsd = Math.round(part.priceKgs / USD_TO_KGS_RATE);
                   const isPhoneRevealed = !!revealedPhones[part.id];
                   const cleanPhone = part.sellerPhone.replace(/[^0-9]/g, '');

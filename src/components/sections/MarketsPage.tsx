@@ -3,6 +3,7 @@ import { MapPin, Store, ExternalLink, Search, Package } from 'lucide-react';
 import type { AutoPartItem, Language } from '../../types/car';
 import { useParts } from '../../api/parts';
 import { openShop } from '../../seo/routes';
+import { PartsSliderBanner } from './PartsSliderBanner';
 
 // "Рынки": which sellers stand where (market, row, container) — from what sellers wrote in their listings.
 // No invented map: each market opens in 2GIS.
@@ -51,6 +52,11 @@ export const MarketsPage: React.FC<{ language: Language; onOpenParts: () => void
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={isKg ? 'Дүкөн же контейнер' : 'Магазин или контейнер'} className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-sm" />
           </div>
+        </div>
+
+        {/* Paid ads for shops and containers on the markets (samples until advertisers come) */}
+        <div className="mb-4">
+          <PartsSliderBanner language={language} place="markets" />
         </div>
 
         <div className="space-y-4">

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Megaphone, ImagePlus, Loader2, CheckCircle2, Eye, MousePointerClick, CalendarDays } from 'lucide-react';
 import type { Language } from '../../types/car';
-import { loadAdPrices, sendAdRequest, bishkekToday, AD_PERIOD_LABELS, AD_PLACE_LABELS, AD_PLACES, type AdPeriod, type AdPrices } from '../../api/ads';
+import { loadAdPrices, sendAdRequest, bishkekToday, AD_PERIOD_LABELS, AD_PLACE_LABELS, AD_PLACE_HINTS, AD_PLACES, type AdPeriod, type AdPrices } from '../../api/ads';
 import type { BannerPlace } from '../../api/banner';
 import { uploadPhoto } from '../../api/upload';
 
@@ -53,10 +53,10 @@ export const AdvertisePage: React.FC<{ language: Language }> = ({ language }) =>
           {AD_PLACES.map((pl) => (
             <div key={pl} className="p-4 rounded-2xl bg-white border border-slate-200">
               <div className="font-black text-slate-900">{AD_PLACE_LABELS[pl]}</div>
-              <p className="text-xs text-slate-500 mt-1">{pl === 'parts' ? 'Широкий слайд вверху каталога запчастей — первое, что видит покупатель.' : pl === 'sto' ? 'Слайд вверху страницы автосервиса — для СТО, шиномонтажа, мойки, эвакуатора.' : 'Баннер в колонке рядом с запчастями. Виден на компьютере, пока покупатель листает каталог.'}</p>
+              <p className="text-xs text-slate-500 mt-1">{AD_PLACE_HINTS[pl]}</p>
               <div className="mt-2 text-sm">
-                <div>1 неделя: <b>{prices ? price(pl === 'parts' ? prices.partsWeek : pl === 'sto' ? prices.stoWeek : prices.sideWeek) : '…'}</b></div>
-                <div>1 месяц: <b>{prices ? price(pl === 'parts' ? prices.partsMonth : pl === 'sto' ? prices.stoMonth : prices.sideMonth) : '…'}</b></div>
+                <div>1 неделя: <b>{prices ? price(prices[`${pl}Week`]) : '…'}</b></div>
+                <div>1 месяц: <b>{prices ? price(prices[`${pl}Month`]) : '…'}</b></div>
               </div>
             </div>
           ))}

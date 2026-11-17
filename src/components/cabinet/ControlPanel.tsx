@@ -144,8 +144,12 @@ export const ControlPanel: React.FC<{ perms: StaffPerm[]; currentUserId: string;
         <div className="space-y-4">
           <div id="cp-adreq" className="scroll-mt-32"><AdRequestsPanel /></div>
           <BannerSlidesPanel />
+          <BannerSlidesPanel place="feed" />
+          <BannerSlidesPanel place="detail" />
+          <BannerSlidesPanel place="cars" />
           <BannerSlidesPanel place="sto" />
           <BannerSlidesPanel place="side" />
+          <BannerSlidesPanel place="markets" />
         </div>
       )}
       {tab === 'settings' && (

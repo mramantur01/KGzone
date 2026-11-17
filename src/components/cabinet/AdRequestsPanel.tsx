@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Megaphone, Loader2, ExternalLink, Phone } from 'lucide-react';
 import {
   loadAdPrices, saveAdPrices, listAdRequests, setAdRequestStatus, publishAdRequest,
-  AD_PERIOD_LABELS, AD_PLACE_LABELS, type AdPrices, type AdRequest,
+  AD_PERIOD_LABELS, AD_PLACE_LABELS, AD_PLACES, type AdPrices, type AdRequest,
 } from '../../api/ads';
 import { loadBanner } from '../../api/banner';
 
@@ -52,13 +52,13 @@ export const AdRequestsPanel: React.FC = () => {
       {prices && (
         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
           <div className="font-bold text-slate-800 text-xs">Цены (сом). 0 — «по договорённости»</div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-            <label>Запчасти, неделя<input type="number" min={0} value={prices.partsWeek} onChange={num('partsWeek')} className={inputCls} /></label>
-            <label>Запчасти, месяц<input type="number" min={0} value={prices.partsMonth} onChange={num('partsMonth')} className={inputCls} /></label>
-            <label>Сервис, неделя<input type="number" min={0} value={prices.stoWeek} onChange={num('stoWeek')} className={inputCls} /></label>
-            <label>Сервис, месяц<input type="number" min={0} value={prices.stoMonth} onChange={num('stoMonth')} className={inputCls} /></label>
-            <label>Сбоку, неделя<input type="number" min={0} value={prices.sideWeek} onChange={num('sideWeek')} className={inputCls} /></label>
-            <label>Сбоку, месяц<input type="number" min={0} value={prices.sideMonth} onChange={num('sideMonth')} className={inputCls} /></label>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {AD_PLACES.map((pl) => (
+              <React.Fragment key={pl}>
+                <label>{AD_PLACE_LABELS[pl]}, неделя<input type="number" min={0} value={prices[`${pl}Week`] ?? 0} onChange={num(`${pl}Week`)} className={inputCls} /></label>
+                <label>{AD_PLACE_LABELS[pl]}, месяц<input type="number" min={0} value={prices[`${pl}Month`] ?? 0} onChange={num(`${pl}Month`)} className={inputCls} /></label>
+              </React.Fragment>
+            ))}
           </div>
           <input value={prices.note} onChange={(e) => setPrices({ ...prices, note: e.target.value })} maxLength={300} placeholder="Примечание для рекламодателей, например: оплата MBank, скидка за 3 месяца" className={inputCls} />
           <button type="button" onClick={savePrices} disabled={busy === 'prices'} className="px-4 py-2 rounded-lg bg-slate-900 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer">{busy === 'prices' && <Loader2 size={13} className="animate-spin" />}Сохранить цены</button>

@@ -17,6 +17,17 @@ const newSlide = (): BannerSlide => ({
 });
 
 /** Owner's control panel for the banner slides at the top of the parts catalog */
+const PANEL_TITLES: Record<BannerPlace, string> = {
+  parts: 'Слайды в каталоге запчастей', sto: 'Слайды на странице автосервиса', side: 'Реклама сбоку в каталоге (на компьютере)',
+  cars: 'Слайды на странице «Автомобили»', feed: 'Карточки рекламы в ленте запчастей', detail: 'Реклама в окне запчасти', markets: 'Слайды на странице «Рынки»',
+};
+const PANEL_LINKS: Record<BannerPlace, string> = { parts: '/zapchasti', sto: '/sto', side: '/zapchasti', cars: '/', feed: '/zapchasti', detail: '/zapchasti', markets: '/rynki' };
+const PANEL_WHERE: Record<BannerPlace, string> = {
+  parts: 'Баннер в начале каталога.', sto: 'Баннер в начале страницы «Сервис».', side: 'Колонка рядом с каталогом.',
+  cars: 'Баннер на странице «Автомобили», перед списком машин.', feed: 'Карточка после каждых 9 запчастей в каталоге (по очереди).',
+  detail: 'Одна реклама в окне каждой запчасти, под «Где купить» (по очереди).', markets: 'Баннер вверху страницы «Рынки».',
+};
+
 export const BannerSlidesPanel: React.FC<{ place?: BannerPlace }> = ({ place = 'parts' }) => {
   const isSto = place === 'sto';
   const isSide = place === 'side';
@@ -57,16 +68,16 @@ export const BannerSlidesPanel: React.FC<{ place?: BannerPlace }> = ({ place = '
   return (
     <div className="p-4 rounded-2xl bg-white border border-slate-200 text-sm space-y-3">
       <div className="flex items-center gap-2 font-bold text-slate-900">
-        <GalleryHorizontal size={16} className="text-[#C8102E]" />{isSide ? 'Реклама сбоку в каталоге (на компьютере)' : isSto ? 'Слайды на странице автосервиса' : 'Слайды в каталоге запчастей'}
-        <a href={isSto ? '/sto' : '/zapchasti'} target="_blank" rel="noopener" className="ml-auto text-xs font-bold text-[#1d6fb8] hover:underline inline-flex items-center gap-1">Открыть на сайте<ExternalLink size={12} /></a>
+        <GalleryHorizontal size={16} className="text-[#C8102E]" />{PANEL_TITLES[place]}
+        <a href={PANEL_LINKS[place]} target="_blank" rel="noopener" className="ml-auto text-xs font-bold text-[#1d6fb8] hover:underline inline-flex items-center gap-1">Открыть на сайте<ExternalLink size={12} /></a>
       </div>
       {isSide ? (
         <p className="text-xs text-slate-500">Колонка рядом с запчастями: большое место сверху, три маленьких и большое снизу. Если на одно место поставить несколько реклам, они сменяют друг друга. Картинки: большое — 600×1200, маленькое — 600×500 пикселей.</p>
       ) : (
-      <p className="text-xs text-slate-500">{isSto ? 'Баннер в начале страницы «Сервис».' : 'Баннер в начале каталога.'} Всего на сайте сейчас слайдов: <b>{enabled}</b>. Картинка рекламы — 2400×600 пикселей; без картинки показывается цвет и значок.</p>
+      <p className="text-xs text-slate-500">{PANEL_WHERE[place]} Всего на сайте сейчас: <b>{enabled}</b>. Картинка рекламы — {place === 'feed' || place === 'detail' ? '800×500' : '2400×600'} пикселей; без картинки показывается цвет и значок.</p>
       )}
 
-      {!isSide && <div className="flex flex-wrap items-center gap-x-5 gap-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+      {(place === 'parts' || place === 'sto') && <div className="flex flex-wrap items-center gap-x-5 gap-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={cfg.showOffers} onChange={(e) => setCfg({ ...cfg, showOffers: e.target.checked })} className="w-4 h-4 accent-[#C8102E]" />
           <span>{isSto ? 'Первый слайд: три блока KGzone (запись к мастеру, прайс-лист, галерея работ)' : 'Первый слайд: три блока KGzone (VIN, поиск по номеру, «Продавайте бесплатно»)'}</span>

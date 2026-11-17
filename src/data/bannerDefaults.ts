@@ -71,6 +71,56 @@ export const DEFAULT_BANNER: BannerConfig = {
   ],
 };
 
+// Smaller pictures for ad cards in the parts list and in the part window
+const cardPhoto = (id: string) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=800&h=500&q=70`;
+
+// Slider on the «Автомобили» page: services for car buyers and owners
+export const DEFAULT_CARS_BANNER: BannerConfig = {
+  intervalSec: 4,
+  showOffers: false,
+  slides: [
+    sample('cars-1', 'sky', 'truck', 'Пригон авто из Кореи и Японии', 'Подбор на аукционе, доставка, растаможка и постановка на учёт под ключ. Пример рекламы компании по пригону.', photo('1568605117036-5fe5e7bab0b7')),
+    sample('cars-2', 'slate', 'wrench', 'Тонировка и защитная плёнка', 'Тонировка по ГОСТ, бронеплёнка на фары и капот, оклейка салона. Пример рекламы тюнинг-центра.', photo('1542282088-72c9c27ed0cd')),
+    sample('cars-3', 'emerald', 'wrench', 'Детейлинг и полировка кузова', 'Химчистка салона, полировка, керамика — машина как из салона. Пример рекламы детейлинга.', photo('1617788138017-80ad40651399')),
+    sample('cars-4', 'amber', 'wrench', 'Проверка авто перед покупкой', 'Мастер приедет на осмотр: толщиномер, диагностика, проверка истории. Пример рекламы автоподбора.', photo('1621007947382-bb3c3994e3fb')),
+    sample('cars-5', 'violet', 'store', 'Ваш автосалон — здесь', 'Покажите свои машины каждому, кто ищет авто на KGzone. Формат 1200×300.', photo('1560958089-b8a1929cea89')),
+  ],
+};
+
+// Ad cards inside the parts list (every few cards), looks like a product card with a «Реклама» mark
+export const DEFAULT_FEED_BANNER: BannerConfig = {
+  intervalSec: 4,
+  showOffers: false,
+  slides: [
+    sample('feed-1', 'emerald', 'wrench', 'Замена масла за 30 минут', 'Масло и фильтр — ваши или наши, без записи. Пример рекламы СТО в ленте запчастей.', cardPhoto('1615906655593-ad0386982a0f')),
+    sample('feed-2', 'red', 'wrench', 'Амортизаторы и подвеска', 'Подбор и установка в день обращения. Пример рекламы магазина подвески.', cardPhoto('1760836395716-7dd00b71311a')),
+    sample('feed-3', 'amber', 'wrench', 'Тормозные диски и колодки', 'В наличии на популярные авто, установка рядом. Пример рекламы в ленте.', cardPhoto('1760317890322-364a810cd4da')),
+    sample('feed-4', 'violet', 'store', 'Ваша реклама в ленте каталога', 'Карточка между запчастями — её видит каждый, кто листает каталог. Формат 800×500.', cardPhoto('1619642751034-765dfdf7c58e')),
+  ],
+};
+
+// One ad under «Где купить и как получить» in the part window: installation, delivery, tow truck
+export const DEFAULT_DETAIL_BANNER: BannerConfig = {
+  intervalSec: 5,
+  showOffers: false,
+  slides: [
+    sample('detail-1', 'emerald', 'wrench', 'Установим эту деталь', 'Автосервис рядом с рынком: установка купленных запчастей. Пример рекламы СТО.', cardPhoto('1760317890283-540a468b86f6')),
+    sample('detail-2', 'sky', 'truck', 'Доставка запчастей по Кыргызстану', 'Отправим в Ош, Каракол, Джалал-Абад за 1–2 дня. Пример рекламы доставки.', cardPhoto('1614976523626-d598aafd4fda')),
+    sample('detail-3', 'red', 'truck', 'Эвакуатор 24/7', 'Довезём машину до сервиса, где поставят деталь. Пример рекламы эвакуатора.', cardPhoto('1730514785075-b065c757b653')),
+  ],
+};
+
+// Slider on the «Рынки» page: shops and containers on the markets
+export const DEFAULT_MARKETS_BANNER: BannerConfig = {
+  intervalSec: 4,
+  showOffers: false,
+  slides: [
+    sample('mk-1', 'amber', 'tire', 'Шины и диски на рынке — ряд 3', 'Новые и б/у шины, диски, хранение. Пример рекламы контейнера на рынке.', photo('1578844251758-2f71da64c96f')),
+    sample('mk-2', 'sky', 'oil', 'Масла и автохимия оптом', 'Оптовые цены для магазинов и СТО, доставка по рынку. Пример рекламы оптовика.', photo('1487754180451-c456f719a1fc')),
+    sample('mk-3', 'violet', 'store', 'Ваш контейнер на рынке — здесь', 'Покажите, где вы стоите, всем, кто ищет продавцов на рынках. Формат 1200×300.', photo('1767990495521-95cceb571125')),
+  ],
+};
+
 // Same slider on the car service page (/sto): three KGzone blocks, then sample ads of services
 export const DEFAULT_STO_BANNER: BannerConfig = {
   intervalSec: 3,

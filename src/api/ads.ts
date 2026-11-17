@@ -4,11 +4,24 @@ import type { BannerPlace } from './banner';
 
 // Ads without online payment: owner's prices, advertisers' requests, slide dates and counters
 
-export interface AdPrices { partsWeek: number; partsMonth: number; stoWeek: number; stoMonth: number; sideWeek: number; sideMonth: number; note: string }
+/** Price per week / month for every place: partsWeek, partsMonth, carsWeek … (0 = «по договорённости») */
+export type AdPrices = Record<`${BannerPlace}${'Week' | 'Month'}`, number> & { note: string };
 export type AdPeriod = 'week' | '2weeks' | 'month';
 export const AD_PERIOD_LABELS: Record<AdPeriod, string> = { week: '1 неделя', '2weeks': '2 недели', month: '1 месяц' };
-export const AD_PLACE_LABELS: Record<BannerPlace, string> = { parts: 'Слайдер в каталоге «Автозапчасти»', sto: 'Слайдер на странице «Сервис»', side: 'Место сбоку в каталоге (на компьютере)' };
-export const AD_PLACES: BannerPlace[] = ['parts', 'sto', 'side'];
+export const AD_PLACE_LABELS: Record<BannerPlace, string> = {
+  parts: 'Слайдер в каталоге «Автозапчасти»', sto: 'Слайдер на странице «Сервис»', side: 'Место сбоку в каталоге (на компьютере)',
+  cars: 'Слайдер на странице «Автомобили»', feed: 'Карточка в ленте запчастей', detail: 'Реклама в окне запчасти', markets: 'Слайдер на странице «Рынки»',
+};
+export const AD_PLACE_HINTS: Record<BannerPlace, string> = {
+  parts: 'Широкий слайд вверху каталога запчастей — первое, что видит покупатель.',
+  sto: 'Слайд вверху страницы автосервиса — для СТО, шиномонтажа, мойки, эвакуатора.',
+  side: 'Баннер в колонке рядом с запчастями. Виден на компьютере, пока покупатель листает каталог.',
+  cars: 'Слайд на странице «Автомобили» — для пригона, тонировки, детейлинга, автоподбора, автосалонов.',
+  feed: 'Карточка с фото между запчастями в каталоге — видна и на телефоне, и на компьютере.',
+  detail: 'Реклама в окне каждой запчасти, рядом с «Где купить» — для установки, доставки, эвакуатора.',
+  markets: 'Слайд на странице «Рынки» — для контейнеров и магазинов на авторынках.',
+};
+export const AD_PLACES: BannerPlace[] = ['parts', 'feed', 'detail', 'cars', 'sto', 'side', 'markets'];
 
 export interface AdRequest {
   id: string; createdAt: string; status: 'new' | 'paid' | 'rejected' | 'published';

@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
 import { call } from './admin';
-import { DEFAULT_BANNER, DEFAULT_STO_BANNER, type BannerConfig } from '../data/bannerDefaults';
+import { DEFAULT_BANNER, DEFAULT_STO_BANNER, DEFAULT_CARS_BANNER, DEFAULT_FEED_BANNER, DEFAULT_DETAIL_BANNER, DEFAULT_MARKETS_BANNER, type BannerConfig } from '../data/bannerDefaults';
 import { DEFAULT_SIDE_BANNER } from '../data/adBanners';
 
 // Banner slides: saved by the owner on the server, otherwise the sample ads.
 // 'parts' = top of the parts catalog, 'sto' = top of the car service page.
-export type BannerPlace = 'parts' | 'sto' | 'side';
+// 'cars' = «Автомобили» page, 'feed' = cards in the parts list, 'detail' = part window, 'markets' = «Рынки» page.
+export type BannerPlace = 'parts' | 'sto' | 'side' | 'cars' | 'feed' | 'detail' | 'markets';
 
-const DEFAULTS: Record<BannerPlace, BannerConfig> = { parts: DEFAULT_BANNER, sto: DEFAULT_STO_BANNER, side: DEFAULT_SIDE_BANNER };
+const DEFAULTS: Record<BannerPlace, BannerConfig> = {
+  parts: DEFAULT_BANNER, sto: DEFAULT_STO_BANNER, side: DEFAULT_SIDE_BANNER,
+  cars: DEFAULT_CARS_BANNER, feed: DEFAULT_FEED_BANNER, detail: DEFAULT_DETAIL_BANNER, markets: DEFAULT_MARKETS_BANNER,
+};
 const cached: Partial<Record<BannerPlace, BannerConfig>> = {};
 const loading: Partial<Record<BannerPlace, Promise<BannerConfig>>> = {};
-const listeners: Record<BannerPlace, Set<(b: BannerConfig) => void>> = { parts: new Set(), sto: new Set(), side: new Set() };
+const listeners = Object.fromEntries(Object.keys(DEFAULTS).map((k) => [k, new Set()])) as Record<BannerPlace, Set<(b: BannerConfig) => void>>;
 const query = (place: BannerPlace) => (place === 'parts' ? '' : `?place=${place}`);
 const publish = (place: BannerPlace, b: BannerConfig) => { cached[place] = b; listeners[place].forEach((l) => l(b)); };
 

@@ -1,3 +1,4 @@
+import { DetailAdStrip } from '../ads/AdSpots';
 import { partTitle, partDescription } from '../../utils/partText';
 import { copyText } from '../../utils/copyText';
 import { partQuestion } from '../../utils/waMessages';
@@ -496,6 +497,7 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
                 </div>
                 <WhereToGet part={part} isKg={isKg} isDemo={isDemo} phoneRevealed={isPhoneRevealed} onRevealPhone={handleRevealPhone} whatsappUrl={whatsappUrl} onWhatsApp={() => recordContact('part', part.id, 'whatsapp')} onDemo={() => undefined} />
                 {part.sellerId && !isDemo && <ReservePart part={part} isKg={isKg} />}
+                <DetailAdStrip seed={part.id} />
               </div>
 
               {/* Description */}
