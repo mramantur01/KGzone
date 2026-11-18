@@ -334,7 +334,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
         Ample height (680px - 740px) so the floating presentation / search card sits gracefully 
         on one side (left or right), leaving the background car photo 100% visible and unobstructed!
       */}
-      <div className="relative w-full h-[530px] sm:h-[550px] lg:h-[570px] overflow-hidden select-none">
+      <div className="relative w-full h-[440px] sm:h-[550px] lg:h-[570px] overflow-hidden select-none">
         
         {/* Photos Layer with smooth crossfade */}
         {slides.map((slide, idx) => (
@@ -345,13 +345,14 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
             }`}
           >
             {/* Phones and tablets: photo fills the slide */}
-            <div className="lg:hidden absolute inset-0">
+            {/* Phones: the whole car on top (photo not cut), the small card below it */}
+            <div className="lg:hidden absolute inset-0 bg-slate-950 sm:bg-transparent">
               {loadedSlides.has(idx) && <img
                 src={slide.image}
                 alt={slide.title}
                 decoding="async"
                 fetchPriority={idx === 0 ? 'high' : 'low'}
-                className="w-full h-full object-cover object-[center_68%]"
+                className="w-full h-[64%] sm:h-full object-cover object-center sm:object-[center_68%]"
               />}
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none" />
               <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent pointer-events-none" />
@@ -419,7 +420,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
         */}
         <button
           onClick={handlePrev}
-          className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950/80 hover:bg-[#C8102E] border border-slate-700/80 hover:border-red-500 text-white flex items-center justify-center transition-all cursor-pointer backdrop-blur-md shadow-2xl"
+          className="absolute left-2 sm:left-4 top-[32%] sm:top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950/80 hover:bg-[#C8102E] border border-slate-700/80 hover:border-red-500 text-white flex items-center justify-center transition-all cursor-pointer backdrop-blur-md shadow-2xl"
           aria-label="Предыдущий автомобиль"
         >
           <ChevronLeft size={22} />
@@ -427,7 +428,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
 
         <button
           onClick={handleNext}
-          className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950/80 hover:bg-[#C8102E] border border-slate-700/80 hover:border-red-500 text-white flex items-center justify-center transition-all cursor-pointer backdrop-blur-md shadow-2xl"
+          className="absolute right-2 sm:right-4 top-[32%] sm:top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950/80 hover:bg-[#C8102E] border border-slate-700/80 hover:border-red-500 text-white flex items-center justify-center transition-all cursor-pointer backdrop-blur-md shadow-2xl"
           aria-label="Следующий автомобиль"
         >
           <ChevronRight size={22} />
@@ -450,9 +451,9 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
             cardPosition === 'left'
               ? 'left-3 sm:left-6 lg:left-8'
               : 'right-3 sm:right-6 lg:right-8'
-          } top-14 sm:top-16 w-[calc(100%-1.5rem)] sm:w-[310px] md:w-[330px] lg:w-[340px]`}
+          } bottom-4 sm:bottom-auto sm:top-16 w-[calc(100%-1.5rem)] sm:w-[310px] md:w-[330px] lg:w-[340px]`}
         >
-          <div className="bg-slate-950/85 backdrop-blur-xl rounded-2xl border border-slate-700/80 p-3.5 sm:p-4 shadow-2xl shadow-black/95 text-white relative overflow-hidden">
+          <div className="bg-slate-950/75 sm:bg-slate-950/85 backdrop-blur-md sm:backdrop-blur-xl rounded-2xl border border-slate-700/80 p-3 sm:p-4 shadow-2xl shadow-black/95 text-white relative overflow-hidden">
             
             {/* Subtle Tunduk ornament watermark */}
             <div className="absolute -right-4 -bottom-4 opacity-5 pointer-events-none text-amber-500">
@@ -460,7 +461,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
             </div>
 
             {/* TOP BAR OF CARD: Badge, Plate & Dock Flip Button */}
-            <div className="flex items-center justify-between gap-2 mb-2.5">
+            <div className="flex items-center justify-between gap-2 mb-1.5 sm:mb-2.5">
               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-950/90 border border-red-800/80 text-[#ff4d67] text-[10px] font-black tracking-wide">
                   <Flame size={11} className="text-[#ff4d67]" />
@@ -476,7 +477,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
               {/* DOCK TOGGLE BUTTON (↔ Слева / ↔ Справа) */}
               <button
                 onClick={() => setCardPosition((prev) => (prev === 'left' ? 'right' : 'left'))}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-[10px] font-bold transition-all shadow-xs shrink-0 cursor-pointer"
+                className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white text-[10px] font-bold transition-all shadow-xs shrink-0 cursor-pointer"
                 title="Переместить блок на другую сторону"
               >
                 <ArrowLeftRight size={11} />
@@ -485,7 +486,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
             </div>
 
             {/* CAR TITLE & DETAILS */}
-            <div className="space-y-1 mb-3">
+            <div className="space-y-0.5 sm:space-y-1 mb-2 sm:mb-3">
               <div className="flex items-center gap-1 text-[11px] text-slate-400">
                 <MapPin size={11} className="text-red-400" />
                 <span>{currentSlide.city}</span>
@@ -495,22 +496,22 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
                 <span>{currentSlide.mileage}</span>
               </div>
 
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug">
+              <h2 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-snug line-clamp-1 sm:line-clamp-none">
                 {currentSlide.title}
                 {isDemoListing(currentSlide.carId) && (
                   <span className="ml-2 align-middle px-2 py-0.5 rounded-md bg-amber-400 text-neutral-900 text-[11px] font-bold">Пример</span>
                 )}
               </h2>
 
-              <p className="text-xs text-slate-300 leading-relaxed line-clamp-2">
+              <p className="hidden sm:block text-xs text-slate-300 leading-relaxed line-clamp-2">
                 {getSpecsText(currentSlide)}
               </p>
             </div>
 
             {/* PRICE TAG */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 mb-3 flex items-center justify-between">
+            <div className="bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 py-1.5 sm:p-2.5 mb-2 sm:mb-3 flex items-center justify-between">
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block leading-tight">
+                <span className="hidden sm:block text-[10px] uppercase font-bold text-slate-400 leading-tight">
                   {isKg ? 'Баасы' : 'Стоимость'}
                 </span>
                 <span className="text-xl sm:text-2xl font-black text-emerald-400 font-mono tracking-tight">
@@ -522,12 +523,12 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
                 <span className="text-xs font-bold text-amber-300 font-mono block">
                   {currentSlide.priceKgs.toLocaleString()} СОМ
                 </span>
-                <span className="text-[10px] text-slate-400">Растаможен в КР 100%</span>
+                <span className="hidden sm:inline text-[10px] text-slate-400">Растаможен в КР 100%</span>
               </div>
             </div>
 
             {/* KEY FEATURES (COMPACT CHIPS) */}
-            <div className="grid grid-cols-2 gap-1.5 mb-3.5">
+            <div className="hidden sm:grid grid-cols-2 gap-1.5 mb-3.5">
               {currentSlide.features.slice(0, 2).map((feat, fIdx) => (
                 <div
                   key={fIdx}
@@ -560,11 +561,18 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
                   <Calculator size={14} className="text-amber-400" />
                   <span className="hidden sm:inline">Пошлина</span>
                 </button>
+                <button
+                  onClick={handleWhatsApp}
+                  className="sm:hidden py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shrink-0 cursor-pointer"
+                  aria-label="Написать в WhatsApp"
+                >
+                  <MessageCircle size={14} />
+                </button>
               </div>
 
               <button
                 onClick={handleWhatsApp}
-                className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                className="hidden sm:flex w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition-all items-center justify-center gap-1.5 cursor-pointer"
               >
                 <MessageCircle size={14} />
                 <span>Написать в WhatsApp</span>
@@ -572,7 +580,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
             </div>
 
             {/* MINI SLIDE SWITCHER DOTS ON BOTTOM */}
-            <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+            <div className="hidden sm:flex mt-3 pt-2.5 border-t border-slate-800/80 items-center justify-between text-[11px] text-slate-400">
               <span className="text-[10px]">Авто {currentSlideIndex + 1} из {slides.length}</span>
               <div className="flex items-center gap-1.5">
                 {slides.map((_, sIdx) => (
