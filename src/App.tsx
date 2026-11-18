@@ -67,6 +67,7 @@ import { useCars, isDbCar } from './api/cars';
 import { OrderFeedbackPrompt } from './components/common/OrderFeedbackPrompt';
 import { PartsSliderBanner } from './components/sections/PartsSliderBanner';
 import { CartAutomation } from './components/cart/CartAutomation';
+import { InstallAppPrompt } from './components/common/InstallAppButton';
 
 // Sections and dialogs that are not needed for the first screen load on demand (smaller first download)
 const CarCheckModal = lazy(() => import('./components/modals/CarCheckModal').then((m) => ({ default: m.CarCheckModal })));
@@ -851,6 +852,7 @@ export default function App() {
 
       <OrderFeedbackPrompt />
       <CartAutomation />
+      <InstallAppPrompt />
 
       {/* Футер */}
       <Footer

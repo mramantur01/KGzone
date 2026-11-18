@@ -12,9 +12,16 @@ let iosHelpOpen = false;
 const listeners = new Set<() => void>();
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); saved = e as PromptEvent; listeners.forEach((l) => l()); });
-  window.addEventListener('appinstalled', () => { saved = null; listeners.forEach((l) => l()); });
+  window.addEventListener('appinstalled', () => { saved = null; markInstalled(); listeners.forEach((l) => l()); });
 }
-const installed = () => typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true);
+// Installed: opened from the home-screen icon now, or installed earlier in this browser (remembered)
+const INSTALLED_KEY = 'kgz-app-installed';
+function markInstalled() { try { localStorage.setItem(INSTALLED_KEY, '1'); } catch { /* storage unavailable */ } }
+const runningAsApp = () => typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true);
+const installed = () => {
+  if (runningAsApp()) { markInstalled(); return true; }
+  try { return localStorage.getItem(INSTALLED_KEY) === '1'; } catch { return false; }
+};
 const isIos = () => typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 const setIosHelp = (v: boolean) => { iosHelpOpen = v; listeners.forEach((l) => l()); };
@@ -62,5 +69,56 @@ export const InstallAppButton: React.FC<{ className?: string; onDone?: () => voi
         document.body,
       )}
     </>
+  );
+};
+
+const SHOWN_KEY = 'kgz-install-offer-shown';
+
+/**
+ * On every visit (once per browser session): a small card «Установите приложение KGzone» if the app is not installed.
+ * Not shown inside the installed app, after installing, or when the browser cannot install (no prompt and not iPhone).
+ */
+export const InstallAppPrompt: React.FC = () => {
+  const [show, setShow] = useState(false);
+  const [, tick] = useState(0);
+  useEffect(() => { const l = () => tick((n) => n + 1); listeners.add(l); return () => { listeners.delete(l); }; }, []);
+  useEffect(() => {
+    let shown = false;
+    try { shown = sessionStorage.getItem(SHOWN_KEY) === '1'; } catch { /* storage unavailable */ }
+    if (shown || installed()) return;
+    // Give the page a moment; Chrome's install offer may come a little later
+    const t = window.setTimeout(() => {
+      if (installed() || (!saved && !isIos())) return;
+      // Do not cover a question that is already on the screen
+      if (document.querySelector('[aria-label="Вы купили?"], [aria-label="Оцените продавца"], [aria-label="Напоминание о корзине"]')) return;
+      setShow(true);
+      try { sessionStorage.setItem(SHOWN_KEY, '1'); } catch { /* storage unavailable */ }
+    }, 4000);
+    return () => window.clearTimeout(t);
+  }, []);
+  if (!show || installed() || (!saved && !isIos())) return null;
+
+  const install = async () => {
+    if (saved) {
+      try { await saved.prompt(); const r = await saved.userChoice.catch(() => ({ outcome: '' })); if (r.outcome === 'accepted') markInstalled(); } catch { /* refused */ }
+      saved = null;
+      setShow(false);
+    } else { setIosHelp(true); setShow(false); }
+  };
+  return (
+    <div role="dialog" aria-label="Установить приложение" className="fixed z-[58] left-3 bottom-20 w-[calc(100vw-1.5rem)] max-w-[420px] sm:left-auto sm:right-6 sm:bottom-6 sm:w-[380px] p-4 rounded-2xl bg-white border border-slate-200 shadow-2xl text-slate-900">
+      <button type="button" onClick={() => setShow(false)} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-700 cursor-pointer" aria-label="Закрыть"><X size={16} /></button>
+      <div className="flex items-start gap-3 pr-5">
+        <img src="/apple-touch-icon.png" alt="" className="w-12 h-12 rounded-xl shrink-0" />
+        <div>
+          <div className="font-black text-sm">Установите приложение KGzone</div>
+          <div className="text-xs text-slate-500 mt-0.5">Значок на экране телефона — запчасти, заказы и сообщения в одно касание. Без магазина приложений, бесплатно.</div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button type="button" onClick={install} className="flex-1 py-2.5 rounded-xl bg-[#C8102E] hover:bg-[#a60d26] text-white text-sm font-black inline-flex items-center justify-center gap-1.5 cursor-pointer"><Download size={15} />Установить</button>
+        {isIos() && <button type="button" onClick={() => { markInstalled(); setShow(false); }} className="px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer">Уже установлено</button>}
+      </div>
+    </div>
   );
 };

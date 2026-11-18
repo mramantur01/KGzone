@@ -357,7 +357,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Избранное */}
           <button
             onClick={onOpenFavorites}
-            className="relative p-2 text-neutral-300 hover:text-white transition-colors rounded-lg hover:bg-neutral-800 cursor-pointer max-[379px]:hidden"
+            className="relative p-2 text-neutral-300 hover:text-white transition-colors rounded-lg hover:bg-neutral-800 cursor-pointer max-[439px]:hidden"
             title={isKg ? 'Сакталгандар' : 'Избранное'}
             aria-label="Избранное"
           >
