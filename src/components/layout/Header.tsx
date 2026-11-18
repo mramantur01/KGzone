@@ -134,7 +134,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-0.5 min-[380px]:gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-0.5 min-[380px]:gap-1.5 sm:gap-3 shrink-0 max-md:w-full">
           {/* Панель управления сайтом (Прямой доступ) */}
           {onOpenControlPanel && (
             <button
@@ -161,7 +161,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center bg-neutral-900 rounded p-0.5 border border-neutral-800">
             <button
               onClick={() => setCurrency('USD')}
-              className={`px-1.5 sm:px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${
+              className={`px-1.5 sm:px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-colors ${
                 currency === 'USD' ? 'bg-[#C8102E] text-white shadow-xs' : 'text-neutral-400 hover:text-white'
               }`}
             >
@@ -169,7 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
             <button
               onClick={() => setCurrency('KGS')}
-              className={`px-1.5 sm:px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${
+              className={`px-1.5 sm:px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap transition-colors ${
                 currency === 'KGS' ? 'bg-[#C8102E] text-white shadow-xs' : 'text-neutral-400 hover:text-white'
               }`}
             >
@@ -204,12 +204,31 @@ export const Header: React.FC<HeaderProps> = ({
               EN
             </button>
           </div>
+
+          {/* Phones only: services and the main section one tap away (tablets and computers have them in the menu) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('workshop')}
+            aria-label={isKg ? 'СТО жана сервис' : isEn ? 'Car service' : 'СТО и сервис'}
+            className={`md:hidden ml-auto flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[11px] font-black whitespace-nowrap cursor-pointer border border-amber-500 dark:border-amber-400/70 bg-amber-100 dark:bg-amber-400/15 text-amber-800 dark:text-amber-300 ${activeTab === 'workshop' ? 'ring-2 ring-amber-300/80' : ''}`}
+          >
+            <Wrench size={12} />
+            <span className="max-[379px]:hidden">{isEn ? 'Service' : 'СТО'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('parts')}
+            className={`md:hidden flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-black text-[#fff] whitespace-nowrap cursor-pointer bg-gradient-to-r from-[#C8102E] to-[#E8352B] shadow-md ${activeTab === 'parts' ? 'ring-2 ring-white/80' : ''}`}
+          >
+            <Cog size={12} className="text-[#fff]" />
+            <span>{isKg ? 'Тетиктер' : isEn ? 'Parts' : 'Запчасти'}</span>
+          </button>
         </div>
         </div>
       </div>
 
       {/* Основная зона навигации (Strict 3-zone contract) */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 max-[379px]:px-3 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4 max-[379px]:gap-2">
         {/* Zone 1: Brand title / wordmark */}
         <button
           onClick={() => setActiveTab('cars')}
@@ -218,8 +237,8 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="w-9 h-9 rounded bg-[#C8102E] flex items-center justify-center text-white font-black text-xl shadow-xs group-hover:bg-[#a60d26] transition-colors">
             <KochkorMuyuzIcon size={24} color="#FFFFFF" />
           </div>
-          <div className="flex flex-col">
-            <span className="text-xl sm:text-2xl font-black tracking-tight text-white font-sans">
+          <div className="flex flex-col max-[349px]:hidden">
+            <span className="text-xl max-[379px]:text-lg sm:text-2xl font-black tracking-tight text-white font-sans">
               KG<span className="text-amber-400">zone</span>
             </span>
           </div>
@@ -313,7 +332,7 @@ export const Header: React.FC<HeaderProps> = ({
         </nav>
 
         {/* Zone 3: Actions (Control Panel, Personal Cabinet, Favorites, Post Ad) */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-2 max-[379px]:gap-1 sm:gap-3 shrink-0">
           
           {/* Личный кабинет */}
           <button
@@ -324,7 +343,7 @@ export const Header: React.FC<HeaderProps> = ({
                 setActiveTab('cabinet');
               }
             }}
-            className={`relative flex items-center gap-2 h-9 rounded-lg border transition-colors cursor-pointer shrink-0 ${userName ? 'pl-1 pr-1 sm:pr-3' : 'px-3'} ${
+            className={`relative flex items-center gap-2 h-9 rounded-lg border transition-colors cursor-pointer shrink-0 ${userName ? 'pl-1 pr-1 sm:pr-3' : 'px-3 max-[379px]:px-2'} ${
               activeTab === 'cabinet' ? 'bg-neutral-800 border-amber-400' : 'bg-transparent hover:bg-neutral-800 border-neutral-700 hover:border-neutral-500'
             }`}
             title={userName ? 'Личный кабинет' : 'Войти или зарегистрироваться'}
@@ -345,7 +364,7 @@ export const Header: React.FC<HeaderProps> = ({
             ) : (
               <>
                 <User size={17} className="text-amber-400 shrink-0" strokeWidth={2} />
-                <span className="text-white font-bold text-sm">Войти</span>
+                <span className="text-white font-bold text-sm max-[349px]:hidden">Войти</span>
               </>
             )}
             {unreadCount > 0 && (
