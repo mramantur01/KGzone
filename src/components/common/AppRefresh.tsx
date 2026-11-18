@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, ChevronLeft, ChevronRight, WifiOff } from 'lucide-react';
 import { refreshParts } from '../../api/parts';
 import { refreshCars } from '../../api/cars';
 
 // Keeps the installed app fresh:
 // 1) «Pull down to refresh» inside the installed app (the browser does not do it there, iPhone never does);
-// 2) a new version of the site is picked up by itself: checked every 10 minutes and when the app comes back;
+// 2) a new version of the site is picked up by itself: checked on start, every 2 minutes and when the app comes back;
 // 3) listings are reloaded when the app comes back after a few minutes in the background.
 
 const runningAsApp = () => window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true;
@@ -80,27 +80,56 @@ export const AppRefresh: React.FC = () => {
   const hiddenAt = useRef(0);
   const pullNow = useRef(0);
 
-  // 2 + 3: new version and fresh listings
+  // Connection state, shown so it is clear whether the app is online
+  const [offline, setOffline] = useState(typeof navigator !== 'undefined' && navigator.onLine === false);
+  const [updating, setUpdating] = useState(false);
+
+  // 2 + 3: new version and fresh listings.
+  // Checked when the app opens, every 2 minutes while it is open, and each time it comes back to the screen.
   useEffect(() => {
     const mine = currentBuild();
     if (!mine) return; // local development
-    const check = async () => {
-      const latest = await serverBuild();
-      if (!latest || latest === mine) return;
-      // A new version: reload now if the person is not typing and the app is on screen, otherwise on return
-      if (document.visibilityState === 'visible' && !typing()) window.location.reload();
-      else pending.current = true;
+    let checking = false;
+    let lastCheck = 0;
+    const reloadNow = () => {
+      setUpdating(true); // «Новая версия — обновляю…»
+      window.setTimeout(() => window.location.reload(), 900);
     };
-    const onVisible = () => {
+    const check = async () => {
+      // At most once in 5 s (focus and «back on screen» often come together)
+      if (checking || navigator.onLine === false || Date.now() - lastCheck < 5_000) return;
+      checking = true;
+      lastCheck = Date.now();
+      try {
+        const latest = await serverBuild();
+        if (!latest || latest === mine) return;
+        // A new version: reload now if the person is not typing and the app is on screen, otherwise on return
+        if (document.visibilityState === 'visible' && !typing()) reloadNow();
+        else pending.current = true;
+      } finally { checking = false; }
+    };
+    const onBack = () => {
       if (document.visibilityState === 'hidden') { hiddenAt.current = Date.now(); return; }
-      if (pending.current && !typing()) { window.location.reload(); return; }
+      if (pending.current && !typing()) { reloadNow(); return; }
       navigator.serviceWorker?.getRegistration().then((r) => r?.update()).catch(() => undefined);
       check();
       if (hiddenAt.current && Date.now() - hiddenAt.current > 3 * 60_000) { refreshParts(); refreshCars(); }
     };
-    const t = window.setInterval(check, 10 * 60_000);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => { window.clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
+    const onOnline = () => { setOffline(false); check(); };
+    const onOffline = () => setOffline(true);
+    const first = window.setTimeout(check, 3000);
+    const t = window.setInterval(check, 2 * 60_000);
+    document.addEventListener('visibilitychange', onBack);
+    window.addEventListener('pageshow', onBack); // iPhone: the app is shown again from memory
+    window.addEventListener('focus', onBack);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.clearTimeout(first); window.clearInterval(t);
+      document.removeEventListener('visibilitychange', onBack);
+      window.removeEventListener('pageshow', onBack); window.removeEventListener('focus', onBack);
+      window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline);
+    };
   }, []);
 
   // 1: pull down from the very top of the page (only inside the installed app; the browser does it itself)
@@ -128,7 +157,16 @@ export const AppRefresh: React.FC = () => {
     return () => { window.removeEventListener('touchstart', onStart); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd); };
   }, []);
 
-  const nav = runningAsApp() ? <AppNav /> : null;
+  const nav = (
+    <>
+      {runningAsApp() && <AppNav />}
+      {(offline || updating) && (
+        <div role="status" className="fixed z-[95] left-1/2 -translate-x-1/2 px-4 py-2 rounded-full shadow-xl text-[13px] font-bold text-[#fff] whitespace-nowrap flex items-center gap-2" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 10px)', background: updating ? '#15803d' : '#334155' }}>
+          {updating ? <><RefreshCw size={15} className="animate-spin" />Новая версия — обновляю…</> : <><WifiOff size={15} />Нет интернета — показаны сохранённые данные</>}
+        </div>
+      )}
+    </>
+  );
   if (!pull && !busy) return nav;
   const ready = pull >= PULL_TO_RELOAD || busy;
   return (

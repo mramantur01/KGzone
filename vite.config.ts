@@ -6,6 +6,8 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    // When this version was built: shown in the app menu so the owner can see an update arrived
+    define: { __BUILD_TIME__: JSON.stringify(new Date().toISOString()) },
     // The build goes to public/ (served by Vercel's CDN), so hand-made static files such as
     // self-hosted photos live in static/ and are copied into the build as-is (/parts/... etc.).
     publicDir: 'static',

@@ -586,6 +586,10 @@ export const Header: React.FC<HeaderProps> = ({
               <Plus size={16} />
               <span>Подать объявление о продаже</span>
             </button>
+            {/* Which version is on this phone: after an update the date changes */}
+            <p className="pt-2 text-center text-[11px] text-neutral-500">
+              Версия от <span data-no-i18n>{new Date(__BUILD_TIME__).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+            </p>
           </div>
         </div>
       )}
