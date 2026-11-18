@@ -121,6 +121,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string; myPerms: StaffPe
                     <span>{u.company?.name || u.name}</span>
                     {u.isOwner ? <OwnerBadge compact /> : u.accountType === 'legal' ? (u.company?.status === 'verified' && <OfficialCompanyBadge compact />) : (u.verifiedSeller && <VerifiedSellerBadge size={14} />)}
                     {u.id === currentUserId && <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">это вы</span>}
+                    {u.suspectOf && <span className="text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded" title="Зарегистрирован с того же телефона/компьютера, что и заблокированный аккаунт">⚠️ возможно, это заблокированный «{u.suspectOf.name}»</span>}
                   </div>
                   <div className="text-xs text-slate-500" data-no-i18n>
                     {u.company ? `${u.name} · ` : ''}{formatPhone(u.phone)}{u.email ? ` · ${u.email}` : ''} · {u.city}
@@ -214,7 +215,7 @@ export const AdminUsersPanel: React.FC<{ currentUserId: string; myPerms: StaffPe
               {u.company && (
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-slate-600" data-no-i18n>
-                    <div>ИНН: <b className="font-mono">{u.company.inn}</b></div>
+                    <div>ИНН: <b className="font-mono">{u.company.inn}</b> {u.innCheck && (u.innCheck.ok ? <span className="text-emerald-700 font-bold">✓ формат верный, не повторяется</span> : <span className="text-red-700 font-bold">⚠️ {u.innCheck.problems.join('; ')}</span>)}</div>
                     <div>Контакт: {u.company.contactPerson || '—'}</div>
                     <div>Юр. адрес: {u.company.legalAddress || '—'}</div>
                     <div>Факт. адрес: {u.company.actualAddress || '—'}</div>

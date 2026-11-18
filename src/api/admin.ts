@@ -14,6 +14,15 @@ export const setAdminKey = (key: string) => {
 
 export type ApiError = Error & { status?: number };
 
+const DEVICE_KEY = 'kgz-device';
+const deviceId = () => {
+  try {
+    let d = localStorage.getItem(DEVICE_KEY);
+    if (!d) { d = crypto.randomUUID(); localStorage.setItem(DEVICE_KEY, d); }
+    return d;
+  } catch { return ''; }
+};
+
 export async function call<T>(url: string, init: RequestInit = {}, admin = false): Promise<T> {
   if (isDemoCabinet()) {
     const demo = demoResponse(url, (init.method || 'GET').toUpperCase());
@@ -21,6 +30,7 @@ export async function call<T>(url: string, init: RequestInit = {}, admin = false
   }
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (admin && getAdminKey()) headers['x-admin-token'] = getAdminKey();
+  if (/^\/api\/auth\/(register|login)/.test(url)) { const d = deviceId(); if (d) headers['x-kgz-device'] = d; }
   const res = await fetch(url, { ...init, headers: { ...headers, ...(init.headers as Record<string, string>) } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.success === false) {

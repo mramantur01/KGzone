@@ -400,6 +400,29 @@ const seedOrders: OrderRecord[] = [
 // ==========================================
 
 // Health check
+// Deep check for the watchdog (GitHub Actions every 30 minutes): the database writes and reads.
+// A failure also tries to tell the owner in Telegram (at most once an hour).
+app.get('/api/health/deep', asyncRoute(async (_req: Request, res: Response) => {
+  const started = Date.now();
+  const problems: string[] = [];
+  try {
+    const stamp = String(Date.now());
+    await kvSet('kgzone:health', stamp);
+    if ((await kvGet<string>('kgzone:health')) !== stamp) problems.push('база данных не сохраняет');
+    await listRecords('parts');
+  } catch (err: any) {
+    problems.push('база данных не отвечает: ' + String(err?.message || err).slice(0, 120));
+  }
+  const ms = Date.now() - started;
+  if (ms > 8000) problems.push(`база отвечает очень медленно (${ms} мс)`);
+  if (problems.length) {
+    if (!tooMany('health:alert', 1, 60 * 60_000)) await notifyAdmin(`🚨 Сторож KGzone: на сайте проблема — ${problems.join('; ')}. Проверьте Vercel и Upstash.`).catch(() => undefined);
+    return res.status(503).json({ success: false, problems, ms });
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ success: true, ms });
+}));
+
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
@@ -1254,6 +1277,34 @@ async function monthlyReports(users: UserRecord[], byOwner: Map<string, any[]>, 
   return n;
 }
 
+/** «Скидки недели»: the biggest live discounts, as a text for the channel */
+async function weeklyDealsText() {
+  const now = Date.now();
+  const deals = (await listRecords<any>('parts')).filter((x) => isPublicPart(x) && x.saleUntil && Date.parse(x.saleUntil) > now && Number(x.oldPriceKgs) > Number(x.priceKgs))
+    .map((x) => ({ x, pct: Math.round((1 - Number(x.priceKgs) / Number(x.oldPriceKgs)) * 100) }))
+    .sort((a, b) => b.pct - a.pct).slice(0, 7);
+  if (!deals.length) return '';
+  return [
+    '🔥 Скидки недели на KGzone',
+    '',
+    ...deals.map(({ x, pct }) => `−${pct}% · ${x.title}\n   ${Number(x.priceKgs).toLocaleString('ru-RU')} сом вместо ${Number(x.oldPriceKgs).toLocaleString('ru-RU')} · до ${new Date(x.saleUntil).toLocaleDateString('ru-RU')}\n   ${SITE_URL}${partUrl(x)}`),
+    '',
+    `Все скидки: ${SITE_URL}/zapchasti`,
+  ].join('\n');
+}
+async function postWeeklyDeals() {
+  const channel = process.env.TELEGRAM_CHANNEL_ID;
+  const text = await weeklyDealsText();
+  if (!channel || !process.env.TELEGRAM_BOT_TOKEN || !text) return false;
+  await tgCall('sendMessage', { chat_id: channel, text: text.slice(0, 4000), disable_web_page_preview: true });
+  return true;
+}
+app.get('/api/admin/channel-deals', requirePerm('settings', 'ads'), asyncRoute(async (req: Request, res: Response) => {
+  const text = await weeklyDealsText();
+  const sent = req.query.send === '1' ? await postWeeklyDeals() : false;
+  res.json({ success: true, text, sent, channel: Boolean(process.env.TELEGRAM_CHANNEL_ID && process.env.TELEGRAM_BOT_TOKEN) });
+}));
+
 /** Telegram message to staff who have this power (and to TELEGRAM_CHAT_ID) */
 async function notifyStaff(perm: StaffPerm, text: string) {
   if (!process.env.TELEGRAM_BOT_TOKEN) return;
@@ -1739,6 +1790,20 @@ app.post('/api/parts', requireUser, asyncRoute(async (req: Request, res: Respons
     || (part.stockCount < 1 ? 'Укажите количество в наличии: товары под заказ на сайте не публикуются' : null);
   if (problem) return res.status(400).json({ success: false, error: problem });
 
+  // Analogues: numbers other sellers already gave for this OEM are added by the site (the seller can remove them)
+  if (part.partNumber && normOem(part.partNumber).length >= 4) {
+    const mine = normOem(part.partNumber);
+    const known = new Set((part.crossNumbers || []).map(normOem));
+    const found: string[] = [];
+    for (const x of await listRecords<any>('parts')) {
+      if (!isLive(x)) continue;
+      const nums = [x.partNumber, ...(x.crossNumbers || [])].filter(Boolean);
+      if (!nums.some((n: string) => normOem(n) === mine)) continue;
+      for (const n of nums) { const k = normOem(n); if (k.length >= 4 && k !== mine && !known.has(k)) { known.add(k); found.push(String(n).trim()); } }
+    }
+    if (found.length) { part.crossNumbers = [...(part.crossNumbers || []), ...found].slice(0, 20); (part as any).crossAuto = found.slice(0, 20); }
+  }
+
   // The same part (same OEM, name and condition) already listed by this seller: update it instead
   const twin = part.partNumber && normOem(part.partNumber).length >= 4
     ? (await listRecords<any>('parts')).find((x) => x.ownerId === owner.id && (x.listingStatus ?? 'active') === 'active' && dupKey(x) === dupKey({ ...part, ownerId: owner.id }))
@@ -2206,7 +2271,7 @@ async function getSessionUser(req: Request): Promise<UserRecord | null> {
 }
 
 const publicUser = (u: UserRecord) => {
-  const { passwordHash, tokenVersion, telegramChatId, telegramLinkCode, telegramLinkExpires, perms: _p, ...rest } = u;
+  const { passwordHash, tokenVersion, telegramChatId, telegramLinkCode, telegramLinkExpires, perms: _p, devices: _d, ...rest } = u as any;
   const perms = userPerms(u);
   return { ...rest, telegramLinked: Boolean(telegramChatId), ...(perms.length ? { perms } : {}) };
 };
@@ -2345,6 +2410,7 @@ app.post('/api/auth/register', asyncRoute(async (req: Request, res: Response) =>
     termsAcceptedAt: now,
   };
   await insertRecord('users', user);
+  try { await rememberDevice(user, req); await checkRepeatSignup(user, req); } catch (err) { console.warn('[Device] check failed:', err); }
   setSessionCookie(res, user);
   if (company) await notifyAdmin(`🏢 Новый магазин (ИП / ОсОО): ${company.name} (ИНН ${company.inn})\n${name}, +${phone}`);
   res.status(201).json({ success: true, user: publicUser(user) });
@@ -2362,6 +2428,7 @@ app.post('/api/auth/login', asyncRoute(async (req: Request, res: Response) => {
   }
   if (user.blocked) return res.status(403).json({ success: false, error: 'Аккаунт заблокирован. Обратитесь в поддержку.' });
   const updated = (await updateRecord<UserRecord>('users', user.id, { lastLoginAt: new Date().toISOString() })) || user;
+  try { await rememberDevice(updated, req); } catch { /* not important */ }
   setSessionCookie(res, updated);
   res.json({ success: true, user: publicUser(updated) });
 }));
@@ -2734,7 +2801,20 @@ app.get('/api/admin/users', requirePerm('users.roles', 'users.crown', 'users.sho
   const [users, parts, cars] = await Promise.all([listRecords<UserRecord>('users'), listRecords('parts'), listRecords('cars')]);
   const counts = new Map<string, number>();
   [...parts, ...cars].forEach((l: any) => l.ownerId && counts.set(l.ownerId, (counts.get(l.ownerId) || 0) + 1));
-  res.json({ success: true, users: users.map((u) => ({ ...publicUser(u), listingsCount: counts.get(u.id) || 0 })) });
+  // ИНН: 14 digits, starts with 1 or 2 (people) or 0 (companies), not used by another account
+  const byInn = new Map<string, UserRecord[]>();
+  for (const u of users) { const inn = String(u.company?.inn || '').replace(/\D/g, ''); if (inn) byInn.set(inn, [...(byInn.get(inn) || []), u]); }
+  const innCheck = (u: UserRecord) => {
+    if (!u.company) return undefined;
+    const inn = String(u.company.inn || '').replace(/\D/g, '');
+    const problems: string[] = [];
+    if (inn.length !== 14) problems.push(`ИНН должен быть из 14 цифр (сейчас ${inn.length})`);
+    else if (!/^[012]/.test(inn)) problems.push('ИНН должен начинаться с 0, 1 или 2');
+    const others = (byInn.get(inn) || []).filter((x) => x.id !== u.id);
+    if (others.length) problems.push(`этот ИНН уже у: ${others.map((x) => x.company?.name || x.name).join(', ')}`);
+    return { ok: !problems.length, problems };
+  };
+  res.json({ success: true, users: users.map((u) => ({ ...publicUser(u), listingsCount: counts.get(u.id) || 0, innCheck: innCheck(u), suspectOf: (u as any).suspectOf })) });
 }));
 
 app.patch('/api/admin/users/:id', requirePerm('users.roles', 'users.crown', 'users.shops', 'users.block'), asyncRoute(async (req: Request, res: Response) => {
@@ -3734,6 +3814,25 @@ app.put('/api/company/settings', requireCompany('company.edit'), asyncRoute(asyn
 }));
 
 // Automatic reply of a company to a buyer outside working hours (at most once in 12 hours per chat)
+/** Device mark sent by the site (random id kept in the browser) -> short hash */
+const deviceHash = (req: Request) => { const d = str(req.get('x-kgz-device'), 80); return d.length >= 16 ? createHash('sha256').update('kgz-dev:' + d).digest('hex').slice(0, 16) : ''; };
+async function rememberDevice(user: UserRecord, req: Request) {
+  const h = deviceHash(req);
+  if (!h) return;
+  const list: string[] = (user as any).devices || [];
+  if (!list.includes(h)) await updateRecord('users', user.id, { devices: [...list, h].slice(-5) } as any);
+}
+/** A new account from a device of a blocked account: mark it and tell staff */
+async function checkRepeatSignup(user: UserRecord, req: Request) {
+  const h = deviceHash(req);
+  if (!h) return;
+  const blocked = (await listRecords<any>('users')).find((u) => u.blocked && u.id !== user.id && (u.devices || []).includes(h));
+  if (!blocked) return;
+  await updateRecord('users', user.id, { suspectOf: { id: blocked.id, name: blocked.company?.name || blocked.name, at: new Date().toISOString() } } as any);
+  await audit('admin-token', 'repeat-signup', user.id, { blocked: blocked.id });
+  await notifyStaff('users.block', `⚠️ Новая регистрация с устройства заблокированного аккаунта.\nНовый: ${user.name}, +${user.phone}\nЗаблокирован раньше: ${blocked.company?.name || blocked.name}, +${blocked.phone}\nПроверьте: Панель управления → Люди`);
+}
+
 /** Typical time (hours) the seller takes to answer a buyer, from past chats; null when not enough data */
 async function sellerReplyHours(sellerId: string): Promise<number | null> {
   const delays: number[] = [];
@@ -5768,7 +5867,7 @@ app.get('/api/cron/backup', asyncRoute(async (req: Request, res: Response) => {
   // The job runs at 22:00 UTC = 04:00 in Bishkek; on Monday mornings the owner gets the week in numbers
   const bishkekDay = new Date(Date.now() + 6 * 3_600_000).getUTCDay();
   let report = false;
-  if (bishkekDay === 1) { await notifyStaff('stats', await weeklyReportText()); report = true; }
+  if (bishkekDay === 1) { await notifyStaff('stats', await weeklyReportText()); report = true; try { await postWeeklyDeals(); } catch (err) { console.warn('[Channel] weekly deals failed:', err); } }
   res.json({ success: true, sent, feeds, report });
 }));
 

@@ -79,6 +79,10 @@ export interface AdminUser {
   isOwner?: boolean;
   /** No listings and no visits for a year: hidden from the list (a visit wakes it up) */
   dormantAt?: string;
+  /** Registered from the device of a blocked account */
+  suspectOf?: { id: string; name: string; at: string };
+  /** ИНН: 14 digits, not used by another account */
+  innCheck?: { ok: boolean; problems: string[] };
   verifiedBy?: 'auto' | 'admin';
   verifiedLocked?: boolean;
 }

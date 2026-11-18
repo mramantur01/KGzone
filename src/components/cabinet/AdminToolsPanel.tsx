@@ -194,6 +194,34 @@ export const ChannelCard: React.FC = () => {
           <li>В Vercel добавьте переменную <code>TELEGRAM_CHANNEL_ID</code> = имя канала (например <code>@kgzone_parts</code>) и обновите сайт.</li>
         </ol>
       )}
+      <WeeklyDeals configured={Boolean(st?.configured)} />
+    </div>
+  );
+};
+
+/** «Скидки недели»: the site posts the biggest discounts to the channel every Monday; preview here */
+const WeeklyDeals: React.FC<{ configured: boolean }> = ({ configured }) => {
+  const [text, setText] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const get = async (send: boolean) => {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await call<{ text: string; sent: boolean }>('/api/admin/channel-deals' + (send ? '?send=1' : ''));
+      setText(r.text || '');
+      if (send) setMsg(r.sent ? 'Опубликовано в канале.' : 'Не опубликовано: канал не подключён или скидок сейчас нет.');
+    } catch (e: any) { setMsg(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="pt-2 border-t border-slate-100 space-y-2">
+      <div className="font-bold text-slate-900">🔥 Скидки недели</div>
+      <p className="text-xs text-slate-500">Каждый понедельник сайт сам публикует в канал самые большие скидки с ссылками.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={busy} onClick={() => get(false)} className={`${btn} bg-slate-100 hover:bg-slate-200 text-slate-800`}>Показать подборку</button>
+        {configured && <button type="button" disabled={busy} onClick={() => get(true)} className={`${btn} bg-sky-600 hover:bg-sky-500 text-white`}><Send size={13} />Опубликовать сейчас</button>}
+      </div>
+      {msg && <p className="text-xs text-slate-600">{msg}</p>}
+      {text !== null && <pre className="whitespace-pre-wrap text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 font-sans text-slate-800" data-no-i18n>{text || 'Сейчас нет товаров со скидкой.'}</pre>}
     </div>
   );
 };

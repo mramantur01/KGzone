@@ -1,0 +1,30 @@
+# Site watchdog: every 30 minutes GitHub opens the site and its deep health check.
+# If the site or the database does not answer, this run fails and GitHub emails the repository owner;
+# the site itself also sends a Telegram message to the owner (when the bot is connected).
+name: Site watchdog
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Main page opens
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://k-gzone.vercel.app/)
+          echo "Main page: $code"
+          [ "$code" = "200" ] || [ "$code" = "429" ] || { echo "::error::Сайт не открывается (код $code)"; exit 1; }
+      - name: Database answers
+        run: |
+          body=$(curl -s --max-time 30 -w '\n%{http_code}' https://k-gzone.vercel.app/api/health/deep)
+          code=$(echo "$body" | tail -n1)
+          echo "Deep check: $body"
+          # 429/403 = Vercel's bot protection, not a broken site
+          [ "$code" = "200" ] || [ "$code" = "429" ] || [ "$code" = "403" ] || { echo "::error::База данных не отвечает (код $code)"; exit 1; }
