@@ -121,6 +121,8 @@ export function useAuth(): AuthState {
 }
 
 export const isStaff = (u: Account | null) => Boolean(u?.perms?.length);
+/** Signed in right now (for actions outside React components) */
+export const isSignedIn = () => Boolean(state.user);
 
 const withUser = async (p: Promise<{ user: Account }>) => {
   const r = await p;

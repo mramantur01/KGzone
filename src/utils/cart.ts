@@ -1,4 +1,6 @@
 import { recordContact } from './viewHistory';
+import { isSignedIn } from '../api/auth';
+import { requestSignIn } from '../api/chat';
 import { useSyncExternalStore } from 'react';
 import type { AutoPartItem } from '../types/car';
 
@@ -16,6 +18,8 @@ const save = (next: CartLine[]) => {
 export const useCart = () => useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, () => lines, () => lines);
 export const inCart = (id: string) => lines.some((l) => l.partId === id);
 export function addToCart(id: string, qty = 1) {
+  // The cart is for signed-in people: a guest is sent to registration
+  if (!isSignedIn()) { requestSignIn('Чтобы пользоваться корзиной и заказывать запчасти, зарегистрируйтесь или войдите. Товары в корзине сохранятся.', 'register'); return; }
   recordContact('part', id, 'cart');
   const cur = lines.find((l) => l.partId === id);
   save(cur ? lines.map((l) => (l.partId === id ? { ...l, qty: Math.min(999, l.qty + qty) } : l)) : [...lines, { partId: id, qty, addedAt: new Date().toISOString() }].slice(-100));

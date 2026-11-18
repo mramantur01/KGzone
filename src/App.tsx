@@ -308,6 +308,7 @@ export default function App() {
 
   // Переключение избранного
   const toggleFavorite = (id: string) => {
+    if (!account) { openAuth('register', isKg ? 'Сакталгандарды колдонуу үчүн катталыңыз же кириңиз.' : 'Чтобы сохранять машины в избранное, зарегистрируйтесь или войдите.'); return; }
     setFavorites((prev) => {
       const exists = prev.includes(id);
       const updated = exists ? prev.filter((i) => i !== id) : [...prev, id];
