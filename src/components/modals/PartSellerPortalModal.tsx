@@ -395,7 +395,7 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                 {isKg ? 'Жеке кабинет • Контейнер KGzone' : 'Личный кабинет • Склады и Контейнеры KGzone'}
               </span>
               <div className="text-xs text-neutral-400">
-                {sellerType === 'legal' ? companyName : 'Частный продавец'} • {market} ({containerInfo})
+                {sellerType === 'legal' ? companyName : 'Частный продавец'} • {market}{containerInfo ? ` (${containerInfo})` : ''}
               </div>
             </div>
           </div>
@@ -419,7 +419,7 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
             }`}
           >
             <Plus size={15} />
-            <span>{isKg ? '+ Тетик жүктөө (Сүрөт/Видео)' : '+ Загрузка автозапчасти (Фото/Видео)'}</span>
+            <span>{isKg ? 'Тетик жүктөө (Сүрөт/Видео)' : 'Загрузка автозапчасти (Фото/Видео)'}</span>
           </button>
           <span className="ml-auto text-[11px] font-normal text-neutral-400">{isKg ? 'Профиль жана буйрутмалар — Жеке кабинетте' : 'Профиль, объявления и заказы — в Личном кабинете'}</span>
         </div>
