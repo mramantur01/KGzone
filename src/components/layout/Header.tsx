@@ -1,7 +1,7 @@
 import { requestSignIn } from '../../api/chat';
 import { OwnerCrown } from '../common/OwnerBadge';
 import { InstallAppButton } from '../common/InstallAppButton';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ShyrdakRibbon, KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
 import { Currency, Language } from '../../types/car';
 import { siteWhatsApp, SITE_PHONE_DISPLAY } from '../../config/site';
@@ -72,11 +72,27 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCabinetAuth,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+  // The phone menu folds by itself: a tap anywhere outside it, the Esc key, or moving to another page
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const close = () => setMobileMenuOpen(false);
+    const onDown = (e: PointerEvent) => { if (headerRef.current && !headerRef.current.contains(e.target as Node)) close(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('popstate', close);
+    window.addEventListener('kgz:history', close);
+    return () => {
+      document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey);
+      window.removeEventListener('popstate', close); window.removeEventListener('kgz:history', close);
+    };
+  }, [mobileMenuOpen]);
   const isKg = language === 'kg';
   const isEn = language === 'en';
 
   return (
-    <header className="kgz-themed sticky top-0 z-40 bg-neutral-950 border-b border-neutral-800 shadow-md transition-colors text-white">
+    <header ref={headerRef} className="kgz-themed sticky top-0 z-40 bg-neutral-950 border-b border-neutral-800 shadow-md transition-colors text-white">
       {/* Кыргызский орнаментальный кант (Шырдак бордюр) */}
       <ShyrdakRibbon variant="red" />
 
@@ -392,7 +408,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
-        <div className="xl:hidden bg-neutral-950 text-white border-t border-neutral-800 px-4 py-3 shadow-2xl space-y-2 animate-in slide-in-from-top duration-150">
+        <div className="xl:hidden bg-neutral-950 text-white border-t border-neutral-800 px-4 py-3 shadow-2xl space-y-2 max-h-[calc(100dvh-140px)] overflow-y-auto overscroll-contain animate-in slide-in-from-top duration-150">
           <div className="grid grid-cols-2 gap-2 pb-2 border-b border-neutral-800">
             <button
               onClick={() => {
