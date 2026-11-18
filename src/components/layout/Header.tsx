@@ -1,3 +1,4 @@
+import { requestSignIn } from '../../api/chat';
 import { OwnerCrown } from '../common/OwnerBadge';
 import { InstallAppButton } from '../common/InstallAppButton';
 import React, { useState } from 'react';
@@ -7,7 +8,7 @@ import { siteWhatsApp, SITE_PHONE_DISPLAY } from '../../config/site';
 import { NotificationBell } from './NotificationBell';
 import { CartButton } from '../cart/CartDrawer';
 import { 
-  Heart, Plus, Search, ShieldCheck, User, Menu, X, Wrench, 
+  Heart, Plus, Search, Bell, ShieldCheck, User, Menu, X, Wrench, 
   Calculator, MessageSquare, Newspaper, Tag, HelpCircle, Sun, Moon,
   Phone, MessageCircle, Shield, Cog
 } from 'lucide-react';
@@ -344,7 +345,11 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {/* Уведомления (only for signed-in users) */}
-          {userName && <NotificationBell />}
+          {userName ? <NotificationBell /> : (
+            <button type="button" onClick={() => requestSignIn(isKg ? 'Билдирмелерди алуу үчүн катталыңыз же кириңиз.' : 'Чтобы получать уведомления о заказах, ответах и скидках, зарегистрируйтесь или войдите.', 'register')} className="relative p-2 text-neutral-300 hover:text-white rounded-lg hover:bg-neutral-800 cursor-pointer" title={isKg ? 'Билдирмелер' : 'Уведомления'} aria-label="Уведомления">
+              <Bell size={20} />
+            </button>
+          )}
 
           {/* Корзина */}
           <CartButton />

@@ -345,7 +345,7 @@ export default function App() {
   };
 
   React.useEffect(() => {
-    const onAsk = (e: Event) => openAuth('login', (e as CustomEvent).detail?.notice);
+    const onAsk = (e: Event) => { const d = (e as CustomEvent).detail; openAuth(d?.tab === 'register' ? 'register' : 'login', d?.notice); };
     window.addEventListener('kgz:open-auth', onAsk);
     return () => window.removeEventListener('kgz:open-auth', onAsk);
   });
@@ -551,7 +551,7 @@ export default function App() {
         rateDate={rates.official ? rates.date : ''}
         userSiteRole={userProfile.siteRole}
         isApprovedAdmin={staff}
-        onOpenFavorites={() => setIsFavoritesOpen(true)}
+        onOpenFavorites={() => (account ? setIsFavoritesOpen(true) : openAuth('register', isKg ? 'Сакталгандарды колдонуу үчүн катталыңыз же кириңиз.' : 'Чтобы пользоваться избранным, зарегистрируйтесь или войдите.'))}
         onOpenAddListing={handleTriggerPostAd}
         onOpenCarCheck={() => {
           setCarCheckPlate('01 KG 777 AAA');

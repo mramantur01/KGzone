@@ -4701,5 +4701,8 @@
  "Слишком много запросов. Попробуйте через час.": "Too many requests. Try again in an hour.",
  "Сначала напишите название запчасти": "Write the part name first",
  "Не получилось написать описание. Попробуйте ещё раз.": "Could not write a description. Try again.",
- "Выберите из списка или напишите": "Choose from the list or type"
+ "Выберите из списка или напишите": "Choose from the list or type",
+ "Чтобы пользоваться избранным, зарегистрируйтесь или войдите.": "To use favourites, register or sign in.",
+ "Чтобы пользоваться корзиной и заказывать запчасти, зарегистрируйтесь или войдите. Товары в корзине сохранятся.": "To use the cart and order parts, register or sign in. Items in the cart will be kept.",
+ "Чтобы получать уведомления о заказах, ответах и скидках, зарегистрируйтесь или войдите.": "To get notifications about orders, answers and discounts, register or sign in."
 }

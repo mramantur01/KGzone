@@ -89,4 +89,4 @@ export const postSellerReview = (sellerId: string, rating: number, text: string,
   call(`/api/sellers/${encodeURIComponent(sellerId)}/reviews`, { method: 'POST', body: JSON.stringify({ rating, text, images }) });
 
 // Lets any component ask App to show the sign-in window
-export const requestSignIn = (notice: string) => window.dispatchEvent(new CustomEvent('kgz:open-auth', { detail: { notice } }));
+export const requestSignIn = (notice: string, tab: 'login' | 'register' = 'login') => window.dispatchEvent(new CustomEvent('kgz:open-auth', { detail: { notice, tab } }));

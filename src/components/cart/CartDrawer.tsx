@@ -1,3 +1,4 @@
+import { requestSignIn } from '../../api/chat';
 import { rememberOrder } from '../../utils/orderFeedback';
 import type { CartCheckout } from '../../utils/cart';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -26,12 +27,17 @@ interface Group { key: string; seller: string; location: string; lines: { part: 
 /** Header button with the number of items; opens the cart */
 export const CartButton: React.FC = () => {
   const lines = useCart();
+  // The cart works for signed-in people; a guest is sent to registration (the parts stay in the cart)
+  const { user: me } = useAuth();
+  const meRef = React.useRef(me);
+  meRef.current = me;
+  const askSignIn = () => requestSignIn('Чтобы пользоваться корзиной и заказывать запчасти, зарегистрируйтесь или войдите. Товары в корзине сохранятся.', 'register');
   const [open, setOpen] = useState(false);
   const [auto, setAuto] = useState<CartCheckout | undefined>();
   const [bump, setBump] = useState(false);
   const count = lines.reduce((n, l) => n + l.qty, 0);
   useEffect(() => {
-    const onOpen = (e: Event) => { setAuto((e as CustomEvent<CartCheckout | undefined>).detail); setOpen(true); };
+    const onOpen = (e: Event) => { if (!meRef.current) { askSignIn(); return; } setAuto((e as CustomEvent<CartCheckout | undefined>).detail); setOpen(true); };
     const onAdded = () => { setBump(true); setTimeout(() => setBump(false), 600); };
     window.addEventListener('kgz:open-cart', onOpen);
     window.addEventListener('kgz:cart-added', onAdded);
@@ -39,11 +45,11 @@ export const CartButton: React.FC = () => {
   }, []);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={`relative p-2 text-neutral-300 hover:text-white rounded-lg hover:bg-neutral-800 cursor-pointer transition-transform ${bump ? 'scale-125' : ''}`} title="Корзина" aria-label="Корзина">
+      <button type="button" onClick={() => (me ? setOpen(true) : askSignIn())} className={`relative p-2 text-neutral-300 hover:text-white rounded-lg hover:bg-neutral-800 cursor-pointer transition-transform ${bump ? 'scale-125' : ''}`} title="Корзина" aria-label="Корзина">
         <ShoppingCart size={20} />
         {count > 0 && <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-amber-400 text-neutral-950 text-[10px] font-black leading-4 text-center">{count > 99 ? '99+' : count}</span>}
       </button>
-      {open && <CartDrawer autoCheckout={auto} onClose={() => { setOpen(false); setAuto(undefined); }} />}
+      {open && me && <CartDrawer autoCheckout={auto} onClose={() => { setOpen(false); setAuto(undefined); }} />}
     </>
   );
 };
