@@ -6,6 +6,8 @@ import { pulse } from './api/watches';
 
 startTranslator();
 createRoot(document.getElementById('root')!).render(<App />);
+// Tells the white-screen safety net in index.html that the site started
+(window as any).__kgzStarted = true;
 
 // Count the visit for the owner's statistics (anonymous, once a day per browser)
 window.addEventListener('load', () => setTimeout(() => pulse('visit'), 2000));

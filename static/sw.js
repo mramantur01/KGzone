@@ -1,7 +1,7 @@
 // KGzone service worker: lets the site install as an app and open without a connection.
 // Pages: network first (fresh listings), cached copy when offline. Built assets (hashed names)
 // and photos: cache first. API calls are never cached.
-const VERSION = 'kgz-v2';
+const VERSION = 'kgz-v3';
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png'];
 
 self.addEventListener('install', (e) => {

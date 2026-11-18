@@ -47,6 +47,45 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Safety net against a white screen: if the site has not started in 9 s (old saved copy after an update,
+         a file that did not load on a weak connection, an error), clear the saved copy and load again once;
+         if that did not help, show a message with a button and the error text. Plain old JS on purpose. -->
+    <script>
+      (function () {
+        var errs = [];
+        window.addEventListener('error', function (e) {
+          var t = e && e.target;
+          if (t && t.tagName === 'SCRIPT') errs.push('файл не загрузился: ' + (t.src || '').split('/').pop());
+          else if (e && e.message) errs.push(String(e.message).slice(0, 160));
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) { try { errs.push(String(e.reason && (e.reason.message || e.reason)).slice(0, 160)); } catch (x) {} });
+        function clearSaved() {
+          var jobs = [];
+          try { if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })); } catch (x) {}
+          try { if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })); } catch (x) {}
+          return Promise.all(jobs).catch(function () {});
+        }
+        window.__kgzClearSaved = clearSaved;
+        setTimeout(function () {
+          if (window.__kgzStarted) return;
+          var tried = 0;
+          try { tried = Number(sessionStorage.getItem('kgz-recover') || 0); } catch (x) {}
+          if (Date.now() - tried > 5 * 60000) {
+            try { sessionStorage.setItem('kgz-recover', String(Date.now())); } catch (x) {}
+            clearSaved().then(function () { location.reload(); });
+            return;
+          }
+          var box = document.createElement('div');
+          box.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:#fff;color:#111;font:16px/1.45 -apple-system,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center');
+          box.innerHTML = '<div style="max-width:340px"><div style="font-size:22px;font-weight:800;margin-bottom:8px">KGzone не загрузился</div>' +
+            '<div style="color:#555;margin-bottom:18px">Проверьте интернет и нажмите кнопку.</div>' +
+            '<button id="kgz-retry" style="background:#C8102E;color:#fff;border:0;border-radius:12px;padding:14px 22px;font-size:16px;font-weight:800;width:100%">Обновить</button>' +
+            '<div style="color:#999;font-size:11px;margin-top:16px;word-break:break-word">' + (errs.length ? errs.slice(0, 3).join(' · ').replace(/</g, '&lt;') : 'нет ответа') + '</div></div>';
+          document.body.appendChild(box);
+          document.getElementById('kgz-retry').onclick = function () { clearSaved().then(function () { location.reload(); }); };
+        }, 9000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
