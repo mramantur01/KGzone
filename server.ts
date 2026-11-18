@@ -406,9 +406,11 @@ app.get('/api/health/deep', asyncRoute(async (_req: Request, res: Response) => {
   const started = Date.now();
   const problems: string[] = [];
   try {
-    const stamp = String(Date.now());
-    await kvSet('kgzone:health', stamp);
-    if ((await kvGet<string>('kgzone:health')) !== stamp) problems.push('база данных не сохраняет');
+    // A text value: Upstash turns number-like strings back into numbers, so compare as text
+    const stamp = 'ok-' + Date.now();
+    await kvSet('kgzone:health', { stamp });
+    const back = await kvGet<{ stamp: string }>('kgzone:health');
+    if (String(back?.stamp) !== stamp) problems.push('база данных не сохраняет');
     await listRecords('parts');
   } catch (err: any) {
     problems.push('база данных не отвечает: ' + String(err?.message || err).slice(0, 120));
