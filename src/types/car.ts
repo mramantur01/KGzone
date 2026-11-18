@@ -167,6 +167,8 @@ export interface AutoPartItem {
   sellerRating?: number;
   sellerReviewsCount?: number;
   views?: number;
+  /** How many signed-in people saved it («♡ 9 в избранном») */
+  favCount?: number;
   createdAt?: string;
   originalType?: 'original' | 'analog';
   subPartName?: string;

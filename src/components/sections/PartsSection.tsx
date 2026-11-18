@@ -562,6 +562,23 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     },
   ];
 
+  // «Также ищут» on a part page: open the catalog with that search
+  React.useEffect(() => {
+    const onSearch = (e: Event) => {
+      const q = String((e as CustomEvent).detail?.search || '').trim();
+      if (!q) return;
+      setSelectedPartForDetail(null);
+      setSelectedCategory('Все');
+      setSelectedSubPart('Все');
+      setSelectedBrand('');
+      setSelectedModel('');
+      setSearchQuery(q);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    window.addEventListener('kgz:parts-search', onSearch);
+    return () => window.removeEventListener('kgz:parts-search', onSearch);
+  }, []);
+
   // Quick search suggestions (Drom-style)
   // Cities and Markets of Kyrgyzstan
   const locationsList = [

@@ -77,7 +77,7 @@ export function useUnreadMessages(signedIn: boolean): number {
 
 // Seller reviews
 export interface SellerReviewsInfo {
-  seller: { id: string; name: string; accountType: 'individual' | 'legal'; verified: boolean; since: string; lastSeenAt?: string };
+  seller: { id: string; name: string; accountType: 'individual' | 'legal'; verified: boolean; since: string; lastSeenAt?: string; reply?: { rate: number; speed: 'hour' | 'hours' | 'day' | 'slow'; chats: number } | null };
   rating: number | null;
   reviews: { id: string; authorName: string; rating: number; text: string; listingTitle: string; createdAt: string; images?: string[] }[];
   canReview: boolean;

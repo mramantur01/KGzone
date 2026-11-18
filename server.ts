@@ -1741,7 +1741,7 @@ const partProblem = (p: ReturnType<typeof sanitizePart>) => {
 };
 
 // Public: approved parts only, without moderation details
-const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, contactChannels, reservedUntil, noStockReports, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>, seen?: Map<string, string>, companies?: Set<string>) => {
+const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, contactChannels, reservedUntil, noStockReports, favBy, ...part }: any, verified?: Set<string>, ratings?: Map<string, { sum: number; count: number }>, seen?: Map<string, string>, companies?: Set<string>) => {
   const r = ownerId ? ratings?.get(ownerId) : undefined;
   return {
     ...part,
@@ -1753,6 +1753,7 @@ const publicPart = ({ moderation, ownerId, viewsByDay, contactsByDay, contactCha
     sellerOfficial: Boolean(ownerId && companies?.has(ownerId)),
     sellerRating: r ? Math.round((r.sum / r.count) * 10) / 10 : undefined,
     sellerReviewsCount: r?.count || 0,
+    favCount: Array.isArray(favBy) ? favBy.length : 0,
   };
 };
 
@@ -2661,7 +2662,8 @@ app.get('/api/my/listings', requireUser, asyncRoute(async (req: Request, res: Re
   await endExpiredSales(mine);
   res.json({
     success: true,
-    parts: mine,
+    // who saved an item stays private: the seller sees only how many
+    parts: mine.map(({ favBy, ...p }: any) => ({ ...p, favCount: Array.isArray(favBy) ? favBy.length : 0 })),
     cars: cars.filter((c: any) => c.ownerId === user.id),
   });
 }));
@@ -2769,6 +2771,18 @@ app.delete('/api/my/:kind/:id', requireUser, asyncRoute(async (req: Request, res
   if (!own) return;
   await deleteRecord(own.kind, own.item.id);
   res.json({ success: true });
+}));
+
+// «В избранном»: how many signed-in people saved this part (each person counted once)
+app.post('/api/parts/:id/fav', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  if (tooMany(`fav:${user.id}`, 60, 10 * 60_000)) return res.json({ success: true });
+  const part: any = await getRecord('parts', req.params.id);
+  if (!part) return res.json({ success: true });
+  const set = new Set<string>(Array.isArray(part.favBy) ? part.favBy : []);
+  if (req.body?.on) set.add(user.id); else set.delete(user.id);
+  await updateRecord('parts', part.id, { favBy: [...set].slice(-5000) });
+  res.json({ success: true, favCount: set.size });
 }));
 
 // View / contact counters for database listings (approximate; one hit per IP per listing per hour)
@@ -3009,6 +3023,7 @@ app.post('/api/conversations', requireUser, asyncRoute(async (req: Request, res:
   if (listing.ownerId === user.id) return res.status(400).json({ success: false, error: 'Это ваше объявление' });
   const blocked = await chatGuard(user, text, `${kind}:${listing.id}`);
   if (blocked) return res.status(400).json({ success: false, error: blocked });
+  replyCache = null; // reply stats change with every message
   const seller = await getRecord<UserRecord>('users', listing.ownerId);
   if (!seller || seller.blocked) return res.status(404).json({ success: false, error: 'Продавец недоступен' });
 
@@ -3075,6 +3090,7 @@ app.post('/api/conversations/:id/messages', requireUser, asyncRoute(async (req: 
   if (c.buyerId === 'kgz-complaints') return res.status(400).json({ success: false, error: 'Автор жалобы не вошёл на сайт — ответить ему здесь нельзя. Если он оставил контакт, свяжитесь по нему.' });
   const blocked = await chatGuard(user, text, c.id);
   if (blocked) return res.status(400).json({ success: false, error: blocked });
+  replyCache = null; // reply stats change with every message
   const now = new Date().toISOString();
   const updated = await updateRecord<Conversation>('conversations', c.id, {
     messages: [...c.messages, { id: randomUUID(), from: user.id, text, at: now }].slice(-MAX_MESSAGES),
@@ -3133,6 +3149,7 @@ app.get('/api/sellers/:id', asyncRoute(async (req: Request, res: Response) => {
       shop: seller.shop || null,
       rating: reviews.length ? Math.round((reviews.reduce((n, r) => n + r.rating, 0) / reviews.length) * 10) / 10 : null,
       reviewsCount: reviews.length,
+      reply: await sellerReplyStats(seller.id),
     },
   });
 }));
@@ -3160,6 +3177,36 @@ app.get('/api/sellers/:id/past', asyncRoute(async (req: Request, res: Response) 
   res.json({ success: true, items: past });
 }));
 
+/** «Отвечает на 90% сообщений, обычно в течение часа» — from chats a buyer started in the last 90 days */
+type ReplyStats = { rate: number; speed: 'hour' | 'hours' | 'day' | 'slow'; chats: number } | null;
+let replyCache: { at: number; map: Map<string, ReplyStats> } | null = null;
+async function sellerReplyStats(sellerId: string): Promise<ReplyStats> {
+  if (!replyCache || Date.now() - replyCache.at > 10 * 60_000) {
+    const since = Date.now() - 90 * 86_400_000;
+    const per = new Map<string, { total: number; replied: number; delays: number[] }>();
+    for (const c of await listRecords<Conversation>('conversations')) {
+      if (c.complaint || c.buyerId === 'kgz-complaints' || !c.messages?.length) continue;
+      const first = c.messages[0];
+      if (first.from !== c.buyerId || Date.parse(first.at) < since) continue;
+      const reply = c.messages.find((m) => m.from !== c.buyerId && !m.auto);
+      const x = per.get(c.sellerId) || { total: 0, replied: 0, delays: [] };
+      x.total++;
+      if (reply) { x.replied++; x.delays.push(Math.max(0, Date.parse(reply.at) - Date.parse(first.at))); }
+      per.set(c.sellerId, x);
+    }
+    const map = new Map<string, ReplyStats>();
+    for (const [id, x] of per) {
+      if (x.total < Number(process.env.REPLY_MIN_CHATS ?? 3)) { map.set(id, null); continue; }
+      const d = [...x.delays].sort((a, b) => a - b);
+      const mid = d.length ? d[Math.floor(d.length / 2)] : Infinity;
+      const speed = mid <= 3_600_000 ? 'hour' : mid <= 6 * 3_600_000 ? 'hours' : mid <= 86_400_000 ? 'day' : 'slow';
+      map.set(id, { rate: Math.round((x.replied / x.total) * 100), speed, chats: x.total });
+    }
+    replyCache = { at: Date.now(), map };
+  }
+  return replyCache.map.get(sellerId) ?? null;
+}
+
 // A cart order from this seller also lets the buyer leave a review
 async function orderFromSeller(userId: string, sellerId: string) {
   const ids = new Set((await listRecords<any>('parts')).filter((p) => p.ownerId === sellerId).map((p) => p.id));
@@ -3185,6 +3232,7 @@ app.get('/api/sellers/:id/reviews', asyncRoute(async (req: Request, res: Respons
       verified: Boolean(seller.verifiedSeller || seller.company?.status === 'verified'),
       since: seller.createdAt,
       lastSeenAt: seller.lastSeenAt,
+      reply: await sellerReplyStats(seller.id),
     },
     rating: reviews.length ? Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) * 10) / 10 : null,
     reviews: reviews.map(({ authorId, ...r }) => r),

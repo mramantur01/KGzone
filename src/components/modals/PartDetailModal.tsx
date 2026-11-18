@@ -1,6 +1,9 @@
 import { backdropClose } from '../../utils/backdrop';
 import { DetailAdStrip } from '../ads/AdSpots';
 import { partTitle, partDescription } from '../../utils/partText';
+
+/** 1 просмотр, 2 просмотра, 5 просмотров */
+const ruCount = (n: number, one: string, few: string, many: string) => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; };
 import { copyText } from '../../utils/copyText';
 import { partQuestion } from '../../utils/waMessages';
 import React, { useEffect, useState } from 'react';
@@ -47,6 +50,9 @@ import {
   ChevronRight,
   Info,
   Car,
+  Eye,
+  Heart,
+  Search,
 } from 'lucide-react';
 
 interface PartDetailModalProps {
@@ -147,6 +153,24 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
   // Similar parts: same category for the same car first, then same category, then same car
   const score = (p: AutoPartItem) =>
     (p.category === part.category ? 2 : 0) + (p.brand === part.brand && p.model === part.model ? 2 : p.brand === part.brand ? 1 : 0);
+  // «Также ищут»: the part's name with the car, the OEM number, and what similar listings are called
+  const alsoSearched = (() => {
+    const base = (part.subcategory && part.subcategory !== 'Все' ? part.subcategory : part.title.split(/[,(]/)[0].split(/\s+/).slice(0, 3).join(' ')).trim();
+    const car = [part.brand, part.model].filter((x) => x && !/^все/i.test(x)).join(' ');
+    const withCar = (x: string) => (car && !x.toLowerCase().includes((part.brand || '').toLowerCase()) ? `${x} ${car}` : x);
+    const out = [withCar(base), part.brand && !base.toLowerCase().includes(part.brand.toLowerCase()) && `${base} ${part.brand}`, base, part.partNumber, car && `запчасти ${car}`];
+    for (const p of allParts || []) {
+      if (p.id === part.id || p.category !== part.category) continue;
+      const name = p.title.split(/[,(]/)[0].split(/\s+/).slice(0, 3).join(' ').trim();
+      // do not repeat the brand when the name already has it («Фильтр МТЗ», not «Фильтр МТЗ МТЗ»)
+      if (name && part.brand) out.push(name.toLowerCase().includes(part.brand.toLowerCase()) ? name : `${name} ${part.brand}`);
+    }
+    const seen = new Set<string>();
+    return out.filter((q): q is string => !!q && q.length > 2).map((q) => q.replace(/\s+/g, ' ').trim()).filter((q) => {
+      const k = q.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true;
+    }).slice(0, 10);
+  })();
+
   const similarParts = allParts
     .filter((p) => p.id !== part.id && !sellerParts.includes(p) && score(p) > 0)
     .sort((a, b) => score(b) - score(a))
@@ -418,6 +442,14 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
                         {side && <span className="px-2 py-0.5 rounded bg-neutral-800 font-bold text-white">{SIDE_LABEL[side]}</span>}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* 3. Interest in this part: views and «в избранном» */}
+                {(viewsCount > 0 || (part.favCount || 0) > 0) && (
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-400">
+                    {viewsCount > 0 && <span className="inline-flex items-center gap-1"><Eye size={13} /><b className="text-neutral-200" data-no-i18n>{viewsCount}</b><span>{ruCount(viewsCount, 'просмотр', 'просмотра', 'просмотров')}</span></span>}
+                    {(part.favCount || 0) > 0 && <span className="inline-flex items-center gap-1"><Heart size={13} className="text-rose-400" /><b className="text-neutral-200" data-no-i18n>{part.favCount}</b><span>в избранном</span></span>}
                   </div>
                 )}
 
@@ -795,6 +827,20 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
                       </span>
                     </div>
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 4. «Также ищут»: ready searches around this part — one tap opens the catalog with it */}
+          {alsoSearched.length > 0 && (
+            <div className="pt-5 border-t border-neutral-800">
+              <h4 className="font-bold text-sm text-white flex items-center gap-2 mb-2.5"><Search size={15} className="text-amber-400" /><span>Также ищут</span></h4>
+              <div className="flex flex-wrap gap-2">
+                {alsoSearched.map((q) => (
+                  <button key={q} type="button" onClick={() => window.dispatchEvent(new CustomEvent('kgz:parts-search', { detail: { search: q } }))} className="px-3 py-1.5 rounded-full bg-neutral-900 border border-neutral-700 hover:border-amber-400 hover:text-amber-300 text-xs text-neutral-200 cursor-pointer" data-no-i18n>
+                    {q}
+                  </button>
                 ))}
               </div>
             </div>

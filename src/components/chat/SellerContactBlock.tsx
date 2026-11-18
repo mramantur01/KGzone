@@ -24,6 +24,11 @@ const Stars: React.FC<{ value: number; size?: number }> = ({ value, size = 13 })
   </span>
 );
 
+/** One-tap questions in the chat (like at the market: «Ещё есть? Торг будет?») */
+const PART_QUESTIONS = ['Ещё в наличии?', 'Торг возможен?', 'Есть доставка?', 'Подойдёт на мою машину?', 'Где можно посмотреть?'];
+const CAR_QUESTIONS = ['Машина ещё продаётся?', 'Торг возможен?', 'Можно посмотреть сегодня?', 'Был ли в ДТП?', 'Обмен рассматриваете?'];
+const REPLY_SPEED = { hour: 'обычно в течение часа', hours: 'обычно в течение нескольких часов', day: 'обычно в течение дня', slow: 'отвечает не сразу' } as const;
+
 // "Написать продавцу" + seller rating and reviews. Shown only for listings that belong to a registered seller.
 export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTitle, sellerId, dark = false }) => {
   const { user } = useAuth();
@@ -126,6 +131,11 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
           {lastSeenText(info.seller.lastSeenAt) && (
             <span className={`text-xs ${seenRecently(info.seller.lastSeenAt) ? 'text-emerald-500 font-semibold' : muted}`}>{lastSeenText(info.seller.lastSeenAt)}</span>
           )}
+          {info.seller.reply && (
+            <span className={`text-xs font-semibold ${info.seller.reply.rate >= 70 ? 'text-emerald-500' : muted}`}>
+              Отвечает на <span data-no-i18n>{info.seller.reply.rate}%</span> сообщений · {REPLY_SPEED[info.seller.reply.speed]}
+            </span>
+          )}
           <button type="button" onClick={() => setShowReviews((v) => !v)} className="inline-flex items-center gap-1 text-xs cursor-pointer">
             {info.rating ? <><Stars value={info.rating} /><b>{info.rating}</b></> : <span className={muted}>Отзывов пока нет</span>}
             {info.reviews.length > 0 && <span className="underline">({info.reviews.length})</span>}
@@ -170,6 +180,13 @@ export const SellerContactBlock: React.FC<Props> = ({ kind, listingId, listingTi
 
       {composing && !conversationId && (
         <form onSubmit={send} className="space-y-2">
+          <div className="flex flex-wrap gap-1.5" aria-label="Готовые вопросы">
+            {(kind === 'parts' ? PART_QUESTIONS : CAR_QUESTIONS).map((q) => (
+              <button key={q} type="button" onClick={() => setText(`Здравствуйте! ${q}`)} className={`px-2.5 py-1 rounded-full text-xs font-semibold border cursor-pointer ${text === `Здравствуйте! ${q}` ? 'bg-[#C8102E] border-[#C8102E] text-[#fff]' : dark ? 'border-neutral-700 text-neutral-200 hover:border-amber-400' : 'border-slate-300 text-slate-700 hover:border-[#C8102E]'}`}>
+                {q}
+              </button>
+            ))}
+          </div>
           <textarea
             rows={3}
             value={text}
