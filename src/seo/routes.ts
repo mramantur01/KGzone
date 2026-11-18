@@ -95,7 +95,11 @@ export const openShop = (sellerId: string) => window.dispatchEvent(new CustomEve
 /** Changes the address bar without reloading; skips identical paths */
 export function setPath(path: string, replace = false) {
   if (typeof window === 'undefined' || window.location.pathname === path) return;
-  window.history[replace ? 'replaceState' : 'pushState']({ kgz: true }, '', path + window.location.search);
+  // idx = place in this tab's history: the app's own «Назад / Вперёд» buttons know when they can go
+  const idx = (Number(window.history.state?.idx) || 0) + (replace ? 0 : 1);
+  window.history[replace ? 'replaceState' : 'pushState']({ kgz: true, idx }, '', path + window.location.search);
+  if (!replace) { try { sessionStorage.setItem('kgz-history-max', String(idx)); } catch { /* storage unavailable */ } }
+  window.dispatchEvent(new Event('kgz:history'));
 }
 
 export function setTitle(title: string) {

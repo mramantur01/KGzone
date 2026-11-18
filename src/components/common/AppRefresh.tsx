@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { refreshParts } from '../../api/parts';
 import { refreshCars } from '../../api/cars';
 
@@ -20,6 +20,57 @@ async function serverBuild(): Promise<string> {
   } catch { return ''; }
 }
 const typing = () => { const a = document.activeElement; return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || (a as HTMLElement).isContentEditable); };
+
+/**
+ * Inside the installed app the phone hides the browser's «Назад / Вперёд»: our own two buttons (bottom left)
+ * plus a swipe from the left edge of the screen to go back.
+ */
+const historyPlace = () => {
+  const idx = Number(window.history.state?.idx) || 0;
+  let max = idx;
+  try { max = Math.max(idx, Number(sessionStorage.getItem('kgz-history-max')) || 0); } catch { /* storage unavailable */ }
+  return { back: idx > 0, forward: idx < max };
+};
+const AppNav: React.FC = () => {
+  const [place, setPlace] = useState(historyPlace);
+  // Above the cabinet's bottom menu when it is on screen
+  const [lift, setLift] = useState(0);
+  const edge = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const measure = () => {
+      const bar = document.querySelector<HTMLElement>('nav.fixed.bottom-0');
+      setLift(bar ? Math.round(bar.getBoundingClientRect().height) : 0);
+    };
+    measure();
+    const t = window.setInterval(measure, 800);
+    return () => window.clearInterval(t);
+  }, []);
+  useEffect(() => {
+    const update = () => setPlace(historyPlace());
+    window.addEventListener('popstate', update);
+    window.addEventListener('kgz:history', update);
+    // Swipe right from the left edge = back (like in the browser)
+    const onStart = (e: TouchEvent) => { const t = e.touches[0]; edge.current = e.touches.length === 1 && t.clientX < 24 ? { x: t.clientX, y: t.clientY } : null; };
+    const onEnd = (e: TouchEvent) => {
+      const s = edge.current; edge.current = null;
+      const t = e.changedTouches[0];
+      if (s && t && t.clientX - s.x > 90 && Math.abs(t.clientY - s.y) < 60 && historyPlace().back) window.history.back();
+    };
+    window.addEventListener('touchstart', onStart, { passive: true });
+    window.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      window.removeEventListener('popstate', update); window.removeEventListener('kgz:history', update);
+      window.removeEventListener('touchstart', onStart); window.removeEventListener('touchend', onEnd);
+    };
+  }, []);
+  const btn = 'w-11 h-11 flex items-center justify-center rounded-full transition-colors disabled:opacity-30 cursor-pointer disabled:cursor-default';
+  return (
+    <nav aria-label="Назад и вперёд" className="fixed z-[57] left-3 flex items-center gap-1 p-1 rounded-full bg-slate-900/85 text-white shadow-xl backdrop-blur" style={{ bottom: lift ? `${lift + 10}px` : 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
+      <button type="button" aria-label="Назад" disabled={!place.back} onClick={() => window.history.back()} className={`${btn} hover:bg-white/15`}><ChevronLeft size={24} /></button>
+      <button type="button" aria-label="Вперёд" disabled={!place.forward} onClick={() => window.history.forward()} className={`${btn} hover:bg-white/15`}><ChevronRight size={24} /></button>
+    </nav>
+  );
+};
 
 export const AppRefresh: React.FC = () => {
   const [pull, setPull] = useState(0);
@@ -77,13 +128,16 @@ export const AppRefresh: React.FC = () => {
     return () => { window.removeEventListener('touchstart', onStart); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd); };
   }, []);
 
-  if (!pull && !busy) return null;
+  const nav = runningAsApp() ? <AppNav /> : null;
+  if (!pull && !busy) return nav;
   const ready = pull >= PULL_TO_RELOAD || busy;
   return (
+    <>{nav}
     <div className="fixed top-0 inset-x-0 z-[90] flex justify-center pointer-events-none" style={{ transform: `translateY(${busy ? 70 : Math.max(0, pull - 30)}px)` }}>
       <div className={`w-11 h-11 rounded-full shadow-lg flex items-center justify-center ${ready ? 'bg-[#C8102E] text-white' : 'bg-white text-slate-500'}`}>
         <RefreshCw size={20} className={busy ? 'animate-spin' : ''} style={busy ? undefined : { transform: `rotate(${pull * 3}deg)` }} />
       </div>
     </div>
+    </>
   );
 };
