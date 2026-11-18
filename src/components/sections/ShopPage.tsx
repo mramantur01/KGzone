@@ -27,6 +27,8 @@ interface SellerProfile {
   reviewsCount: number;
 }
 
+interface PastItem { id: string; title: string; brand?: string; model?: string; partNumber?: string; priceKgs: number; image: string; status: 'sold' | 'inactive'; at: string }
+
 // Public page of one seller: kgzone/magazin/<id>. Sellers share this link in Instagram and WhatsApp.
 export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartItem) => void }> = ({ sellerId, onOpenPart }) => {
   const [seller, setSeller] = useState<SellerProfile | null>(null);
@@ -39,6 +41,13 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
     setSeller(null);
     setError(null);
     call<{ seller: SellerProfile }>(`/api/sellers/${encodeURIComponent(sellerId)}`).then((r) => setSeller(r.seller)).catch((e) => setError(e.message));
+  }, [sellerId]);
+
+  // Sold earlier / taken off sale: shown under the items in stock
+  const [past, setPast] = useState<PastItem[]>([]);
+  useEffect(() => {
+    setPast([]);
+    call<{ items: PastItem[] }>(`/api/sellers/${encodeURIComponent(sellerId)}/past`).then((r) => setPast(r.items || [])).catch(() => setPast([]));
   }, [sellerId]);
 
   const [demoParts, setDemoParts] = useState<AutoPartItem[] | null>(null);
@@ -54,6 +63,11 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
     if (!q) return parts;
     return parts.filter((p) => [p.title, p.brand, p.model, p.partNumber, ...(p.crossNumbers || [])].join(' ').toLowerCase().replace(/[\s-]/g, '').includes(q) || smartMatch(partHaystack(p), query));
   }, [parts, query]);
+  const shownPast = useMemo(() => {
+    const q = query.trim().toLowerCase().replace(/[\s-]/g, '');
+    if (!q) return past;
+    return past.filter((p) => [p.title, p.brand, p.model, p.partNumber].join(' ').toLowerCase().replace(/[\s-]/g, '').includes(q));
+  }, [past, query]);
   const phone = parts.find((p) => p.sellerPhone)?.sellerPhone;
 
   useEffect(() => {
@@ -155,17 +169,20 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
         </div>
       </div>
 
-      {/* Items */}
+      {/* Items: in stock first, then (in the same list) the ones sold earlier or taken off sale */}
       <div className="bg-white rounded-2xl border border-slate-200">
         <div className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-2 border-b border-slate-100">
-          <h2 className="font-black text-slate-900 text-lg">Товары в наличии <span className="text-slate-400">{parts.length}</span></h2>
+          <h2 className="font-black text-slate-900 text-lg">
+            Товары в наличии <span className="text-slate-400">{parts.length}</span>
+            {past.length > 0 && <span className="ml-2 text-xs font-bold text-slate-400">· нет в наличии {past.length}</span>}
+          </h2>
           <div className="relative sm:ml-auto sm:w-80">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Поиск в этом магазине" className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm" />
           </div>
         </div>
-        {shown.length === 0 ? (
-          <p className="p-10 text-center text-sm text-slate-500">{parts.length ? 'Ничего не найдено' : 'Сейчас у продавца нет товаров в наличии'}</p>
+        {shown.length === 0 && shownPast.length === 0 ? (
+          <p className="p-10 text-center text-sm text-slate-500">{parts.length || past.length ? 'Ничего не найдено' : 'Сейчас у продавца нет товаров в наличии'}</p>
         ) : (
           <div className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {shown.map((p) => (
@@ -177,6 +194,24 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
                   <div className="mt-1 font-black text-slate-900">{p.priceKgs.toLocaleString('ru-RU')} сом</div>
                 </div>
               </button>
+            ))}
+            {shownPast.map((p) => (
+              <div key={p.id} title="Сейчас нет в наличии" className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+                <div className="relative">
+                  <img src={p.image} alt="" loading="lazy" className="w-full aspect-[4/3] object-cover bg-slate-100 grayscale opacity-70" />
+                  <span className={`absolute left-2 top-2 px-2 py-0.5 rounded-md text-[11px] font-black text-[#fff] ${p.status === 'sold' ? 'bg-emerald-700' : 'bg-slate-600'}`}>
+                    {p.status === 'sold' ? 'Продано' : 'Снято с продажи'}
+                  </span>
+                </div>
+                <div className="p-2.5">
+                  <div className="text-sm font-bold text-slate-600 line-clamp-2" data-no-i18n>{p.title}</div>
+                  <div className="text-[11px] text-slate-500 truncate" data-no-i18n>{[p.partNumber && `OEM ${p.partNumber}`, [p.brand, p.model].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</div>
+                  <div className="mt-1 flex items-baseline justify-between gap-1">
+                    <span className="font-black text-slate-400">{p.priceKgs.toLocaleString('ru-RU')} сом</span>
+                    {p.at && <span className="text-[10px] text-slate-400">{new Date(p.at).toLocaleDateString('ru-RU')}</span>}
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         )}

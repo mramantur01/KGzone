@@ -3137,6 +3137,29 @@ app.get('/api/sellers/:id', asyncRoute(async (req: Request, res: Response) => {
   });
 }));
 
+// Seller page: items sold earlier or taken off sale (newest first) — shows buyers what this seller deals in.
+// Only items that passed checks and had a photo; nothing private (no buyers, no stock history).
+app.get('/api/sellers/:id/past', asyncRoute(async (req: Request, res: Response) => {
+  const seller = await getRecord<UserRecord>('users', req.params.id);
+  if (!seller || seller.blocked) return res.status(404).json({ success: false, error: 'Магазин не найден' });
+  const past = (await listRecords<any>('parts'))
+    .filter((p) => p.ownerId === seller.id && p.moderation?.status === 'approved' && Array.isArray(p.images) && p.images.length > 0 && !isPublicPart(p))
+    .filter((p) => { const st = p.listingStatus ?? 'active'; return st === 'sold' || st === 'inactive' || Number(p.stockCount) <= 0; })
+    .map((p) => {
+      const st = p.listingStatus ?? 'active';
+      return {
+        id: p.id, title: p.title, brand: p.brand, model: p.model, partNumber: p.partNumber, priceKgs: p.priceKgs,
+        image: p.image || p.images[0],
+        status: st === 'inactive' ? 'inactive' : 'sold',
+        at: p.statusChangedAt || p.updatedAt || p.createdAt,
+      };
+    })
+    .sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0))
+    .slice(0, 60);
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  res.json({ success: true, items: past });
+}));
+
 // A cart order from this seller also lets the buyer leave a review
 async function orderFromSeller(userId: string, sellerId: string) {
   const ids = new Set((await listRecords<any>('parts')).filter((p) => p.ownerId === sellerId).map((p) => p.id));

@@ -4775,5 +4775,11 @@
  "Назад и вперёд": "Back and forward",
  "Вперёд": "Forward",
  "Закрыть окно? Введённые данные не сохранятся.": "Close the window? What you typed will not be saved.",
- "Загрузка автозапчасти (Фото/Видео)": "Upload a part (photos/video)"
+ "Загрузка автозапчасти (Фото/Видео)": "Upload a part (photos/video)",
+ "Проданные и снятые с продажи": "Sold and taken off sale",
+ "Этих товаров сейчас нет в наличии. Нужен такой же — позвоните продавцу, возможно, он привезёт.": "These items are not in stock now. Need the same one? Call the seller, they may bring it in.",
+ "Свернуть": "Show less",
+ "Показать все ({})": "Show all ({})",
+ "· нет в наличии": "· out of stock",
+ "Сейчас нет в наличии": "Out of stock now"
 }
