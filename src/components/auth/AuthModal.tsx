@@ -142,7 +142,7 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
   );
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 bg-black/70 backdrop-blur-xs overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex [align-items:safe_center] justify-center p-3 bg-black/70 backdrop-blur-xs overflow-y-auto" onClick={onClose}>
       <div className="relative w-full max-w-md bg-white text-slate-900 rounded-2xl shadow-2xl overflow-hidden my-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3.5 bg-[#C8102E] text-white">
           <span className="font-extrabold text-base">

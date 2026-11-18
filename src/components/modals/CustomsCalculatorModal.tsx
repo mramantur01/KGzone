@@ -1,3 +1,4 @@
+import { backdropClose } from '../../utils/backdrop';
 import React, { useState } from 'react';
 import { USD_TO_KGS_RATE } from '../../data/mockData';
 import { Language } from '../../types/car';
@@ -74,7 +75,7 @@ export const CustomsCalculatorModal: React.FC<CustomsCalculatorModalProps> = ({
   const results = calculateCustoms();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
+    <div {...backdropClose(onClose)} className="fixed inset-0 z-50 flex [align-items:safe_center] justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden my-6 border border-slate-200">
         {/* Шапка */}
         <div className="flex items-center justify-between px-5 py-3.5 bg-slate-900 text-white border-b border-slate-800">

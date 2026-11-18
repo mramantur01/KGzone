@@ -65,7 +65,7 @@ const AppNav: React.FC = () => {
   }, []);
   const btn = 'w-11 h-11 flex items-center justify-center rounded-full transition-colors disabled:opacity-30 cursor-pointer disabled:cursor-default';
   return (
-    <nav aria-label="Назад и вперёд" className="fixed z-[57] left-3 flex items-center gap-1 p-1 rounded-full bg-slate-900/85 text-white shadow-xl backdrop-blur" style={{ bottom: lift ? `${lift + 10}px` : 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
+    <nav aria-label="Назад и вперёд" className="fixed z-[44] left-3 flex items-center gap-1 p-1 rounded-full bg-slate-900/85 text-white shadow-xl backdrop-blur" style={{ bottom: lift ? `${lift + 10}px` : 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
       <button type="button" aria-label="Назад" disabled={!place.back} onClick={() => window.history.back()} className={`${btn} hover:bg-white/15`}><ChevronLeft size={24} /></button>
       <button type="button" aria-label="Вперёд" disabled={!place.forward} onClick={() => window.history.forward()} className={`${btn} hover:bg-white/15`}><ChevronRight size={24} /></button>
     </nav>

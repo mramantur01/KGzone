@@ -1,3 +1,4 @@
+import { backdropClose } from '../../utils/backdrop';
 import React, { useState } from 'react';
 import { AutoPartItem, Currency, Language } from '../../types/car';
 import { submitPart, useParts } from '../../api/parts';
@@ -377,7 +378,7 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
   ).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
+    <div {...backdropClose(onClose, true)} className="fixed inset-0 z-50 flex [align-items:safe_center] justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
       <div className="kgz-themed relative w-full max-w-5xl bg-neutral-950 border border-neutral-800 rounded-3xl shadow-2xl overflow-hidden my-auto text-white flex flex-col max-h-[92vh]">
         
         {/* Top Gold-Red Ribbon */}

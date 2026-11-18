@@ -1,3 +1,4 @@
+import { backdropClose } from '../../utils/backdrop';
 import React, { useRef, useState } from 'react';
 import { Car, Language, UserProfile } from '../../types/car';
 import { ALL_CAR_BRANDS, getModelsForBrand, KYRGYZ_REGIONS_AND_CITIES, useCarCatalog } from '../../data/mockData';
@@ -143,7 +144,7 @@ export const AddListingModal: React.FC<AddListingModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
+    <div {...backdropClose(onClose, true)} className="fixed inset-0 z-50 flex [align-items:safe_center] justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden my-6 border border-slate-200">
         {/* Шапка */}
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 bg-[#C8102E] text-white">
@@ -215,7 +216,7 @@ export const AddListingModal: React.FC<AddListingModalProps> = ({
                         <button
                           type="button"
                           onClick={() => makeMain(url)}
-                          className="absolute left-1 top-1 text-[10px] font-bold bg-black/60 text-white px-1.5 py-0.5 rounded cursor-pointer"
+                          className="absolute left-1 top-1 text-[10px] font-bold bg-black/60 text-[#fff] px-1.5 py-0.5 rounded cursor-pointer"
                         >
                           Сделать главным
                         </button>
@@ -223,7 +224,7 @@ export const AddListingModal: React.FC<AddListingModalProps> = ({
                       <button
                         type="button"
                         onClick={() => removePhoto(url)}
-                        className="absolute right-1 top-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer"
+                        className="absolute right-1 top-1 w-6 h-6 rounded-full bg-black/60 text-[#fff] flex items-center justify-center cursor-pointer"
                         aria-label="Удалить фото"
                       >
                         <X size={14} />

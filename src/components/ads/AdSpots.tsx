@@ -27,7 +27,7 @@ export const FeedAdCard: React.FC<{ n: number; rows?: boolean }> = ({ n, rows = 
   const ad = ads.length ? ads[n % ads.length] : null;
   useEffect(() => { if (ad) sendBannerStat('feed', ad.id, 'view'); }, [ad?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ad) return null;
-  const mark = <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-bold uppercase tracking-wider"><Megaphone size={10} />{ad.badge || 'Реклама'}</span>;
+  const mark = <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/60 text-[#fff] text-[10px] font-bold uppercase tracking-wider"><Megaphone size={10} />{ad.badge || 'Реклама'}</span>;
   if (rows) {
     return (
       <AdLink ad={ad} place="feed" className="flex gap-3 p-3 rounded-2xl bg-neutral-900 border border-amber-500/40 hover:border-amber-400 transition-colors">

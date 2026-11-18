@@ -1,3 +1,4 @@
+import { backdropClose } from '../../utils/backdrop';
 import { copyText } from '../../utils/copyText';
 import React, { useState } from 'react';
 import { 
@@ -1007,7 +1008,7 @@ export const WorkshopSection: React.FC<WorkshopSectionProps> = ({
 
       {/* Модальное окно успешного онлайн бронирования */}
       {bookingSuccessModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div {...backdropClose(() => setBookingSuccessModal(null))} className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 text-center shadow-2xl border border-slate-200 dark:border-slate-700">
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 size={36} />

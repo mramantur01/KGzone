@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Search, Banknote, RefreshCw, Link2, MessageSquareText, Clock, Megaphone, Percent, TrendingDown, Archive, Users } from 'lucide-react';
 import {
   addCashSale, getBroadcastInfo, getCompanyReports, getCompanySettings, listCashSales, listCompanyParts, saveCompanySettings, sendBroadcast, syncPriceFeed,
@@ -20,6 +20,14 @@ export const CashDesk: React.FC = () => {
   const [parts, setParts] = useState<CompanyPart[] | null>(null);
   const [sales, setSales] = useState<CashSale[] | null>(null);
   const [q, setQ] = useState('');
+  // The found-items list folds when tapping anywhere else, and comes back when the field is used again
+  const [listHidden, setListHidden] = useState(false);
+  const searchBox = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => { if (searchBox.current && !searchBox.current.contains(e.target as Node)) setListHidden(true); };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, []);
   const [picked, setPicked] = useState<CompanyPart | null>(null);
   const [qty, setQty] = useState('1');
   const [price, setPrice] = useState('');
@@ -72,10 +80,10 @@ export const CashDesk: React.FC = () => {
         <div className="font-bold text-slate-900 flex items-center gap-2"><Banknote size={17} className="text-emerald-600" />Продажа на рынке</div>
         <p className="text-xs text-slate-500">Продали товар в контейнере или по телефону? Отметьте здесь — остаток уменьшится сам, а продажа попадёт в статистику и отчёты.</p>
         {!picked ? (
-          <div className="relative">
+          <div className="relative" ref={searchBox}>
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Найдите товар: название, OEM или артикул" className={`${inputCls} pl-9 py-2.5`} />
-            {found.length > 0 && (
+            <input value={q} onFocus={() => setListHidden(false)} onChange={(e) => { setQ(e.target.value); setListHidden(false); }} placeholder="Найдите товар: название, OEM или артикул" className={`${inputCls} pl-9 py-2.5`} />
+            {found.length > 0 && !listHidden && (
               <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg divide-y divide-slate-100 max-h-72 overflow-y-auto">
                 {found.map((p) => (
                   <li key={p.id}>

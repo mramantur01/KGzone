@@ -1,3 +1,4 @@
+import { backdropClose } from '../../utils/backdrop';
 import React, { useEffect, useState } from 'react';
 import { Language, UserReview } from '../../types/car';
 import { KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
@@ -260,7 +261,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
 
       {/* Модальное окно добавления отзыва */}
       {isAddReviewOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+        <div {...backdropClose(() => setIsAddReviewOpen(false), true)} className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">

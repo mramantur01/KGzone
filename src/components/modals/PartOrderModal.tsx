@@ -1,3 +1,4 @@
+import { backdropClose } from '../../utils/backdrop';
 import { partOrder } from '../../utils/waMessages';
 import React, { useState } from 'react';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
@@ -143,7 +144,7 @@ export const PartOrderModal: React.FC<PartOrderModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
+    <div {...backdropClose(onClose, true)} className="fixed inset-0 z-50 flex [align-items:safe_center] justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
       <div className="kgz-themed relative w-full max-w-xl bg-neutral-950 border border-neutral-800 rounded-3xl shadow-2xl overflow-hidden my-6 text-white">
         
         {/* Kyrgyz Gold-Red Top Ribbon */}

@@ -1,3 +1,4 @@
+import { backdropClose } from '../../utils/backdrop';
 import { copyText } from '../../utils/copyText';
 import { carQuestion } from '../../utils/waMessages';
 import React, { useEffect, useState } from 'react';
@@ -90,7 +91,7 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
+    <div {...backdropClose(onClose)} className="fixed inset-0 z-50 flex [align-items:safe_center] justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
       <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden my-6 border border-slate-200">
         {/* Шапка модалки */}
         <div className="flex items-center justify-between px-5 py-3.5 bg-slate-900 text-white border-b border-slate-800">
@@ -194,7 +195,7 @@ export const CarDetailModal: React.FC<CarDetailModalProps> = ({
                 aspectRatio="16/9"
               />
               {photos.length > 1 && (
-                <span className="absolute right-2 bottom-2 z-10 text-[11px] font-bold bg-black/60 text-white px-2 py-0.5 rounded">
+                <span className="absolute right-2 bottom-2 z-10 text-[11px] font-bold bg-black/60 text-[#fff] px-2 py-0.5 rounded">
                   {Math.min(photoIndex, photos.length - 1) + 1} / {photos.length}
                 </span>
               )}

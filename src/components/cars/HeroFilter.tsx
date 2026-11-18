@@ -437,7 +437,7 @@ export const HeroFilter: React.FC<HeroFilterProps> = ({
           setIsAllBrandsModalOpen(false);
         }}
         selectedBrand={filters.brand}
-        title={isKg ? 'Бардык авто маркалар (210+)' : 'Все марки автомобилей (210+)'}
+        title={isKg ? 'Бардык авто маркалар' : 'Все марки автомобилей'}
       />
     </div>
   );

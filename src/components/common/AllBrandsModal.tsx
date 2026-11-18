@@ -1,3 +1,4 @@
+import { backdropClose } from '../../utils/backdrop';
 import React, { useState, useMemo } from 'react';
 import { ALL_CAR_BRANDS, POPULAR_BRANDS } from '../../data/mockData';
 import { KochkorMuyuzIcon } from '../ornaments/KyrgyzOrnaments';
@@ -79,7 +80,7 @@ export const AllBrandsModal: React.FC<AllBrandsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs overflow-y-auto">
+    <div {...backdropClose(onClose)} className="fixed inset-0 z-50 flex [align-items:safe_center] justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs overflow-y-auto">
       <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden my-6 border border-slate-200">
         {/* Шапка */}
         <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white border-b border-slate-800">
@@ -147,7 +148,7 @@ export const AllBrandsModal: React.FC<AllBrandsModalProps> = ({
               onClick={() => setActiveTab('countries')}
               className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                 activeTab === 'countries'
-                  ? 'bg-slate-900 text-white shadow-xs'
+                  ? 'kgz-keep-dark bg-slate-900 text-white shadow-xs'
                   : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
               }`}
             >
@@ -158,7 +159,7 @@ export const AllBrandsModal: React.FC<AllBrandsModalProps> = ({
               onClick={() => setActiveTab('alphabet')}
               className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                 activeTab === 'alphabet'
-                  ? 'bg-slate-900 text-white shadow-xs'
+                  ? 'kgz-keep-dark bg-slate-900 text-white shadow-xs'
                   : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
               }`}
             >
