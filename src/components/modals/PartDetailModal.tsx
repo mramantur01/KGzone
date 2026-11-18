@@ -223,10 +223,10 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
         {/* Modal Scrollable Body */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
           {/* Main Grid: Gallery & Media Left, Details Right */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[auto_1fr] gap-6 lg:items-start">
             
             {/* LEFT: MEDIA SECTION (PHOTOS & VIDEO) - 7 cols */}
-            <div className="lg:col-span-7 space-y-3">
+            <div className="lg:col-span-7 lg:col-start-1 lg:row-start-1 space-y-3">
               
               {/* Media Switcher Tabs (Фотографии / Видео-осмотр) */}
               <div className="flex items-center justify-between bg-neutral-900 p-1 rounded-xl border border-neutral-800 text-xs font-bold">
@@ -408,7 +408,7 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
             </div>
 
             {/* RIGHT: DETAILS, COMPATIBILITY & SELLER BOX - 5 cols */}
-            <div className="lg:col-span-5 space-y-4">
+            <div className="lg:col-span-5 lg:col-start-8 lg:row-start-1 lg:row-span-2 space-y-4">
               
               {/* Part Title and OEM Bar */}
               <div>
@@ -533,16 +533,6 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
                 <DetailAdStrip seed={part.id} />
               </div>
 
-              {/* Description */}
-              {part.description && (
-                <div className="p-3.5 rounded-xl bg-neutral-900/60 border border-neutral-800/80 text-xs text-neutral-300 leading-relaxed">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
-                    {isKg ? 'Сыпаттамасы' : 'Описание детали от продавца'}
-                  </div>
-                  <p>{partDescription(part, language)}</p>
-                </div>
-              )}
-
               {/* Warranty, returns, delivery and payment as stated by the seller */}
               <div className="p-3.5 rounded-xl bg-neutral-900/60 border border-neutral-800/80 text-xs space-y-2">
                 <div>
@@ -562,31 +552,6 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
                   </p>
                 </div>
               </div>
-
-              {/* Usually replaced together */}
-              {related.length > 0 && (
-                <div className="p-3.5 rounded-xl bg-neutral-900/60 border border-neutral-800/80 text-xs">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Обычно меняют вместе</div>
-                  <div className="space-y-1.5">
-                    {related.map(({ q, items }) => (
-                      <div key={q}>
-                        {items.length ? items.map((p) => (
-                          <button key={p.id} type="button" onClick={() => onSelectPart?.(p)} className="w-full text-left flex items-center gap-2 p-1.5 rounded-lg hover:bg-neutral-800 cursor-pointer">
-                            {p.image && <img src={p.image} alt="" className="w-9 h-9 rounded object-cover shrink-0" />}
-                            <span className="flex-1 min-w-0 truncate text-neutral-200" data-no-i18n>{p.title}</span>
-                            <span className="font-black text-emerald-400 whitespace-nowrap">{p.priceKgs.toLocaleString('ru-RU')} сом</span>
-                          </button>
-                        )) : (
-                          <div className="flex items-center gap-2 p-1.5 text-neutral-400">
-                            <span className="flex-1 capitalize">{q}</span>
-                            <span className="text-[10px]">пока нет на сайте</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Private note: only this buyer sees it */}
               <div className="p-3 rounded-xl bg-amber-400/5 border border-amber-400/20 text-xs">
@@ -679,6 +644,20 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
                 </div>
               </div>
 
+            </div>
+
+            {/* LEFT, under the photo (computer); after the buying column on phones */}
+            <div className="lg:col-span-7 lg:col-start-1 lg:row-start-2 space-y-4">
+              {/* Description */}
+              {part.description && (
+                <div className="p-3.5 rounded-xl bg-neutral-900/60 border border-neutral-800/80 text-xs text-neutral-300 leading-relaxed">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
+                    {isKg ? 'Сыпаттамасы' : 'Описание детали от продавца'}
+                  </div>
+                  <p>{partDescription(part, language)}</p>
+                </div>
+              )}
+
               {/* COMPATIBILITY TABLE (Requirement 5) */}
               <div className="p-3.5 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-2">
                 <div className="flex items-center justify-between">
@@ -722,6 +701,96 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
                 </div>
               </div>
 
+              {/* Usually replaced together */}
+              {related.length > 0 && (
+                <div className="p-3.5 rounded-xl bg-neutral-900/60 border border-neutral-800/80 text-xs">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Обычно меняют вместе</div>
+                  <div className="space-y-1.5">
+                    {related.map(({ q, items }) => (
+                      <div key={q}>
+                        {items.length ? items.map((p) => (
+                          <button key={p.id} type="button" onClick={() => onSelectPart?.(p)} className="w-full text-left flex items-center gap-2 p-1.5 rounded-lg hover:bg-neutral-800 cursor-pointer">
+                            {p.image && <img src={p.image} alt="" className="w-9 h-9 rounded object-cover shrink-0" />}
+                            <span className="flex-1 min-w-0 truncate text-neutral-200" data-no-i18n>{p.title}</span>
+                            <span className="font-black text-emerald-400 whitespace-nowrap">{p.priceKgs.toLocaleString('ru-RU')} сом</span>
+                          </button>
+                        )) : (
+                          <div className="flex items-center gap-2 p-1.5 text-neutral-400">
+                            <span className="flex-1 capitalize">{q}</span>
+                            <span className="text-[10px]">пока нет на сайте</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SIMILAR PARTS BLOCK (Requirement: Похожие объявления) */}
+              {similarParts.length > 0 && (
+                <div className="p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                      <Sparkles size={16} className="text-amber-400" />
+                      <span>
+                        {isKg
+                          ? `Окшош тетиктер (${part.brand} ${part.model})`
+                          : `Похожие запчасти для ${part.brand} ${part.model}`}
+                      </span>
+                    </h4>
+                    <span className="text-xs text-neutral-400 font-medium">
+                      {similarParts.length} {isKg ? 'сунуш' : 'предложения'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {similarParts.map((simPart) => (
+                      <div
+                        key={simPart.id}
+                        onClick={() => {
+                          if (onSelectPart) onSelectPart(simPart);
+                        }}
+                        className="p-3 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 cursor-pointer transition-all hover:scale-102 flex flex-col justify-between group"
+                      >
+                        <div>
+                          <div className="h-24 rounded-xl overflow-hidden mb-2 bg-neutral-950">
+                            <img
+                              src={simPart.image}
+                              alt={simPart.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                          </div>
+                          <h5 className="font-bold text-xs text-white line-clamp-2 leading-tight group-hover:text-amber-400 transition-colors">
+                            {simPart.title}
+                          </h5>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-neutral-800 flex items-center justify-between">
+                          <span className="font-black text-emerald-400 text-xs">
+                            {simPart.priceKgs.toLocaleString()} сом
+                          </span>
+                          <span className="text-[10px] text-neutral-400 truncate max-w-[80px]">
+                            {simPart.market}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 4. «Также ищут»: ready searches around this part — one tap opens the catalog with it */}
+              {alsoSearched.length > 0 && (
+                <div className="p-3.5 rounded-2xl bg-neutral-900/60 border border-neutral-800/80">
+                  <h4 className="font-bold text-sm text-white flex items-center gap-2 mb-2.5"><Search size={15} className="text-amber-400" /><span>Также ищут</span></h4>
+                  <div className="flex flex-wrap gap-2">
+                    {alsoSearched.map((q) => (
+                      <button key={q} type="button" onClick={() => window.dispatchEvent(new CustomEvent('kgz:parts-search', { detail: { search: q } }))} className="px-3 py-1.5 rounded-full bg-neutral-900 border border-neutral-700 hover:border-amber-400 hover:text-amber-300 text-xs text-neutral-200 cursor-pointer" data-no-i18n>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
           </div>
@@ -780,71 +849,6 @@ const PartDetailWindow: React.FC<PartDetailModalProps> = ({
             </div>
           )}
 
-          {/* SIMILAR PARTS BLOCK (Requirement: Похожие объявления) */}
-          {similarParts.length > 0 && (
-            <div className="pt-6 border-t border-neutral-800">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-bold text-sm text-white flex items-center gap-2">
-                  <Sparkles size={16} className="text-amber-400" />
-                  <span>
-                    {isKg
-                      ? `Окшош тетиктер (${part.brand} ${part.model})`
-                      : `Похожие запчасти для ${part.brand} ${part.model}`}
-                  </span>
-                </h4>
-                <span className="text-xs text-neutral-400 font-medium">
-                  {similarParts.length} {isKg ? 'сунуш' : 'предложения'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {similarParts.map((simPart) => (
-                  <div
-                    key={simPart.id}
-                    onClick={() => {
-                      if (onSelectPart) onSelectPart(simPart);
-                    }}
-                    className="p-3 rounded-2xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 cursor-pointer transition-all hover:scale-102 flex flex-col justify-between group"
-                  >
-                    <div>
-                      <div className="h-24 rounded-xl overflow-hidden mb-2 bg-neutral-950">
-                        <img
-                          src={simPart.image}
-                          alt={simPart.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      </div>
-                      <h5 className="font-bold text-xs text-white line-clamp-2 leading-tight group-hover:text-amber-400 transition-colors">
-                        {simPart.title}
-                      </h5>
-                    </div>
-                    <div className="mt-2 pt-2 border-t border-neutral-800 flex items-center justify-between">
-                      <span className="font-black text-emerald-400 text-xs">
-                        {simPart.priceKgs.toLocaleString()} сом
-                      </span>
-                      <span className="text-[10px] text-neutral-400 truncate max-w-[80px]">
-                        {simPart.market}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 4. «Также ищут»: ready searches around this part — one tap opens the catalog with it */}
-          {alsoSearched.length > 0 && (
-            <div className="pt-5 border-t border-neutral-800">
-              <h4 className="font-bold text-sm text-white flex items-center gap-2 mb-2.5"><Search size={15} className="text-amber-400" /><span>Также ищут</span></h4>
-              <div className="flex flex-wrap gap-2">
-                {alsoSearched.map((q) => (
-                  <button key={q} type="button" onClick={() => window.dispatchEvent(new CustomEvent('kgz:parts-search', { detail: { search: q } }))} className="px-3 py-1.5 rounded-full bg-neutral-900 border border-neutral-700 hover:border-amber-400 hover:text-amber-300 text-xs text-neutral-200 cursor-pointer" data-no-i18n>
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Modal Footer Note */}
