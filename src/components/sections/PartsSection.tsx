@@ -161,7 +161,16 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
   };
 
   // View mode: Grid vs Drom-style Rows
-  const [viewMode, setViewMode] = useState<'grid' | 'rows'>('grid');
+  const [chosenView, setViewMode] = useState<'grid' | 'rows'>('grid');
+  // Phones always get the compact rows list (easier to scan on a narrow screen)
+  const [isPhone, setIsPhone] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+  React.useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const on = () => setIsPhone(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  const viewMode: 'grid' | 'rows' = isPhone ? 'rows' : chosenView;
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -1378,8 +1387,8 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
               </select>
             </div>
 
-            {/* View switcher: Grid vs Drom Rows */}
-            <div className="flex items-center bg-neutral-950 p-1 rounded-xl border border-neutral-800">
+            {/* View switcher: Grid vs Drom Rows (computers only; phones always show rows) */}
+            <div className="hidden md:flex items-center bg-neutral-950 p-1 rounded-xl border border-neutral-800">
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
