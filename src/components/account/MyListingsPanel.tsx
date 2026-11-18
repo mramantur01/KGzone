@@ -93,6 +93,21 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
   const { user } = useAuth();
   const photoFor = useRef<Row | null>(null);
 
+  // Items nobody viewed for a week: lift them to the top, one button for all
+  const [toRaise, setToRaise] = useState<{ id: string; title: string }[]>([]);
+  const loadRaise = useCallback(() => { call<{ items: { id: string; title: string }[] }>('/api/my/raise-items').then((r) => setToRaise(r.items)).catch(() => setToRaise([])); }, []);
+  useEffect(() => { loadRaise(); }, [loadRaise]);
+  const [raiseBusy, setRaiseBusy] = useState(false);
+  const raiseAll = async () => {
+    setRaiseBusy(true);
+    let ok = 0;
+    for (const x of toRaise) { try { await raiseMyListing('parts', x.id); ok++; } catch { /* already raised today */ } }
+    setRaiseBusy(false);
+    flash(`Поднято наверх: ${ok} товар(ов). Покупатели снова увидят их первыми.`);
+    loadRaise();
+    await load();
+  };
+
   // Items nobody looked at for a month: the site offers a 10% discount for a week, one button for all
   const [stale, setStale] = useState<{ id: string; title: string; priceKgs: number }[]>([]);
   const loadStale = useCallback(() => { call<{ items: { id: string; title: string; priceKgs: number }[] }>('/api/my/stale-items').then((r) => setStale(r.items)).catch(() => setStale([])); }, []);
@@ -329,6 +344,19 @@ export const MyListingsPanel: React.FC<Props> = ({ onSellPart, onSellCar, reques
             <span className="hidden sm:inline">Покупатели ищут запчасти для ваших марок: <b>{requestsCount}</b></span>
             <span className="sm:hidden">Заявки покупателей: <b>{requestsCount}</b></span>
             <span className="ml-auto font-bold whitespace-nowrap">Посмотреть →</span>
+          </button>
+        </div>
+      )}
+
+      {toRaise.length > 0 && (
+        <div className="mx-3 sm:mx-5 mt-3 p-3 rounded-xl bg-sky-50 border-2 border-sky-300 text-sky-950 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <span className="text-xl shrink-0">📌</span>
+          <div className="flex-1 text-sm">
+            <b>Неделю никто не смотрел: {toRaise.length} товар(ов).</b> Поднимите их наверх — покупатели снова увидят их первыми в каталоге.
+            <div className="text-xs text-sky-700 mt-0.5 line-clamp-1" data-no-i18n>{toRaise.slice(0, 3).map((x) => x.title).join(' · ')}{toRaise.length > 3 ? ' …' : ''}</div>
+          </div>
+          <button type="button" disabled={raiseBusy} onClick={raiseAll} className="px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-black cursor-pointer whitespace-nowrap disabled:opacity-60">
+            {raiseBusy ? 'Поднимаю…' : 'Поднять все'}
           </button>
         </div>
       )}

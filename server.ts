@@ -668,6 +668,21 @@ app.post('/api/my/cart', requireUser, asyncRoute(async (req: Request, res: Respo
   res.json({ success: true });
 }));
 
+/** Live items nobody viewed for 7 days (and not yet offered a discount for a month without views) */
+const raiseOffers = (mine: any[]) => {
+  const now = Date.now();
+  const span = Number(process.env.RAISE_OFFER_DAYS ?? 7);
+  const days = Array.from({ length: span }, (_, i) => new Date(now + 6 * 3_600_000 - i * 86_400_000).toISOString().slice(0, 10));
+  const stale = new Set(staleOffers(mine).map((x) => x.id));
+  return mine.filter((x) => isPublicPart(x) && !stale.has(x.id) && now - (Date.parse(x.raisedAt || x.createdAt) || now) >= span * 86_400_000
+    && days.every((d) => !Number(x.viewsByDay?.[d])));
+};
+app.get('/api/my/raise-items', requireUser, asyncRoute(async (req: Request, res: Response) => {
+  const user: UserRecord = (req as any).user;
+  const list = raiseOffers((await listRecords<any>('parts')).filter((x) => x.ownerId === user.id));
+  res.json({ success: true, items: list.map((x) => ({ id: x.id, title: x.title })) });
+}));
+
 app.get('/api/my/stale-items', requireUser, asyncRoute(async (req: Request, res: Response) => {
   const user: UserRecord = (req as any).user;
   const list = staleOffers((await listRecords<any>('parts')).filter((x) => x.ownerId === user.id));
@@ -1062,7 +1077,8 @@ async function morningJob() {
     const stale = mine.filter((x) => isLive(x) && Number(x.stockCount) > 0 && stockAge(x) > STALE_STOCK_DAYS * 86_400_000).length;
     const noPhoto = mine.filter((x) => isLive(x) && Number(x.stockCount) > 0 && !(Array.isArray(x.images) && x.images.length)).length;
     const sleepy = staleOffers(mine).length;
-    if (!views && !contacts && !open && !asked && !stale && !noPhoto && !sleepy) continue;
+    const toRaise = raiseOffers(mine).length;
+    if (!views && !contacts && !open && !asked && !stale && !noPhoto && !sleepy && !toRaise) continue;
     const lines = [
       `☀️ Доброе утро! Ваш KGzone за вчера:`,
       `👀 Просмотров ваших товаров: ${views}${contacts ? ` · звонков и сообщений: ${contacts}` : ''}`,
@@ -1070,6 +1086,7 @@ async function morningJob() {
       asked ? `❓ Вопросов покупателей без ответа: ${asked}` : '',
       stale ? `📦 Наличие не подтверждали больше месяца: ${stale} товар(ов)` : '',
       noPhoto ? `📷 Без фото и не видны на сайте: ${noPhoto} товар(ов)` : '',
+      toRaise ? `📌 Неделю никто не смотрел: ${toRaise} товар(ов). Поднимите их наверх — одной кнопкой в «Мои объявления»` : '',
       sleepy ? `🏷️ Месяц никто не смотрел: ${sleepy} товар(ов). Сделайте скидку 10% на неделю — одной кнопкой в «Мои объявления»` : '',
       `${SITE_URL}/kabinet`,
     ].filter(Boolean);
@@ -1088,6 +1105,17 @@ async function morningJob() {
     if (!live.length) continue;
     await notifyUser(u.id, `🛒 В вашей корзине ждут запчасти:\n${live.slice(0, 5).map((x: any) => `• ${x.title} — ${Number(x.priceKgs).toLocaleString('ru-RU')} сом (в наличии ${x.stockCount} шт.)`).join('\n')}\nОформите заказ, пока они есть: ${SITE_URL}/zapchasti`);
     carts++;
+  }
+
+  // Prices set in dollars follow today's NBKR rate (not during a discount)
+  let repriced = 0;
+  const usd = (await nbkrRates())?.rates?.USD;
+  if (usd) {
+    for (const x of parts) {
+      if (!(Number(x.priceInUsd) > 0) || x.saleUntil) continue;
+      const kgs = Math.round(Number(x.priceInUsd) * usd);
+      if (kgs > 0 && kgs !== Number(x.priceKgs)) { await updateRecord('parts', x.id, { priceKgs: kgs, priceRateAt: new Date().toISOString() }); repriced++; }
+    }
   }
 
   // 1st of the month: a report for every seller about the month before
@@ -1118,7 +1146,7 @@ async function morningJob() {
     }
   }
   await kvSet('kgzone:adReminders', done);
-  return { sent, reminded, carts, tips, monthly };
+  return { sent, reminded, carts, tips, monthly, repriced };
 }
 
 /** Listings in Kyrgyz and English: a few parts per run, only when the text changed */
@@ -1603,6 +1631,8 @@ function sanitizePart(body: any) {
     bodyCode: str(body.bodyCode, 80) || undefined,
     partNumber: str(body.partNumber, 60).toUpperCase(),
     priceKgs: money(body.priceKgs),
+    // The seller set the price in dollars: the som price is recalculated every day by the NBKR rate
+    priceInUsd: Number(body.priceInUsd) > 0 ? Math.round(num(body.priceInUsd, 0, 10_000_000) * 100) / 100 : undefined,
     condition: PART_CONDITIONS.includes(body.condition) ? body.condition : 'Новый',
     inStock: stockCount > 0,
     stockCount,
@@ -2583,9 +2613,11 @@ app.patch('/api/my/:kind/:id', requireUser, asyncRoute(async (req: Request, res:
   const { kind, item } = own;
   const merged = { ...item, ...(req.body || {}) };
   const clean: any = kind === 'parts' ? sanitizePart(merged) : sanitizeCar(merged);
+  // A new price in som (without dollars) means the seller now sets the price in som
+  if (kind === 'parts' && req.body && 'priceKgs' in req.body && !('priceInUsd' in req.body)) clean.priceInUsd = undefined;
   const problem = kind === 'parts' ? partProblem(clean) : carProblem(clean);
   if (problem) return res.status(400).json({ success: false, error: problem });
-  const quickFields = kind === 'parts' ? ['priceKgs', 'stockCount', 'inStock', 'stockStatus'] : ['priceUsd'];
+  const quickFields = kind === 'parts' ? ['priceKgs', 'priceInUsd', 'stockCount', 'inStock', 'stockStatus'] : ['priceUsd'];
   // Compare what the seller actually sent (re-sanitizing fills defaults that would look like changes)
   const body = req.body || {};
   const changed = Object.keys(body).filter((k) => k in clean && JSON.stringify(clean[k]) !== JSON.stringify(item[k]));
@@ -4015,6 +4047,22 @@ const partInSeoCategory = (p: any, cat: (typeof SEO_CATEGORIES)[number]) => {
 };
 const partFitsSeoBrand = (p: any, brand: string) =>
   p.brand === brand || (p.compatibility || []).some((c: any) => c.brand === brand);
+// Models: the names sellers wrote (Camry, Camry XV70 …); «Camry» also covers «Camry XV70»
+const seoNorm = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9а-яё]+/g, ' ').trim();
+const sameSeoModel = (a: string, b: string) => { const x = seoNorm(a), y = seoNorm(b); return !!x && !!y && (x === y || x.startsWith(y + ' ') || y.startsWith(x + ' ')); };
+const partFitsSeoModel = (p: any, brand: string, model: string) =>
+  (p.brand === brand && sameSeoModel(p.model, model)) || (p.compatibility || []).some((c: any) => c.brand === brand && sameSeoModel(c.model, model));
+/** Models of a make that have parts on the site now (shortest common name first) */
+function seoModels(parts: any[], brand: string) {
+  const names = new Map<string, string>();
+  for (const x of parts) {
+    const add = (b: string, m: string) => { if (b === brand && m && seoNorm(m).length >= 2) { const k = seoSlugify(m); if (k && !names.has(k)) names.set(k, String(m).trim().slice(0, 40)); } };
+    add(x.brand, x.model);
+    for (const c of x.compatibility || []) add(c.brand, c.model);
+  }
+  return [...names.entries()].map(([slug, name]) => ({ slug, name, count: parts.filter((x) => partFitsSeoModel(x, brand, name)).length }))
+    .filter((m) => m.count > 0).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
 
 // Re-read after a rebuild (the file's modification time changes), otherwise served from memory
 let indexTemplate: { mtime: number; html: string } | null = null;
@@ -4204,6 +4252,25 @@ async function seoPageFor(pathname: string): Promise<SeoPage | null> {
     };
   }
 
+  if ((m = p.match(/^\/zapchasti\/marka\/([^/]+)\/([^/]+)$/))) {
+    const brand = SEO_BRANDS.find((b) => seoSlugify(b) === m![1]);
+    if (!brand) return null;
+    const all = await liveParts();
+    const model = seoModels(all, brand).find((x) => x.slug === m![2]);
+    if (!model) return null;
+    const parts = all.filter((x: any) => partFitsSeoModel(x, brand, model.name));
+    const path_ = `/zapchasti/marka/${seoSlugify(brand)}/${model.slug}`;
+    const full = `${brand} ${model.name}`;
+    const crumbs: [string, string][] = [['KGzone', '/'], ['Автозапчасти', '/zapchasti'], [`Запчасти ${brand}`, `/zapchasti/marka/${seoSlugify(brand)}`], [full, path_]];
+    return {
+      title: `Запчасти для ${full} в Бишкеке и Кыргызстане — цены | KGzone`,
+      description: `${parts.length} объявлений: запчасти для ${full} — новые, б/у и контрактные, с ценами в сомах и фото. Продавцы Бишкека, Оша и рынков Кыргызстана.`,
+      path: path_,
+      body: `${crumbsHtml(crumbs)}<h1>Запчасти для ${esc(full)}</h1><p>Объявлений: ${parts.length}. Сверяйте номер OEM или VIN перед покупкой.</p><h2>Объявления</h2>${partsListHtml(parts.slice(0, 100))}<h2>Другие модели ${esc(brand)}</h2>${linkList(seoModels(all, brand).filter((x) => x.slug !== model.slug).slice(0, 30).map((x) => [`${brand} ${x.name}`, `/zapchasti/marka/${seoSlugify(brand)}/${x.slug}`] as [string, string]))}`,
+      structured: [breadcrumbs(crumbs), itemList(parts)],
+    };
+  }
+
   if ((m = p.match(/^\/zapchasti\/marka\/([^/]+)$/))) {
     const brand = SEO_BRANDS.find((b) => seoSlugify(b) === m![1]);
     if (!brand) return null;
@@ -4214,7 +4281,7 @@ async function seoPageFor(pathname: string): Promise<SeoPage | null> {
       title: `Запчасти ${brand} в Бишкеке и Кыргызстане — купить новые и б/у | KGzone`,
       description: `Автозапчасти для ${brand}: двигатели, ходовая, кузов, оптика, расходники. Объявления продавцов и магазинов Кыргызстана с ценами в сомах.`,
       path: path_,
-      body: `${crumbsHtml(crumbs)}<h1>Запчасти ${esc(brand)}</h1><p>Объявлений: ${parts.length}. Подберите деталь по модели, поколению или OEM-номеру.</p><h2>Категории</h2>${linkList(CATEGORY_LINKS())}<h2>Объявления</h2>${partsListHtml(parts.slice(0, 100))}`,
+      body: `${crumbsHtml(crumbs)}<h1>Запчасти ${esc(brand)}</h1><p>Объявлений: ${parts.length}. Подберите деталь по модели, поколению или OEM-номеру.</p>${(() => { const ms = seoModels(parts, brand); return ms.length ? `<h2>Модели ${esc(brand)}</h2>${linkList(ms.slice(0, 60).map((x) => [`Запчасти ${brand} ${x.name} (${x.count})`, `${path_}/${x.slug}`] as [string, string]))}` : ''; })()}<h2>Категории</h2>${linkList(CATEGORY_LINKS())}<h2>Объявления</h2>${partsListHtml(parts.slice(0, 100))}`,
       structured: [breadcrumbs(crumbs), itemList(parts)],
     };
   }
@@ -4367,6 +4434,7 @@ app.get('/sitemap.xml', asyncRoute(async (_req: Request, res: Response) => {
     { loc: '/reklama', priority: '0.5' },
     ...SEO_CATEGORIES.map((c) => ({ loc: `/zapchasti/${c.slug}`, priority: '0.7' })),
     ...SEO_BRANDS.map((b) => ({ loc: `/zapchasti/marka/${seoSlugify(b)}`, priority: '0.7' })),
+    ...SEO_BRANDS.flatMap((b) => seoModels(parts, b).map((x) => ({ loc: `/zapchasti/marka/${seoSlugify(b)}/${x.slug}`, priority: '0.6' }))),
     ...['/sto', '/akcii', '/faq', '/otzyvy', '/novosti', '/pravila', '/konfidencialnost'].map((loc) => ({ loc, priority: '0.5' })),
     ...parts.map((p: any) => ({ loc: partUrl(p), lastmod: day(p.updatedAt || p.raisedAt || p.createdAt), priority: '0.6' })),
     ...cars.map((c: any) => ({ loc: carUrl(c), lastmod: day(c.updatedAt || c.raisedAt || c.createdAt), priority: '0.6' })),
@@ -5518,7 +5586,7 @@ app.get('/api/search-misses/for-me', requireUser, asyncRoute(async (req: Request
 
 // --- Official exchange rates of the National Bank of the Kyrgyz Republic -----------
 let ratesCache: { at: number; date: string; rates: Record<string, number> } | null = null;
-app.get('/api/rates', asyncRoute(async (_req: Request, res: Response) => {
+async function nbkrRates() {
   if (!ratesCache || Date.now() - ratesCache.at > 3 * 3600_000) {
     try {
       const r = await fetch('https://www.nbkr.kg/XML/daily.xml', { signal: AbortSignal.timeout(8000) });
@@ -5533,6 +5601,10 @@ app.get('/api/rates', asyncRoute(async (_req: Request, res: Response) => {
       console.warn('[rates] NBKR unavailable:', err);
     }
   }
+  return ratesCache;
+}
+app.get('/api/rates', asyncRoute(async (_req: Request, res: Response) => {
+  await nbkrRates();
   if (!ratesCache) return res.status(503).json({ success: false, error: 'Курс НБ КР временно недоступен' });
   res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=1800');
   res.json({ success: true, source: 'НБ КР', date: ratesCache.date, rates: ratesCache.rates });

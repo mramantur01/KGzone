@@ -291,6 +291,7 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
       bodyCode: partBodyCode,
       partNumber: partOEM.trim().toUpperCase(),
       priceKgs: Number(partPriceKgs),
+      priceInUsd: priceCurrency === 'USD' ? Number(priceInput) || undefined : undefined,
       condition: partCondition,
       inStock: stockCount > 0,
       stockCount: Number(stockCount),
@@ -641,6 +642,7 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                     </select>
                   </div>
                   <p className="text-[10px] text-neutral-500 mt-1">{isKg ? 'Каталогдо сом менен көрсөтүлөт (НБКР курсу).' : 'В каталоге цена показывается в сомах по курсу НБ КР.'}</p>
+                  {priceCurrency === 'USD' && <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-1 font-semibold">{isKg ? '💱 Сом менен баа ар күнү НБКР курсу боюнча өзү жаңыланат.' : '💱 Цена в сомах будет сама обновляться каждый день по курсу НБ КР.'}</p>}
                   {range && (
                     <p className="text-[11px] text-sky-300 mt-1.5">
                       Этот номер у других продавцов: {range.min === range.max ? <b>{range.min.toLocaleString('ru-RU')} сом</b> : <>от <b>{range.min.toLocaleString('ru-RU')}</b> до <b>{range.max.toLocaleString('ru-RU')}</b> сом</>} ({range.count})

@@ -140,6 +140,8 @@ export interface AutoPartItem {
   saleUntil?: string;
   /** Reserved by a buyer until this time */
   reservedUntil?: string;
+  /** The seller set the price in dollars: the som price follows the NBKR rate every day */
+  priceInUsd?: number;
   /** When the seller last confirmed or changed the stock */
   stockCheckedAt?: string;
   /** Kyrgyz and English text made by the site */

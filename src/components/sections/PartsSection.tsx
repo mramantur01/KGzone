@@ -33,7 +33,7 @@ import { pulse, reportSearchMiss } from '../../api/watches';
 import { partHaystack, smartMatch } from '../../utils/smartSearch';
 import { partSide, partAxle, SIDE_LABEL, AXLE_LABEL, brandInfo, usePartNotes, type Side, type Axle } from '../../utils/partExtras';
 import { addToCart, openCart, useCart } from '../../utils/cart';
-import { brandPath, categoryPath, partPath, setPath, setTitle, slugify, type Route } from '../../seo/routes';
+import { brandPath, brandModelPath, categoryPath, partPath, setPath, setTitle, slugify, type Route } from '../../seo/routes';
 import { togglePartFavorite, usePartFavorites } from '../../utils/partFavorites';
 import { AutoPartItem, BuyerOrder, Currency, Language } from '../../types/car';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
@@ -209,7 +209,14 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     if (route.category) { setSelectedCategory(route.category); setSelectedSubPart('Все'); }
     if (route.brandSlug) {
       const brand = ALL_CAR_BRANDS.find((b) => slugify(b) === route.brandSlug);
-      if (brand) { setSelectedBrand(brand); setSelectedModel(''); setSelectedGeneration(''); }
+      if (brand) {
+        setSelectedBrand(brand);
+        setSelectedGeneration('');
+        // /zapchasti/marka/toyota/camry: the model from the catalog, otherwise as sellers wrote it
+        const fromCatalog = route.modelSlug ? getModelsForBrand(brand).find((m) => slugify(m) === route.modelSlug) : '';
+        const fromParts = route.modelSlug && !fromCatalog ? partsList.find((x) => x.brand === brand && slugify(x.model || '') === route.modelSlug)?.model : '';
+        setSelectedModel(fromCatalog || fromParts || '');
+      }
     }
     if (route.partId) setPendingPartId(decodeURIComponent(route.partId));
     else setSelectedPartForDetail(null);
@@ -230,10 +237,12 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     }
     if (pendingPartId) return;
     const onlyBrand = selectedBrand && !selectedModel && selectedCategory === 'Все';
-    const path = onlyBrand ? brandPath(selectedBrand) : selectedCategory !== 'Все' && !selectedBrand ? categoryPath(selectedCategory) : '/zapchasti';
+    const brandModel = selectedBrand && selectedModel && selectedCategory === 'Все';
+    const path = brandModel ? brandModelPath(selectedBrand, selectedModel) : onlyBrand ? brandPath(selectedBrand) : selectedCategory !== 'Все' && !selectedBrand ? categoryPath(selectedCategory) : '/zapchasti';
     setPath(path, true);
     setTitle(
-      onlyBrand ? `Запчасти ${selectedBrand} в Кыргызстане`
+      brandModel ? `Запчасти для ${selectedBrand} ${selectedModel} в Кыргызстане`
+      : onlyBrand ? `Запчасти ${selectedBrand} в Кыргызстане`
       : selectedCategory !== 'Все' && !selectedBrand ? `${categoriesData.find((c) => c.id === selectedCategory)?.labelRu || selectedCategory} — запчасти в Кыргызстане`
       : 'Автозапчасти в Кыргызстане — новые, б/у и контрактные'
     );

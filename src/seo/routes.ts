@@ -63,6 +63,7 @@ export interface Route {
   carId?: string;
   category?: string; // PartsSection category id
   brandSlug?: string;
+  modelSlug?: string;
   sellerId?: string; // shop page
   requestId?: string; // buyer's request with offers
 }
@@ -74,6 +75,7 @@ export function parseRoute(pathname: string): Route {
   if ((m = p.match(/^\/magazin\/([^/]+)/))) return { tab: 'shop', sellerId: m[1] };
   if ((m = p.match(/^\/zayavka\/([^/]+)/))) return { tab: 'request', requestId: m[1] };
   if ((m = p.match(/^\/avto\/([^/]+)/))) return { tab: 'cars', carId: m[1] };
+  if ((m = p.match(/^\/zapchasti\/marka\/([^/]+)\/([^/]+)/))) return { tab: 'parts', brandSlug: m[1], modelSlug: m[2] };
   if ((m = p.match(/^\/zapchasti\/marka\/([^/]+)/))) return { tab: 'parts', brandSlug: m[1] };
   if ((m = p.match(/^\/zapchasti\/([^/]+)/))) return { tab: 'parts', category: SLUG_TO_CATEGORY[m[1]] };
   const tab = Object.entries(TAB_PATHS).find(([, path]) => path === p)?.[0];
@@ -84,6 +86,7 @@ export const partPath = (p: { id: string; title: string }) => `/zapchast/${encod
 export const carPath = (c: { id: string; title: string }) => `/avto/${encodeURIComponent(c.id)}/${slugify(c.title)}`;
 export const categoryPath = (categoryId: string) => (CATEGORY_SLUGS[categoryId] ? `/zapchasti/${CATEGORY_SLUGS[categoryId]}` : '/zapchasti');
 export const brandPath = (brand: string) => `/zapchasti/marka/${slugify(brand)}`;
+export const brandModelPath = (brand: string, model: string) => `/zapchasti/marka/${slugify(brand)}/${slugify(model)}`;
 export const shopPath = (sellerId: string) => `/magazin/${encodeURIComponent(sellerId)}`;
 
 /** Opens a seller's shop page from anywhere (part pages, cabinet) */
