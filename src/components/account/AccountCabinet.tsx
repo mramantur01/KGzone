@@ -1,3 +1,4 @@
+import { CityOptions } from '../common/CityOptions';
 import { OfficialCompanyBadge } from '../common/VerifiedSellerBadge';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -410,7 +411,8 @@ export const AccountCabinet: React.FC<Props> = (props) => {
                   <div>
                     <label className={labelCls}>Город</label>
                     <select value={city} onChange={(e) => setCity(e.target.value)} className={inputCls}>
-                      {[...new Set([city, ...KG_CITIES])].map((c) => <option key={c} value={c}>{c}</option>)}
+                      {city && !KG_CITIES.includes(city) && <option value={city}>{city}</option>}
+                      <CityOptions />
                     </select>
                   </div>
                   <div>

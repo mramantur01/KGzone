@@ -1,3 +1,4 @@
+import { CityOptions } from '../common/CityOptions';
 import { backdropClose } from '../../utils/backdrop';
 import React, { useEffect, useState } from 'react';
 import { Language, UserReview } from '../../types/car';
@@ -301,12 +302,7 @@ export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ language }) => {
                     onChange={(e) => setCity(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs font-semibold"
                   >
-                    <option value="Бишкек">Бишкек</option>
-                    <option value="Ош">Ош</option>
-                    <option value="Джалал-Абад">Джалал-Абад</option>
-                    <option value="Каракол">Каракол</option>
-                    <option value="Нарын">Нарын</option>
-                    <option value="Талас">Талас</option>
+                    <CityOptions />
                   </select>
                 </div>
               </div>

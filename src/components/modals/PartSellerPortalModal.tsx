@@ -1,3 +1,5 @@
+import { CityOptions } from '../common/CityOptions';
+import { KG_CITIES } from '../../data/regions';
 import { backdropClose } from '../../utils/backdrop';
 import React, { useState } from 'react';
 import { AutoPartItem, Currency, Language } from '../../types/car';
@@ -198,7 +200,7 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
       setInn(account.company.inn);
       if (account.company.actualAddress) setContainerInfo(account.company.actualAddress);
     }
-    if (['Бишкек', 'Ош', 'Джалал-Абад', 'Каракол', 'Токмок', 'Нарын', 'Талас', 'Баткен', 'Кара-Балта', 'Кант'].includes(account.city)) setSellerCity(account.city);
+    if (KG_CITIES.includes(account.city)) setSellerCity(account.city);
   }, [account?.id]);
 
   // --- TAB 3: SELLER ORDERS STATE ---
@@ -234,7 +236,6 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
   ];
   const categoryLabel = (c: string) =>
     ({ 'Масла и фильтры': 'Расходники и ТО (масла, фильтры, ремни, свечи)', 'Шины и диски': 'Колёса, шины и диски' } as Record<string, string>)[c] || c;
-  const citiesList = ['Бишкек', 'Ош', 'Джалал-Абад', 'Каракол', 'Токмок', 'Нарын', 'Талас', 'Баткен', 'Кара-Балта', 'Кант'];
 
   // Markets list
   const marketsList = [
@@ -733,7 +734,7 @@ const PartSellerPortalWindow: React.FC<PartSellerPortalModalProps> = ({
                   <div>
                     <label className="block text-neutral-300 font-semibold mb-1">{isKg ? 'Шаар *' : 'Город *'}</label>
                     <select value={sellerCity} onChange={(e) => setSellerCity(e.target.value)} className="w-full px-3.5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-white">
-                      {citiesList.map((c) => <option key={c} value={c}>{c}</option>)}
+                      <CityOptions />
                     </select>
                   </div>
                   <div>

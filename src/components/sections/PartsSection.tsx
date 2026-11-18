@@ -1,3 +1,5 @@
+import { RegionFilterOptions } from '../common/CityOptions';
+import { placeMatches } from '../../data/regions';
 import { FeedAdCard, withFeedAds, isFeedAd } from '../ads/AdSpots';
 import { partTitle } from '../../utils/partText';
 import { copyText } from '../../utils/copyText';
@@ -570,14 +572,6 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
     { id: 'Баят', label: 'Рынок «Баят»' },
     { id: 'Жапалак Ош', label: 'Авторынок «Жапалак» (г. Ош)' },
     { id: 'База Автозапчастей Ош', label: 'Склады г. Ош' },
-    { id: 'Бишкек', label: 'г. Бишкек (Склады и разборы)' },
-    { id: 'Ош', label: 'г. Ош' },
-    { id: 'Джалал-Абад', label: 'г. Джалал-Абад' },
-    { id: 'Каракол', label: 'г. Каракол (Иссык-Куль)' },
-    { id: 'Токмок', label: 'г. Токмок' },
-    { id: 'Нарын', label: 'г. Нарын' },
-    { id: 'Талас', label: 'г. Талас' },
-    { id: 'Баткен', label: 'г. Баткен' },
   ];
 
   // Selected Category Object
@@ -648,12 +642,8 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
 
       // Location / Market / City
       if (selectedCityOrMarket !== 'Все') {
-        const locLower = selectedCityOrMarket.toLowerCase();
-        const matchLoc =
-          part.market.toLowerCase().includes(locLower) ||
-          part.storeCity.toLowerCase().includes(locLower) ||
-          (part.city && part.city.toLowerCase().includes(locLower)) ||
-          part.storeLocation.toLowerCase().includes(locLower);
+        // A market, a town or a whole region («Вся Чуйская область»)
+        const matchLoc = placeMatches(selectedCityOrMarket, part.market, part.storeCity, part.city, part.storeLocation);
         if (!matchLoc) return false;
       }
 
@@ -1012,6 +1002,7 @@ export const PartsSection: React.FC<PartsSectionProps> = ({
                   {locationsList.map((loc) => (
                     <option key={loc.id} value={loc.id}>{loc.label}</option>
                   ))}
+                  <RegionFilterOptions />
                 </select>
               </div>
             </div>

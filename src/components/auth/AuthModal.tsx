@@ -1,8 +1,9 @@
+import { CityOptions } from '../common/CityOptions';
 import React, { useEffect, useState } from 'react';
 import { X, Loader2, User, Building2, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { forgotPassword, login, ownerLogin, register, type AccountType } from '../../api/auth';
 
-export const KG_CITIES = ['Бишкек', 'Ош', 'Джалал-Абад', 'Каракол', 'Токмок', 'Нарын', 'Талас', 'Баткен', 'Кара-Балта', 'Кант', 'Балыкчы', 'Узген', 'Кызыл-Кия', 'Чолпон-Ата'];
+export { KG_CITIES } from '../../data/regions';
 
 interface Props {
   isOpen: boolean;
@@ -303,7 +304,7 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, notice, initialTab
                 <div>
                   <label className={labelCls}>Город *</label>
                   <select value={city} onChange={(e) => setCity(e.target.value)} className={inputCls}>
-                    {KG_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    <CityOptions />
                   </select>
                 </div>
               </div>

@@ -1,3 +1,4 @@
+import { RegionFilterOptions } from '../common/CityOptions';
 import { requestSignIn } from '../../api/chat';
 import { OwnerCrown } from '../common/OwnerBadge';
 import { InstallAppButton } from '../common/InstallAppButton';
@@ -109,13 +110,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="bg-transparent text-white font-medium focus:outline-hidden cursor-pointer"
             >
               <option value="Все регионы" className="bg-neutral-900 text-white">Кыргызстан (Бардык аймактар)</option>
-              <option value="Бишкек" className="bg-neutral-900 text-white">Бишкек</option>
-              <option value="Ош" className="bg-neutral-900 text-white">Ош</option>
-              <option value="Джалал-Абад" className="bg-neutral-900 text-white">Жалал-Абад</option>
-              <option value="Каракол" className="bg-neutral-900 text-white">Каракол (Ысык-Көл)</option>
-              <option value="Нарын" className="bg-neutral-900 text-white">Нарын</option>
-              <option value="Талас" className="bg-neutral-900 text-white">Талас</option>
-              <option value="Баткен" className="bg-neutral-900 text-white">Баткен</option>
+              <RegionFilterOptions optionClassName="bg-neutral-900 text-white" />
             </select>
           </div>
 

@@ -1,3 +1,4 @@
+import { RegionFilterOptions } from '../common/CityOptions';
 import React, { useState } from 'react';
 import { ALL_CAR_BRANDS, getModelsForBrand, KYRGYZ_REGIONS_AND_CITIES, useCarCatalog, USD_TO_KGS_RATE } from '../../data/mockData';
 import { KochkorMuyuzIcon, TundukIcon } from '../ornaments/KyrgyzOrnaments';
@@ -342,12 +343,8 @@ export const HeroFilter: React.FC<HeroFilterProps> = ({
                   className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white"
                 >
                   <option value="">Весь Кыргызстан</option>
-                  <option value="Бишкек">г. Бишкек (01)</option>
-                  <option value="Ош">г. Ош (02)</option>
-                  <option value="Военно-Антоновка (РИОМ-АВТО)">РИОМ-АВТО</option>
-                  <option value="Токмок">г. Токмок (08)</option>
-                  <option value="Каракол">г. Каракол (09)</option>
-                  <option value="Джалал-Абад">г. Джалал-Абад (03)</option>
+                  <option value="Военно-Антоновка (РИОМ-АВТО)">Авторынок РИОМ-АВТО</option>
+                  <RegionFilterOptions />
                 </select>
               </div>
 

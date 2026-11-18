@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { placeMatches } from './data/regions';
 import { isDemoCabinet, exitDemoCabinet, demoCabinetMode } from './api/demo';
 import React, { useState, useMemo, lazy, Suspense } from 'react';
 import {
@@ -466,7 +467,7 @@ export default function App() {
 
       // Город / Регион
       const activeCityFilter = filters.city || (selectedCity !== 'Все регионы' ? selectedCity : '');
-      if (activeCityFilter && !car.city.includes(activeCityFilter)) return false;
+      if (activeCityFilter && !placeMatches(activeCityFilter, car.city)) return false;
 
       // Параметры
       if (filters.bodyType && car.bodyType !== filters.bodyType) return false;
