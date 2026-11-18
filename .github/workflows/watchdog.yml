@@ -27,4 +27,5 @@ jobs:
           code=$(echo "$body" | tail -n1)
           echo "Deep check: $body"
           # 429/403 = Vercel's bot protection, not a broken site
-          [ "$code" = "200" ] || [ "$code" = "429" ] || [ "$code" = "403" ] || { echo "::error::База данных не отвечает (код $code)"; exit 1; }
+          if [ "$code" = "429" ] || [ "$code" = "403" ]; then exit 0; fi
+          echo "$body" | grep -q '"success":true' || { echo "::error::База данных не отвечает (код $code)"; exit 1; }
