@@ -184,7 +184,9 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
         {shown.length === 0 && shownPast.length === 0 ? (
           <p className="p-10 text-center text-sm text-slate-500">{parts.length || past.length ? 'Ничего не найдено' : 'Сейчас у продавца нет товаров в наличии'}</p>
         ) : (
-          <div className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="p-3 sm:p-4 space-y-4">
+          {shown.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {shown.map((p) => (
               <button key={p.id} type="button" onClick={() => onOpenPart(p)} className="text-left rounded-xl border border-slate-200 hover:border-[#1d6fb8] hover:shadow-sm overflow-hidden cursor-pointer bg-white">
                 <img src={p.image} alt="" loading="lazy" className="w-full aspect-[4/3] object-cover bg-slate-100" />
@@ -195,7 +197,23 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
                 </div>
               </button>
             ))}
-            {shownPast.map((p) => (
+          </div>
+          ) : (
+            <p className="py-4 text-center text-sm text-slate-500">{query.trim() ? 'В наличии ничего не найдено' : 'Сейчас у продавца нет товаров в наличии'}</p>
+          )}
+          {([['sold', 'Проданные'], ['inactive', 'Снятые с продажи']] as const).map(([kind, label]) => {
+            const group = shownPast.filter((p) => p.status === kind);
+            if (!group.length) return null;
+            return (
+              <section key={kind} aria-label={label}>
+                {/* A line with the group name */}
+                <div className="flex items-center gap-3 my-2">
+                  <div className="h-px flex-1 bg-slate-300" />
+                  <span className={`px-3 py-1 rounded-full text-xs font-black text-[#fff] ${kind === 'sold' ? 'bg-emerald-700' : 'bg-slate-600'}`}>{label} · {group.length}</span>
+                  <div className="h-px flex-1 bg-slate-300" />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {group.map((p) => (
               <div key={p.id} title="Сейчас нет в наличии" className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                 <div className="relative">
                   <img src={p.image} alt="" loading="lazy" className="w-full aspect-[4/3] object-cover bg-slate-100 grayscale opacity-70" />
@@ -213,6 +231,10 @@ export const ShopPage: React.FC<{ sellerId: string; onOpenPart: (part: AutoPartI
                 </div>
               </div>
             ))}
+                </div>
+              </section>
+            );
+          })}
           </div>
         )}
       </div>

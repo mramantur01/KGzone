@@ -4781,5 +4781,7 @@
  "Свернуть": "Show less",
  "Показать все ({})": "Show all ({})",
  "· нет в наличии": "· out of stock",
- "Сейчас нет в наличии": "Out of stock now"
+ "Сейчас нет в наличии": "Out of stock now",
+ "В наличии ничего не найдено": "Nothing found in stock",
+ "Снятые с продажи": "Taken off sale"
 }
